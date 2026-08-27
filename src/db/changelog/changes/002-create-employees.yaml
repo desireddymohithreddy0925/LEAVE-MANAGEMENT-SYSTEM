@@ -1,0 +1,51 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: "002-create-employees"
+      author: "mohith"
+
+      changes:
+
+        - createTable:
+            tableName: "employees"
+
+            columns:
+
+              - column:
+                  name: "id"
+                  type: "BIGINT"
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: "name"
+                  type: "VARCHAR(255)"
+
+              - column:
+                  name: "email"
+                  type: "VARCHAR(255)"
+                  constraints:
+                    nullable: false
+                    unique: true
+
+              - column:
+                  name: "phone"
+                  type: "VARCHAR(255)"
+
+              - column:
+                  name: "active"
+                  type: "BOOLEAN"
+                  defaultValueBoolean: false
+
+              - column:
+                  name: "department_id"
+                  type: "BIGINT"
+
+        - addForeignKeyConstraint:
+            baseTableName: "employees"
+            baseColumnNames: "department_id"
+            referencedTableName: "departments"
+            referencedColumnNames: "id"
+            constraintName: "fk_employee_department"

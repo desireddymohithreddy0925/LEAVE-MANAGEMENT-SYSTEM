@@ -1,0 +1,25 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 001-create-departments
+      author: mohith
+      changes:
+
+        - createTable:
+            tableName: departments
+            columns:
+
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: name
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+                    unique: true
