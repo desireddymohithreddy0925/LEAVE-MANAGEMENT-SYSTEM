@@ -1,14 +1,11 @@
 databaseChangeLog:
-
   - changeSet:
-      id: 001-create-departments
+      id: 004-create-leave-types
       author: mohith
       changes:
-
         - createTable:
-            tableName: departments
+            tableName: leave_types
             columns:
-
               - column:
                   name: id
                   type: BIGINT
@@ -23,3 +20,13 @@ databaseChangeLog:
                   constraints:
                     nullable: false
                     unique: true
+
+              - column:
+                  name: description
+                  type: VARCHAR(500)
+
+              - column:
+                  name: default_days
+                  type: INT
+                  constraints:
+                    nullable: false

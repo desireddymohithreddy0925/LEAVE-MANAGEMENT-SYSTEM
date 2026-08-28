@@ -3,7 +3,9 @@ package com.leave_management_system.leave_management_system.controller;
 import com.leave_management_system.leave_management_system.entity.Department;
 import com.leave_management_system.leave_management_system.service.DepartmentService;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 import java.util.List;
 
@@ -20,8 +22,9 @@ public class DepartmentController {
     }
 
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public Department createDepartment(
-            @RequestBody Department department) {
+            @Valid @RequestBody Department department) {
 
         // "@RequestBody converts the JSON request body into a Department object."
         return departmentService.createDepartment(department);
@@ -52,6 +55,7 @@ public class DepartmentController {
     }
 
     @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteDepartment(
             @PathVariable Long id) {
 

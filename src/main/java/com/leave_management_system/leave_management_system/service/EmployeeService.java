@@ -6,6 +6,8 @@ import com.leave_management_system.leave_management_system.repository.Department
 import com.leave_management_system.leave_management_system.repository.EmployeeRepository;
 
 import org.springframework.stereotype.Service;
+import com.leave_management_system.leave_management_system.exception.DuplicateResourceException;
+import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
 
 import java.util.List;
 
@@ -31,7 +33,7 @@ public class EmployeeService {
 
         // "Checks whether another employee already uses this email."
         if (employeeRepository.existsByEmail(employee.getEmail())) {
-            throw new RuntimeException("Email already exists");
+            throw new DuplicateResourceException("Email already exists");
         }
 
         // "If a department was provided, verify that it exists."
@@ -43,7 +45,7 @@ public class EmployeeService {
             // "Finds the department from the database."
             Department department = departmentRepository.findById(departmentId)
                     .orElseThrow(() ->
-                            new RuntimeException("Department not found"));
+                            new ResourceNotFoundException("Department not found with id: " + departmentId));
 
             // "Associates the existing department with the employee."
             employee.setDepartment(department);
@@ -67,7 +69,7 @@ public class EmployeeService {
         // "Finds an employee by ID or throws an error if it does not exist."
         return employeeRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException("Employee not found"));
+                        new ResourceNotFoundException("Employee not found with id: " + id));
     }
 
     public Employee updateEmployee(
@@ -77,10 +79,11 @@ public class EmployeeService {
         // "Finds the existing employee."
         Employee employee = employeeRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException("Employee not found"));
+                        new ResourceNotFoundException("Employee not found with id: " + id));
 
         // "Updates the employee's basic information."
-        employee.setName(updatedEmployee.getName());
+        employee.setFirstName(updatedEmployee.getFirstName());
+        employee.setLastName(updatedEmployee.getLastName());
         employee.setEmail(updatedEmployee.getEmail());
         employee.setPhone(updatedEmployee.getPhone());
 
@@ -95,8 +98,8 @@ public class EmployeeService {
             Department department =
                     departmentRepository.findById(departmentId)
                             .orElseThrow(() ->
-                                    new RuntimeException(
-                                            "Department not found"));
+                                    new ResourceNotFoundException(
+                                            "Department not found with id: " + departmentId));
 
             // "Associates the new department with the employee."
             employee.setDepartment(department);
@@ -113,7 +116,7 @@ public class EmployeeService {
         // "Finds the employee by ID."
         Employee employee = employeeRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException("Employee not found"));
+                        new ResourceNotFoundException("Employee not found with id: " + id));
 
         // "Changes the employee's active status."
         employee.setActive(active);
@@ -126,7 +129,7 @@ public class EmployeeService {
 
         // "Checks whether the employee exists."
         if (!employeeRepository.existsById(id)) {
-            throw new RuntimeException("Employee not found");
+            throw new ResourceNotFoundException("Employee not found with id: " + id);
         }
 
         // "Deletes the employee from the database."

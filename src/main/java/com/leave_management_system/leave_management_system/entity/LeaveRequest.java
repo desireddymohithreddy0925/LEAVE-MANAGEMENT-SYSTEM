@@ -2,6 +2,7 @@ package com.leave_management_system.leave_management_system.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "leave_requests")
@@ -18,6 +19,10 @@ public class LeaveRequest {
     @JoinColumn(name = EMPLOYEE_ID_COLUMN, nullable = false)
     private Employee employee;
 
+    @ManyToOne
+    @JoinColumn(name = "leave_type_id", nullable = false)
+    private LeaveType leaveType;
+
     private LocalDate startDate;
 
     private LocalDate endDate;
@@ -26,6 +31,14 @@ public class LeaveRequest {
 
     @Enumerated(EnumType.STRING)
     private LeaveStatus status;
+
+    @Column(name = "applied_at")
+    private LocalDateTime appliedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        this.appliedAt = LocalDateTime.now();
+    }
 
     public LeaveRequest() {
     }
@@ -76,5 +89,21 @@ public class LeaveRequest {
 
     public void setStatus(LeaveStatus status) {
         this.status = status;
+    }
+
+    public LeaveType getLeaveType() {
+        return leaveType;
+    }
+
+    public void setLeaveType(LeaveType leaveType) {
+        this.leaveType = leaveType;
+    }
+
+    public LocalDateTime getAppliedAt() {
+        return appliedAt;
+    }
+
+    public void setAppliedAt(LocalDateTime appliedAt) {
+        this.appliedAt = appliedAt;
     }
 }

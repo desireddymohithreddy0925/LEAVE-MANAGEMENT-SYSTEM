@@ -4,6 +4,7 @@ import com.leave_management_system.leave_management_system.entity.Employee;
 import com.leave_management_system.leave_management_system.service.EmployeeService;
 
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 import java.util.List;
 
@@ -20,7 +21,7 @@ public class EmployeeController {
     }
 
     @PostMapping
-    public Employee createEmployee(@RequestBody Employee employee) {
+    public Employee createEmployee(@Valid @RequestBody Employee employee) {
 
         // "@RequestBody converts the JSON request body into an Employee object."
         return employeeService.createEmployee(employee);

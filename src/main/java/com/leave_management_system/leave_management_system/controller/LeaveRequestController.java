@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.*;
+import com.leave_management_system.leave_management_system.entity.LeaveStatus;
 
 import java.util.List;
 
@@ -34,6 +35,16 @@ public class LeaveRequestController {
         return leaveRequestService.getLeaveRequestById(id);
     }
 
+    @GetMapping("/employee/{employeeId}")
+    public List<LeaveRequest> getLeaveRequestsByEmployee(@PathVariable Long employeeId) {
+        return leaveRequestService.getLeaveRequestsByEmployee(employeeId);
+    }
+
+    @GetMapping("/status/{status}")
+    public List<LeaveRequest> getLeaveRequestsByStatus(@PathVariable LeaveStatus status) {
+        return leaveRequestService.getLeaveRequestsByStatus(status);
+    }
+
     @PutMapping("/{id}/approve")
     public LeaveRequest approveLeaveRequest(@PathVariable Long id) {
         return leaveRequestService.approveLeaveRequest(id);
@@ -43,11 +54,5 @@ public class LeaveRequestController {
 public LeaveRequest rejectLeaveRequest(@PathVariable Long id) {
     return leaveRequestService.rejectLeaveRequest(id);
 }
-@PutMapping("/{id}")
-public LeaveRequest updateLeaveRequest(
-        @PathVariable Long id,
-        @RequestBody LeaveRequest leaveRequest) {
 
-    return leaveRequestService.updateLeaveRequest(id, leaveRequest);
-}
 }

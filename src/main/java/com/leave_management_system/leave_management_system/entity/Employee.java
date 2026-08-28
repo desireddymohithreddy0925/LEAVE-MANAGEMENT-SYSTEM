@@ -2,6 +2,8 @@ package com.leave_management_system.leave_management_system.entity;
 // "Defines the package where the Employee entity class belongs."
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 // "Imports JPA annotations used to map this Java class to a database table."
 
 @Entity
@@ -21,9 +23,14 @@ public class Employee {
     private Long id;
     // "Stores the unique ID of the employee."
 
-    private String name;
-    // "Stores the employee's name."
+    @NotBlank(message = "First name is required")
+    private String firstName;
 
+    @NotBlank(message = "Last name is required")
+    private String lastName;
+
+    @NotBlank(message = "Email is required")
+    @Email(message = "Invalid email format")
     @Column(unique = true, nullable = false)
     // "Makes the email unique and prevents the database from storing a NULL email."
 
@@ -62,15 +69,21 @@ public class Employee {
     // "Sets the employee's ID."
 
 
-    public String getName() {
-        return name;
+    public String getFirstName() {
+        return firstName;
     }
-    // "Returns the employee's name."
 
-    public void setName(String name) {
-        this.name = name;
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
     }
-    // "Sets the employee's name."
+
+    public String getLastName() {
+        return lastName;
+    }
+
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
+    }
 
 
     public String getEmail() {

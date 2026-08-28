@@ -1,0 +1,21 @@
+databaseChangeLog:
+  - changeSet:
+      id: 006-update-leave-requests
+      author: antigravity
+      changes:
+        - addColumn:
+            tableName: leave_requests
+            columns:
+              - column:
+                  name: leave_type_id
+                  type: BIGINT
+              - column:
+                  name: applied_at
+                  type: DATETIME
+
+        - addForeignKeyConstraint:
+            baseTableName: leave_requests
+            baseColumnNames: leave_type_id
+            referencedTableName: leave_types
+            referencedColumnNames: id
+            constraintName: fk_leave_request_leave_type

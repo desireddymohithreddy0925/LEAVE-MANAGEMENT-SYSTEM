@@ -1,6 +1,7 @@
 package com.leave_management_system.leave_management_system.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
 
 @Entity
 @Table(name = "departments")
@@ -10,6 +11,7 @@ public class Department {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank(message = "Department name is required")
     @Column(nullable = false, unique = true)
     private String name;
 

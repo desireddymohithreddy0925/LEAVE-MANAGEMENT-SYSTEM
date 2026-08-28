@@ -81,3 +81,31 @@ databaseChangeLog:
               - column:
                   name: status
                   type: varchar(255)
+  - changeSet:
+      id: 2
+      author: antigravity
+      changes:
+        - dropColumn:
+            tableName: employees
+            columnName: name
+        - addColumn:
+            tableName: employees
+            columns:
+              - column:
+                  name: first_name
+                  type: varchar(255)
+              - column:
+                  name: last_name
+                  type: varchar(255)
+
+  - include:
+      file: changes/004-create-leave-types.yaml
+      relativeToChangelogFile: true
+
+  - include:
+      file: changes/005-create-leave-balances.yaml
+      relativeToChangelogFile: true
+
+  - include:
+      file: changes/006-update-leave-requests.yaml
+      relativeToChangelogFile: true

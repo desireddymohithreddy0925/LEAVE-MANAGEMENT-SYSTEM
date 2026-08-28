@@ -1,0 +1,54 @@
+databaseChangeLog:
+  - changeSet:
+      id: 005-create-leave-balances
+      author: mohith
+      changes:
+
+        - createTable:
+            tableName: leave_balances
+            columns:
+
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: employee_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: leave_type_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: available_days
+                  type: INT
+                  constraints:
+                    nullable: false
+
+        - addForeignKeyConstraint:
+            baseTableName: leave_balances
+            baseColumnNames: employee_id
+            referencedTableName: employees
+            referencedColumnNames: id
+            constraintName: fk_leave_balance_employee
+
+        - addForeignKeyConstraint:
+            baseTableName: leave_balances
+            baseColumnNames: leave_type_id
+            referencedTableName: leave_types
+            referencedColumnNames: id
+            constraintName: fk_leave_balance_leave_type
+
+        - addUniqueConstraint:
+            tableName: leave_balances
+            columnNames: employee_id, leave_type_id
+            constraintName: uk_employee_leave_type
