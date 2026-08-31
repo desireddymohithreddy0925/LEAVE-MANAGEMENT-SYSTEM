@@ -1,7 +1,9 @@
 package com.leave_management_system.leave_management_system.controller;
 
 import com.leave_management_system.leave_management_system.entity.Department;
+import com.leave_management_system.leave_management_system.entity.Employee;
 import com.leave_management_system.leave_management_system.service.DepartmentService;
+import com.leave_management_system.leave_management_system.service.EmployeeService;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -15,10 +17,12 @@ public class DepartmentController {
 
     // "Service contains the business logic for department operations."
     private final DepartmentService departmentService;
+    private final EmployeeService employeeService;
 
     // "Constructor injection injects DepartmentService into the controller."
-    public DepartmentController(DepartmentService departmentService) {
+    public DepartmentController(DepartmentService departmentService, EmployeeService employeeService) {
         this.departmentService = departmentService;
+        this.employeeService = employeeService;
     }
 
     @PostMapping
@@ -43,6 +47,11 @@ public class DepartmentController {
 
         // "@PathVariable gets the department ID from the URL."
         return departmentService.getDepartmentById(id);
+    }
+
+    @GetMapping("/{id}/employees")
+    public List<Employee> getDepartmentEmployees(@PathVariable Long id) {
+        return employeeService.getEmployeesByDepartmentId(id);
     }
 
     @PutMapping("/{id}")

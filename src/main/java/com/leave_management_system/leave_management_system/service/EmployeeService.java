@@ -81,6 +81,13 @@ public class EmployeeService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Employee not found with id: " + id));
 
+        // "Check if the new email is already taken by a different employee."
+        employeeRepository.findByEmail(updatedEmployee.getEmail()).ifPresent(existing -> {
+            if (!existing.getId().equals(id)) {
+                throw new DuplicateResourceException("Email already exists");
+            }
+        });
+
         // "Updates the employee's basic information."
         employee.setFirstName(updatedEmployee.getFirstName());
         employee.setLastName(updatedEmployee.getLastName());
@@ -122,6 +129,25 @@ public class EmployeeService {
         employee.setActive(active);
 
         // "Saves the updated status."
+        return employeeRepository.save(employee);
+    }
+
+    public List<Employee> searchEmployees(String keyword) {
+        return employeeRepository.searchByKeyword(keyword);
+    }
+
+    public List<Employee> getEmployeesByDepartmentId(Long departmentId) {
+        return employeeRepository.findByDepartmentId(departmentId);
+    }
+
+    public Employee transferEmployee(Long employeeId, Long departmentId) {
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + employeeId));
+
+        Department department = departmentRepository.findById(departmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + departmentId));
+
+        employee.setDepartment(department);
         return employeeRepository.save(employee);
     }
 

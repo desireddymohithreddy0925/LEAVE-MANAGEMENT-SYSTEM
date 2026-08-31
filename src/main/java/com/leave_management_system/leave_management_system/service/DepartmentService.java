@@ -2,6 +2,7 @@ package com.leave_management_system.leave_management_system.service;
 
 import com.leave_management_system.leave_management_system.entity.Department;
 import com.leave_management_system.leave_management_system.repository.DepartmentRepository;
+import com.leave_management_system.leave_management_system.repository.EmployeeRepository;
 
 import org.springframework.stereotype.Service;
 import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
@@ -14,10 +15,12 @@ public class DepartmentService {
 
     // "Repository is used to communicate with the database."
     private final DepartmentRepository departmentRepository;
+    private final EmployeeRepository employeeRepository;
 
     // "Constructor injection is used to inject DepartmentRepository."
-    public DepartmentService(DepartmentRepository departmentRepository) {
+    public DepartmentService(DepartmentRepository departmentRepository, EmployeeRepository employeeRepository) {
         this.departmentRepository = departmentRepository;
+        this.employeeRepository = employeeRepository;
     }
 
     public Department createDepartment(Department department) {
@@ -60,6 +63,10 @@ public class DepartmentService {
 
         // "Check whether the department exists before deleting it."
         Department department = getDepartmentById(id);
+
+        if (employeeRepository.existsByDepartmentId(id)) {
+            throw new IllegalStateException("Cannot delete department because it still has employees assigned");
+        }
 
         // "delete() removes the department."
         departmentRepository.delete(department);

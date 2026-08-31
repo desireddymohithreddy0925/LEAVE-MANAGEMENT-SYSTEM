@@ -28,8 +28,10 @@ public class EmployeeController {
     }
 
     @GetMapping
-    public List<Employee> getAllEmployees() {
-
+    public List<Employee> getAllEmployees(@RequestParam(required = false) String search) {
+        if (search != null && !search.trim().isEmpty()) {
+            return employeeService.searchEmployees(search);
+        }
         // "Returns all employees stored in the database."
         return employeeService.getAllEmployees();
     }
@@ -57,6 +59,13 @@ public class EmployeeController {
 
         // "Changes only the active/inactive status of an employee."
         return employeeService.changeEmployeeStatus(id, active);
+    }
+
+    @PutMapping("/{id}/department")
+    public Employee transferEmployee(
+            @PathVariable Long id,
+            @RequestParam Long departmentId) {
+        return employeeService.transferEmployee(id, departmentId);
     }
 
     @DeleteMapping("/{id}")

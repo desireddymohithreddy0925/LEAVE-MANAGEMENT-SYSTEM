@@ -7,6 +7,7 @@ import com.leave_management_system.leave_management_system.repository.Department
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import com.leave_management_system.leave_management_system.repository.EmployeeRepository;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -22,6 +23,9 @@ public class DepartmentServiceTest {
 
     @Mock
     private DepartmentRepository departmentRepository;
+
+    @Mock
+    private EmployeeRepository employeeRepository;
 
     @InjectMocks
     private DepartmentService departmentService;
