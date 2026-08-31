@@ -16,6 +16,7 @@ The Leave Management System is a comprehensive RESTful backend application desig
 * **Database:** MySQL
 * **Migrations:** Liquibase
 * **Testing:** JUnit 5 & Mockito
+* **Documentation:** Swagger / OpenAPI 3
 
 ## 4. Project Architecture
 The application strictly follows a clean layered architecture pattern:
@@ -95,7 +96,11 @@ The database schema is entirely managed through Liquibase. On application startu
 ## 13. Postman Testing
 The entire API suite is fully compatible with Postman. You can import the endpoints and execute full end-to-end workflows (Create Employee -> Apply for Leave -> Approve Leave -> Verify Balance).
 
-## 14. How to Run the Project
+## 14. Swagger Documentation
+An interactive Swagger UI is bundled directly within the application. It visualizes the OpenAPI specifications and allows you to test endpoints directly from your browser without needing external tools.
+Access it here: `http://localhost:8080/swagger-ui/index.html`
+
+## 15. How to Run the Project
 1. Ensure Java 21 and MySQL are installed locally.
 2. Clone the repository and navigate into the root directory.
 3. Create a MySQL database named `leave_management_db`.
@@ -105,7 +110,7 @@ The entire API suite is fully compatible with Postman. You can import the endpoi
    ```
 5. The application will start on port 8080. Liquibase will auto-generate the database tables.
 
-## 15. Future Enhancements
+## 16. Future Enhancements
 * **Spring Security:** Implement JWT-based authentication to restrict approval endpoints strictly to users with a `MANAGER` role.
 * **Advanced Calendar Logic:** Integrate a utility to automatically exclude weekends (Saturdays/Sundays) and official company holidays from the leave duration calculation.
 * **Soft Deletes:** Implement an `is_active` flag for entities instead of hard JPA deletions to preserve historical audit logs.
