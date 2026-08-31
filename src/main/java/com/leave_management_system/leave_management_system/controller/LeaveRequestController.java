@@ -2,12 +2,15 @@ package com.leave_management_system.leave_management_system.controller;
 
 import com.leave_management_system.leave_management_system.entity.LeaveRequest;
 import com.leave_management_system.leave_management_system.service.LeaveRequestService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.*;
 import com.leave_management_system.leave_management_system.entity.LeaveStatus;
-
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -26,8 +29,15 @@ public class LeaveRequestController {
     }
 
     @GetMapping
-    public List<LeaveRequest> getAllLeaveRequests() {
-        return leaveRequestService.getAllLeaveRequests();
+    public Page<LeaveRequest> getLeaveRequests(
+            @RequestParam(required = false) Long employeeId,
+            @RequestParam(required = false) LeaveStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) Long leaveTypeId,
+            Pageable pageable) {
+        
+        return leaveRequestService.searchLeaveRequests(employeeId, status, startDate, endDate, leaveTypeId, pageable);
     }
 
     @GetMapping("/{id}")

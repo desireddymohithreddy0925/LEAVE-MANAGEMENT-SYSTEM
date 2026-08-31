@@ -16,8 +16,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -219,5 +224,17 @@ public class LeaveRequestServiceTest {
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.cancelLeaveRequest(1L));
         assertEquals("Leave request is already cancelled", ex.getMessage());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void searchLeaveRequests_Success() {
+        Page<LeaveRequest> page = new PageImpl<>(List.of(leaveRequest));
+        when(leaveRequestRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(page);
+
+        Page<LeaveRequest> result = leaveRequestService.searchLeaveRequests(1L, LeaveStatus.PENDING, LocalDate.now(), LocalDate.now().plusDays(5), 1L, PageRequest.of(0, 10));
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
     }
 }

@@ -9,6 +9,10 @@ import com.leave_management_system.leave_management_system.repository.LeaveReque
 import com.leave_management_system.leave_management_system.repository.LeaveBalanceRepository;
 import com.leave_management_system.leave_management_system.repository.EmployeeRepository;
 import com.leave_management_system.leave_management_system.repository.LeaveTypeRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
@@ -16,6 +20,7 @@ import com.leave_management_system.leave_management_system.exception.Insufficien
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -94,6 +99,34 @@ public class LeaveRequestService {
 
     public List<LeaveRequest> getAllLeaveRequests() {
         return leaveRequestRepository.findAll();
+    }
+
+    public Page<LeaveRequest> searchLeaveRequests(Long employeeId, LeaveStatus status, LocalDate startDate, LocalDate endDate, Long leaveTypeId, Pageable pageable) {
+        Specification<LeaveRequest> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            
+            if (employeeId != null) {
+                predicates.add(cb.equal(root.get("employee").get("id"), employeeId));
+            }
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (leaveTypeId != null) {
+                predicates.add(cb.equal(root.get("leaveType").get("id"), leaveTypeId));
+            }
+            if (startDate != null && endDate != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("startDate"), endDate));
+                predicates.add(cb.greaterThanOrEqualTo(root.get("endDate"), startDate));
+            } else if (startDate != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("startDate"), startDate));
+            } else if (endDate != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("endDate"), endDate));
+            }
+            
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+        
+        return leaveRequestRepository.findAll(spec, pageable);
     }
 
     public LeaveRequest getLeaveRequestById(Long id) {

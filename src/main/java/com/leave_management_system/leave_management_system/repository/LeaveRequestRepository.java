@@ -2,6 +2,7 @@ package com.leave_management_system.leave_management_system.repository;
 
 import com.leave_management_system.leave_management_system.entity.LeaveRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.leave_management_system.leave_management_system.entity.Employee;
@@ -9,7 +10,7 @@ import java.util.List;
 import java.time.LocalDate;
 import com.leave_management_system.leave_management_system.entity.LeaveStatus;
 
-public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long> {
+public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long>, JpaSpecificationExecutor<LeaveRequest> {
     List<LeaveRequest> findByEmployee(Employee employee);
     List<LeaveRequest> findByStatus(LeaveStatus status);
 
