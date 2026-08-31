@@ -111,5 +111,7 @@ databaseChangeLog:
       relativeToChangelogFile: true
 
   - include:
-      file: changes/007-add-active-to-leave-types.yaml
+      file: db/changelog/changes/007-add-active-to-leave-types.yaml
+  - include:
+      file: db/changelog/changes/008-add-rejection-reason-to-leave-requests.yaml
       relativeToChangelogFile: true

@@ -51,8 +51,8 @@ public class LeaveRequestController {
     }
 
     @PutMapping("/{id}/reject")
-    public LeaveRequest rejectLeaveRequest(@PathVariable Long id) {
-        return leaveRequestService.rejectLeaveRequest(id);
+    public LeaveRequest rejectLeaveRequest(@PathVariable Long id, @RequestParam(required = false) String reason) {
+        return leaveRequestService.rejectLeaveRequest(id, reason);
     }
 
     // "Endpoint to cancel an existing leave request."

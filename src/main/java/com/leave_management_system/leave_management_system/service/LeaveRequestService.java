@@ -139,7 +139,7 @@ public class LeaveRequestService {
     }
 
     @Transactional
-    public LeaveRequest rejectLeaveRequest(Long id) {
+    public LeaveRequest rejectLeaveRequest(Long id, String rejectionReason) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
 
@@ -148,6 +148,7 @@ public class LeaveRequestService {
         }
 
         leaveRequest.setStatus(LeaveStatus.REJECTED);
+        leaveRequest.setRejectionReason(rejectionReason);
         return leaveRequestRepository.save(leaveRequest);
     }
 

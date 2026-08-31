@@ -161,9 +161,10 @@ public class LeaveRequestServiceTest {
         when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
 
-        LeaveRequest rejected = leaveRequestService.rejectLeaveRequest(1L);
+        LeaveRequest rejected = leaveRequestService.rejectLeaveRequest(1L, "Not enough coverage");
 
         assertEquals(LeaveStatus.REJECTED, rejected.getStatus());
+        assertEquals("Not enough coverage", rejected.getRejectionReason());
         verify(leaveBalanceRepository, never()).save(any(LeaveBalance.class));
     }
 

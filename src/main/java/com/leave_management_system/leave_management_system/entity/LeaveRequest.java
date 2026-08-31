@@ -32,6 +32,9 @@ public class LeaveRequest {
     @Enumerated(EnumType.STRING)
     private LeaveStatus status;
 
+    @Column(name = "rejection_reason")
+    private String rejectionReason;
+
     @Column(name = "applied_at")
     private LocalDateTime appliedAt;
 
@@ -89,6 +92,14 @@ public class LeaveRequest {
 
     public void setStatus(LeaveStatus status) {
         this.status = status;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
     }
 
     public LeaveType getLeaveType() {

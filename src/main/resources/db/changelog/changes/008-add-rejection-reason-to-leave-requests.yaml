@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: 008-add-rejection-reason-to-leave-requests
+      author: antigravity
+      changes:
+        - addColumn:
+            tableName: leave_requests
+            columns:
+              - column:
+                  name: rejection_reason
+                  type: varchar(255)
