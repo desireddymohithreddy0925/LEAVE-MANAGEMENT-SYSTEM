@@ -1,0 +1,14 @@
+databaseChangeLog:
+  - changeSet:
+      id: 7
+      author: antigravity
+      changes:
+        - addColumn:
+            tableName: leave_types
+            columns:
+              - column:
+                  name: active
+                  type: bit(1)
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false

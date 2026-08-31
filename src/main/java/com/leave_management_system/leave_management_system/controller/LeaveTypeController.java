@@ -64,4 +64,16 @@ public class LeaveTypeController {
 
         return ResponseEntity.noContent().build();
     }
+
+    // "Endpoint to activate a leave type."
+    @PutMapping("/{id}/activate")
+    public ResponseEntity<LeaveType> activateLeaveType(@PathVariable Long id) {
+        return ResponseEntity.ok(leaveTypeService.activateLeaveType(id));
+    }
+
+    // "Endpoint to deactivate a leave type."
+    @PutMapping("/{id}/deactivate")
+    public ResponseEntity<LeaveType> deactivateLeaveType(@PathVariable Long id) {
+        return ResponseEntity.ok(leaveTypeService.deactivateLeaveType(id));
+    }
 }

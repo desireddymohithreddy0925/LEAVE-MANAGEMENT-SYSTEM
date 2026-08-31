@@ -61,4 +61,28 @@ public class LeaveTypeServiceTest {
         assertNotNull(foundLeaveType);
         assertEquals(1L, foundLeaveType.getId());
     }
+
+    @Test
+    void activateLeaveType_Success() {
+        leaveType.setActive(false);
+        when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
+        when(leaveTypeRepository.save(any(LeaveType.class))).thenReturn(leaveType);
+
+        LeaveType activated = leaveTypeService.activateLeaveType(1L);
+
+        assertTrue(activated.isActive());
+        verify(leaveTypeRepository).save(leaveType);
+    }
+
+    @Test
+    void deactivateLeaveType_Success() {
+        leaveType.setActive(true);
+        when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
+        when(leaveTypeRepository.save(any(LeaveType.class))).thenReturn(leaveType);
+
+        LeaveType deactivated = leaveTypeService.deactivateLeaveType(1L);
+
+        assertFalse(deactivated.isActive());
+        verify(leaveTypeRepository).save(leaveType);
+    }
 }

@@ -23,6 +23,10 @@ public class LeaveType {
     @Column(name = "default_days", nullable = false)
     private Integer defaultDays;
 
+    // "Tracks whether this leave type is active and available for use."
+    @Column(nullable = false)
+    private boolean active = true;
+
     public LeaveType() {
     }
 
@@ -63,4 +67,14 @@ public class LeaveType {
     public void setDefaultDays(Integer defaultDays) {
         this.defaultDays = defaultDays;
     }
+
+    public boolean isActive() {
+        return active;
+    }
+    // "Returns the active status of the leave type."
+
+    public void setActive(boolean active) {
+        this.active = active;
+    }
+    // "Sets the active status of the leave type."
 }

@@ -46,10 +46,34 @@ public class LeaveRequestService {
 
         Employee employee = employeeRepository.findById(leaveRequest.getEmployee().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+        // "Check if employee is active. Inactive employees cannot apply for leave."
+        if (!employee.isActive()) {
+            throw new IllegalArgumentException("Inactive employees cannot apply for leave");
+        }
+
         LeaveType leaveType = leaveTypeRepository.findById(leaveRequest.getLeaveType().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Leave type not found"));
+        // "Check if leave type is active."
+        if (!leaveType.isActive()) {
+            throw new IllegalArgumentException("This leave type is not active");
+        }
 
-        long requestedDays = ChronoUnit.DAYS.between(leaveRequest.getStartDate(), leaveRequest.getEndDate()) + 1;
+        // "Overlap detection: check if there's any pending or approved leave for these dates."
+        boolean hasOverlap = leaveRequestRepository.hasOverlappingLeave(
+                employee,
+                leaveRequest.getStartDate(),
+                leaveRequest.getEndDate(),
+                List.of(LeaveStatus.PENDING, LeaveStatus.APPROVED)
+        );
+        if (hasOverlap) {
+            throw new IllegalArgumentException("Leave request overlaps with an existing pending or approved leave");
+        }
+
+        long requestedDays = calculateWorkingDays(leaveRequest.getStartDate(), leaveRequest.getEndDate());
+        // "Ensure the requested duration contains at least one working day."
+        if (requestedDays == 0) {
+            throw new IllegalArgumentException("Requested leave duration contains only weekends");
+        }
 
         LeaveBalance balance = leaveBalanceRepository
                 .findByEmployeeAndLeaveType(employee, leaveType)
@@ -93,7 +117,7 @@ public class LeaveRequestService {
             throw new IllegalArgumentException("Only pending requests can be approved");
         }
 
-        long requestedDays = ChronoUnit.DAYS.between(leaveRequest.getStartDate(), leaveRequest.getEndDate()) + 1;
+        long requestedDays = calculateWorkingDays(leaveRequest.getStartDate(), leaveRequest.getEndDate());
 
         LeaveBalance balance = leaveBalanceRepository
                 .findByEmployeeAndLeaveType(leaveRequest.getEmployee(), leaveRequest.getLeaveType())
@@ -127,5 +151,19 @@ public class LeaveRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
 
         leaveRequestRepository.delete(existing);
+    }
+
+    // "Helper method to calculate working days between two dates, excluding weekends (Saturdays and Sundays)."
+    private long calculateWorkingDays(LocalDate startDate, LocalDate endDate) {
+        long workingDays = 0;
+        LocalDate date = startDate;
+        while (!date.isAfter(endDate)) {
+            java.time.DayOfWeek day = date.getDayOfWeek();
+            if (day != java.time.DayOfWeek.SATURDAY && day != java.time.DayOfWeek.SUNDAY) {
+                workingDays++;
+            }
+            date = date.plusDays(1);
+        }
+        return workingDays;
     }
 }

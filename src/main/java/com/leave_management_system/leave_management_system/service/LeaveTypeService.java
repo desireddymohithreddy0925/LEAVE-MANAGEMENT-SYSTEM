@@ -64,4 +64,18 @@ public class LeaveTypeService {
 
         leaveTypeRepository.delete(leaveType);
     }
+
+    // "Activates a leave type so it can be used for new leave requests."
+    public LeaveType activateLeaveType(Long id) {
+        LeaveType leaveType = getLeaveTypeById(id);
+        leaveType.setActive(true);
+        return leaveTypeRepository.save(leaveType);
+    }
+
+    // "Deactivates a leave type to prevent future leave requests from using it."
+    public LeaveType deactivateLeaveType(Long id) {
+        LeaveType leaveType = getLeaveTypeById(id);
+        leaveType.setActive(false);
+        return leaveTypeRepository.save(leaveType);
+    }
 }

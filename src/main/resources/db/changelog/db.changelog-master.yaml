@@ -109,3 +109,7 @@ databaseChangeLog:
   - include:
       file: changes/006-update-leave-requests.yaml
       relativeToChangelogFile: true
+
+  - include:
+      file: changes/007-add-active-to-leave-types.yaml
+      relativeToChangelogFile: true
