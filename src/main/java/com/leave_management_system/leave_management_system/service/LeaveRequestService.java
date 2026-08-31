@@ -10,6 +10,7 @@ import com.leave_management_system.leave_management_system.repository.LeaveBalan
 import com.leave_management_system.leave_management_system.repository.EmployeeRepository;
 import com.leave_management_system.leave_management_system.repository.LeaveTypeRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
 import com.leave_management_system.leave_management_system.exception.InsufficientLeaveException;
 
@@ -35,6 +36,7 @@ public class LeaveRequestService {
         this.leaveTypeRepository = leaveTypeRepository;
     }
 
+    @Transactional
     public LeaveRequest createLeaveRequest(LeaveRequest leaveRequest) {
         if (leaveRequest.getStartDate().isBefore(LocalDate.now())) {
             throw new IllegalArgumentException("Start date cannot be in the past");
@@ -109,10 +111,12 @@ public class LeaveRequestService {
         return leaveRequestRepository.findByStatus(status);
     }
 
+    @Transactional
     public LeaveRequest approveLeaveRequest(Long id) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
 
+        // "Protect against double deduction by ensuring only PENDING requests can be approved."
         if (leaveRequest.getStatus() != LeaveStatus.PENDING) {
             throw new IllegalArgumentException("Only pending requests can be approved");
         }
@@ -134,6 +138,7 @@ public class LeaveRequestService {
         return leaveRequestRepository.save(leaveRequest);
     }
 
+    @Transactional
     public LeaveRequest rejectLeaveRequest(Long id) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
@@ -143,6 +148,34 @@ public class LeaveRequestService {
         }
 
         leaveRequest.setStatus(LeaveStatus.REJECTED);
+        return leaveRequestRepository.save(leaveRequest);
+    }
+
+    // "Cancels a leave request and restores balance if it was already approved."
+    @Transactional
+    public LeaveRequest cancelLeaveRequest(Long id) {
+        LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
+
+        if (leaveRequest.getStatus() == LeaveStatus.REJECTED) {
+            throw new IllegalArgumentException("Cannot cancel a rejected leave request");
+        }
+        if (leaveRequest.getStatus() == LeaveStatus.CANCELLED) {
+            throw new IllegalArgumentException("Leave request is already cancelled");
+        }
+
+        // "If the leave was already approved, we must restore the deducted days."
+        if (leaveRequest.getStatus() == LeaveStatus.APPROVED) {
+            long requestedDays = calculateWorkingDays(leaveRequest.getStartDate(), leaveRequest.getEndDate());
+            LeaveBalance balance = leaveBalanceRepository
+                    .findByEmployeeAndLeaveType(leaveRequest.getEmployee(), leaveRequest.getLeaveType())
+                    .orElseThrow(() -> new ResourceNotFoundException("Leave balance not found"));
+
+            balance.setAvailableDays(balance.getAvailableDays() + (int) requestedDays);
+            leaveBalanceRepository.save(balance);
+        }
+
+        leaveRequest.setStatus(LeaveStatus.CANCELLED);
         return leaveRequestRepository.save(leaveRequest);
     }
 

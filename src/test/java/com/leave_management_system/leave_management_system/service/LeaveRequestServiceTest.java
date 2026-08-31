@@ -166,4 +166,57 @@ public class LeaveRequestServiceTest {
         assertEquals(LeaveStatus.REJECTED, rejected.getStatus());
         verify(leaveBalanceRepository, never()).save(any(LeaveBalance.class));
     }
+
+    @Test
+    void approveLeaveRequest_NotPending_ThrowsException() {
+        leaveRequest.setStatus(LeaveStatus.APPROVED);
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.approveLeaveRequest(1L));
+        assertEquals("Only pending requests can be approved", ex.getMessage());
+    }
+
+    @Test
+    void cancelLeaveRequest_Pending_Success() {
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
+
+        LeaveRequest cancelled = leaveRequestService.cancelLeaveRequest(1L);
+
+        assertEquals(LeaveStatus.CANCELLED, cancelled.getStatus());
+        verify(leaveBalanceRepository, never()).save(any(LeaveBalance.class));
+    }
+
+    @Test
+    void cancelLeaveRequest_Approved_Success() {
+        leaveRequest.setStatus(LeaveStatus.APPROVED);
+        // "Balance should be initial 10, when cancelling an approved leave with 3 working days, it becomes 13."
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
+
+        LeaveRequest cancelled = leaveRequestService.cancelLeaveRequest(1L);
+
+        assertEquals(LeaveStatus.CANCELLED, cancelled.getStatus());
+        assertEquals(13, leaveBalance.getAvailableDays());
+        verify(leaveBalanceRepository, times(1)).save(leaveBalance);
+    }
+
+    @Test
+    void cancelLeaveRequest_Rejected_ThrowsException() {
+        leaveRequest.setStatus(LeaveStatus.REJECTED);
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.cancelLeaveRequest(1L));
+        assertEquals("Cannot cancel a rejected leave request", ex.getMessage());
+    }
+
+    @Test
+    void cancelLeaveRequest_AlreadyCancelled_ThrowsException() {
+        leaveRequest.setStatus(LeaveStatus.CANCELLED);
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.cancelLeaveRequest(1L));
+        assertEquals("Leave request is already cancelled", ex.getMessage());
+    }
 }

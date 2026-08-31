@@ -10,5 +10,8 @@ public enum LeaveStatus {
     APPROVED,
 
     // "Manager has rejected the leave request."
-    REJECTED
+    REJECTED,
+
+    // "Leave request has been cancelled by the employee."
+    CANCELLED
 }
