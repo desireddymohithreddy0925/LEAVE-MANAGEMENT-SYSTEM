@@ -35,9 +35,9 @@ public class LeaveRequestService {
     private final LeaveTypeRepository leaveTypeRepository;
 
     public LeaveRequestService(LeaveRequestRepository leaveRequestRepository,
-                               LeaveBalanceRepository leaveBalanceRepository,
-                               EmployeeRepository employeeRepository,
-                               LeaveTypeRepository leaveTypeRepository) {
+            LeaveBalanceRepository leaveBalanceRepository,
+            EmployeeRepository employeeRepository,
+            LeaveTypeRepository leaveTypeRepository) {
         this.leaveRequestRepository = leaveRequestRepository;
         this.leaveBalanceRepository = leaveBalanceRepository;
         this.employeeRepository = employeeRepository;
@@ -67,13 +67,13 @@ public class LeaveRequestService {
             throw new IllegalArgumentException("This leave type is not active");
         }
 
-        // "Overlap detection: check if there's any pending or approved leave for these dates."
+        // "Overlap detection: check if there's any pending or approved leave for these
+        // dates."
         boolean hasOverlap = leaveRequestRepository.hasOverlappingLeave(
                 employee,
                 dto.getStartDate(),
                 dto.getEndDate(),
-                List.of(LeaveStatus.PENDING, LeaveStatus.APPROVED)
-        );
+                List.of(LeaveStatus.PENDING, LeaveStatus.APPROVED));
         if (hasOverlap) {
             throw new IllegalArgumentException("Leave request overlaps with an existing pending or approved leave");
         }
@@ -86,10 +86,12 @@ public class LeaveRequestService {
 
         LeaveBalance balance = leaveBalanceRepository
                 .findByEmployeeAndLeaveType(employee, leaveType)
-                .orElseThrow(() -> new ResourceNotFoundException("Leave balance not found for this employee and leave type"));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Leave balance not found for this employee and leave type"));
 
         if (balance.getAvailableDays() < requestedDays) {
-            throw new InsufficientLeaveException("Insufficient leave balance. Available: " + balance.getAvailableDays() + ", Requested: " + requestedDays);
+            throw new InsufficientLeaveException("Insufficient leave balance. Available: " + balance.getAvailableDays()
+                    + ", Requested: " + requestedDays);
         }
 
         LeaveRequest leaveRequest = new LeaveRequest();
@@ -109,10 +111,11 @@ public class LeaveRequestService {
                 .collect(Collectors.toList());
     }
 
-    public Page<LeaveResponseDTO> searchLeaveRequests(Long employeeId, LeaveStatus status, LocalDate startDate, LocalDate endDate, Long leaveTypeId, Pageable pageable) {
+    public Page<LeaveResponseDTO> searchLeaveRequests(Long employeeId, LeaveStatus status, LocalDate startDate,
+            LocalDate endDate, Long leaveTypeId, Pageable pageable) {
         Specification<LeaveRequest> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-            
+
             if (employeeId != null) {
                 predicates.add(cb.equal(root.get("employee").get("id"), employeeId));
             }
@@ -130,10 +133,10 @@ public class LeaveRequestService {
             } else if (endDate != null) {
                 predicates.add(cb.lessThanOrEqualTo(root.get("endDate"), endDate));
             }
-            
+
             return cb.and(predicates.toArray(new Predicate[0]));
         };
-        
+
         return leaveRequestRepository.findAll(spec, pageable).map(LeaveResponseDTO::fromEntity);
     }
 
@@ -162,7 +165,8 @@ public class LeaveRequestService {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
 
-        // "Protect against double deduction by ensuring only PENDING requests can be approved."
+        // "Protect against double deduction by ensuring only PENDING requests can be
+        // approved."
         if (leaveRequest.getStatus() != LeaveStatus.PENDING) {
             throw new IllegalArgumentException("Only pending requests can be approved");
         }
@@ -232,7 +236,8 @@ public class LeaveRequestService {
         leaveRequestRepository.delete(existing);
     }
 
-    // "Helper method to calculate working days between two dates, excluding weekends (Saturdays and Sundays)."
+    // "Helper method to calculate working days between two dates, excluding
+    // weekends (Saturdays and Sundays)."
     private long calculateWorkingDays(LocalDate startDate, LocalDate endDate) {
         long workingDays = 0;
         LocalDate date = startDate;

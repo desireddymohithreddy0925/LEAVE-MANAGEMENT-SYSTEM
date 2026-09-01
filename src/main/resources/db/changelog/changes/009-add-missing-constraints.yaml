@@ -7,26 +7,32 @@ databaseChangeLog:
             tableName: employees
             columnName: first_name
             columnDataType: varchar(255)
+            defaultNullValue: 'Unknown'
         - addNotNullConstraint:
             tableName: employees
             columnName: last_name
             columnDataType: varchar(255)
+            defaultNullValue: 'Unknown'
         - addNotNullConstraint:
             tableName: leave_requests
             columnName: start_date
             columnDataType: date
+            defaultNullValue: '2025-01-01'
         - addNotNullConstraint:
             tableName: leave_requests
             columnName: end_date
             columnDataType: date
+            defaultNullValue: '2025-01-01'
         - addNotNullConstraint:
             tableName: leave_requests
             columnName: status
             columnDataType: varchar(255)
+            defaultNullValue: 'PENDING'
         - addNotNullConstraint:
             tableName: leave_requests
             columnName: leave_type_id
             columnDataType: bigint
+            defaultNullValue: 1
         - createIndex:
             tableName: leave_requests
             indexName: idx_leave_requests_employee_id

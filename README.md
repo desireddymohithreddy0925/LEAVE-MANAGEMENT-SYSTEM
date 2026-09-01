@@ -1,116 +1,61 @@
 # Leave Management System
 
-## 1. Project Overview
-The Leave Management System is a comprehensive RESTful backend application designed to streamline how companies manage employee time off. It empowers employees to seamlessly apply for leave and enables managers to review, approve, or reject these requests while maintaining strict, automated control over leave balances.
+## 1. Project Description
+The Leave Management System is a comprehensive RESTful backend application designed to streamline how companies manage employee time off. It empowers employees to seamlessly apply for leave and enables managers to review, approve, or reject these requests while maintaining strict, automated control over leave balances. It supports advanced features such as weekend exclusion during leave calculation, and hierarchical department management.
 
-## 2. Features
-* **Employee & Department Management:** Full CRUD capabilities with strict email uniqueness checks.
-* **Leave Type Configurations:** Administrators can create different leave categories (e.g., Casual Leave, Sick Leave).
-* **Leave Balance Tracking:** Automatically tracks the available days an employee has for specific leave types.
-* **Leave Request Lifecycle:** Employees apply for leave, creating a `PENDING` request for manager review.
-* **Manager Workflow:** Managers can safely approve or reject leaves. Approvals automatically deduct days from the employee's balance.
-
-## 3. Technology Stack
+## 2. Tech Stack
 * **Language:** Java 21
-* **Framework:** Spring Boot 3.x (Web, Data JPA, Validation)
-* **Database:** MySQL
+* **Framework:** Spring Boot 4.1.0 (Web, Data JPA, Validation)
+* **Database:** MySQL (Production), H2 (Testing)
 * **Migrations:** Liquibase
-* **Testing:** JUnit 5 & Mockito
+* **Testing:** JUnit 5, Mockito, MockMvc, Spring Boot Test
 * **Documentation:** Swagger / OpenAPI 3
 
-## 4. Project Architecture
-The application strictly follows a clean layered architecture pattern:
-* **Controllers:** Handle incoming HTTP requests and route them appropriately.
-* **Services:** Contain 100% of the core business logic, validations, and rules.
-* **Repositories:** Spring Data JPA interfaces for seamless database interaction.
-* **Entities:** Represent the database schema using JPA annotations.
-* **Exception Handling:** A global, centralized layer to catch and format API errors.
-
-## 5. Project Structure
-```text
-src/main/java/com/leave_management_system/
- ├── controller/     # REST APIs
- ├── service/        # Business logic
- ├── repository/     # Data access
- ├── entity/         # Database models
- └── exception/      # Custom exceptions and GlobalExceptionHandler
+## 3. Database Configuration
+The application relies on a relational database. By default, it expects a MySQL database named `leave_management_db` running on `localhost:3306`. Update `src/main/resources/application.properties` with your database credentials:
+```properties
+spring.datasource.url=jdbc:mysql://localhost:3306/leave_management_db
+spring.datasource.username=your_username
+spring.datasource.password=your_password
 ```
+For the test profile, an in-memory H2 database is automatically configured in `application-test.properties`.
 
-## 6. Database Design
-The relational schema consists of 5 core tables:
-* `departments` (id, name)
-* `employees` (id, first_name, last_name, email, department_id)
-* `leave_types` (id, name, description, default_days)
-* `leave_balances` (id, employee_id, leave_type_id, available_days)
-* `leave_requests` (id, employee_id, leave_type_id, start_date, end_date, reason, status)
-
-## 7. API Endpoints
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/api/employees` | Create a new employee |
-| GET | `/api/leave-requests/status/{status}` | View leaves by status (e.g. PENDING) |
-| POST | `/api/leave-requests` | Apply for leave |
-| PUT | `/api/leave-requests/{id}/approve` | Approve a leave request |
-| PUT | `/api/leave-requests/{id}/reject` | Reject a leave request |
-
-## 8. Request & Response Examples
-**Example: Apply for Leave (POST /api/leave-requests)**
-*Request:*
-```json
-{
-  "employee": { "id": 1 },
-  "leaveType": { "id": 1 },
-  "startDate": "2026-09-01",
-  "endDate": "2026-09-03",
-  "reason": "Personal Vacation"
-}
-```
-*Response:*
-```json
-{
-  "id": 1,
-  "startDate": "2026-09-01",
-  "endDate": "2026-09-03",
-  "reason": "Personal Vacation",
-  "status": "PENDING"
-}
-```
-
-## 9. Validation Rules
-* **Database Constraints:** Utilizes `@NotBlank`, `@Min`, etc., ensuring no empty names or negative default days.
-* **Date Logic:** The system strictly rejects leave requests where the end date occurs before the start date.
-* **Duplication:** Email addresses must be entirely unique across the employee pool.
-
-## 10. Business Rules
-1. A leave request begins in the `PENDING` state.
-2. Only a `PENDING` request can be approved or rejected.
-3. Employees cannot apply for leave if their `LeaveBalance` does not have enough available days to cover the requested duration.
-4. When a manager `APPROVES` a leave, the total duration is automatically deducted from the balance. Rejections leave the balance untouched.
-
-## 11. Exception Handling
-Generic Java stack traces are never exposed. Using `@ControllerAdvice`, custom exceptions (like `InsufficientLeaveException` and `DuplicateResourceException`) are intercepted and formatted into a standard JSON response with appropriate HTTP codes (e.g., 400 Bad Request, 409 Conflict).
-
-## 12. Liquibase Database Migration
-The database schema is entirely managed through Liquibase. On application startup, Liquibase reads `src/main/resources/db/changelog/db.changelog-master.yaml` and executes the necessary SQL to keep the database perfectly in sync with the application's entity models.
-
-## 13. Postman Testing
-The entire API suite is fully compatible with Postman. You can import the endpoints and execute full end-to-end workflows (Create Employee -> Apply for Leave -> Approve Leave -> Verify Balance).
-
-## 14. Swagger Documentation
-An interactive Swagger UI is bundled directly within the application. It visualizes the OpenAPI specifications and allows you to test endpoints directly from your browser without needing external tools.
-Access it here: `http://localhost:8080/swagger-ui/index.html`
-
-## 15. How to Run the Project
-1. Ensure Java 21 and MySQL are installed locally.
+## 4. Setup Instructions
+1. Ensure **Java 21** and **MySQL** are installed locally.
 2. Clone the repository and navigate into the root directory.
 3. Create a MySQL database named `leave_management_db`.
-4. Open a terminal and run: 
+4. Open a terminal and run the application using Maven Wrapper:
    ```bash
    ./mvnw clean spring-boot:run
    ```
-5. The application will start on port 8080. Liquibase will auto-generate the database tables.
+5. The application will start on port 8080.
 
-## 16. Future Enhancements
-* **Spring Security:** Implement JWT-based authentication to restrict approval endpoints strictly to users with a `MANAGER` role.
-* **Advanced Calendar Logic:** Integrate a utility to automatically exclude weekends (Saturdays/Sundays) and official company holidays from the leave duration calculation.
-* **Soft Deletes:** Implement an `is_active` flag for entities instead of hard JPA deletions to preserve historical audit logs.
+## 5. Liquibase
+The database schema is entirely managed through Liquibase. On application startup, Liquibase reads `src/main/resources/db/changelog/db.changelog-master.yaml` and executes the necessary SQL to keep the database perfectly in sync with the application's entity models. All schema changes, including constraints and indexes, are version-controlled in the `db/changelog/changes` directory.
+
+## 6. API Endpoints
+The application exposes the following key modules:
+- **Employees**: `/api/employees` (Create, View, Update, Search, Transfer, Status)
+- **Departments**: `/api/departments` (Create, View, Update, Delete, View Employees)
+- **Leave Types**: `/api/leave-types` (Create, View, Update, Delete, Activate/Deactivate)
+- **Leave Balances**: `/api/leave-balances` (Allocate balance, View balance per employee)
+- **Leave Requests**: `/api/leave-requests` (Apply, Approve, Reject, Cancel, Filter, Paginate)
+
+## 7. Swagger URL
+An interactive Swagger UI is bundled directly within the application. It visualizes the OpenAPI specifications and allows you to test endpoints directly from your browser without needing external tools.
+Access it here: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) or [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
+
+## 8. Postman Usage
+A comprehensive Postman Collection (`postman_collection.json`) is included in the root directory. 
+1. Open Postman.
+2. Click **Import** and select `postman_collection.json`.
+3. The collection contains folders for all 5 modules with pre-configured success and failure requests.
+4. Ensure the application is running locally on port 8080 before executing the requests.
+
+## 9. Testing Instructions
+The project includes an extensive suite of unit and integration tests (39+ tests) covering edge cases, validations, business logic, and API endpoint integration. Tests run isolated against an H2 database.
+To run the tests:
+```bash
+./mvnw clean test
+```
+All tests must pass successfully before committing any changes.
