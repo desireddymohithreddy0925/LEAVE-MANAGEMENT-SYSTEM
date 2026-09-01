@@ -1,5 +1,7 @@
 package com.leave_management_system.leave_management_system.service;
 
+import com.leave_management_system.leave_management_system.dto.LeaveRequestDTO;
+import com.leave_management_system.leave_management_system.dto.LeaveResponseDTO;
 import com.leave_management_system.leave_management_system.entity.Employee;
 import com.leave_management_system.leave_management_system.entity.LeaveBalance;
 import com.leave_management_system.leave_management_system.entity.LeaveRequest;
@@ -51,6 +53,7 @@ public class LeaveRequestServiceTest {
     private LeaveType leaveType;
     private LeaveBalance leaveBalance;
     private LeaveRequest leaveRequest;
+    private LeaveRequestDTO requestDTO;
 
     @BeforeEach
     void setUp() {
@@ -72,11 +75,17 @@ public class LeaveRequestServiceTest {
         leaveRequest.setId(1L);
         leaveRequest.setEmployee(employee);
         leaveRequest.setLeaveType(leaveType);
-        // "Use a fixed date (Thursday to Monday) to predictably test weekend exclusion (3 working days)."
-        leaveRequest.setStartDate(LocalDate.of(2026, 9, 10)); // Thursday
-        leaveRequest.setEndDate(LocalDate.of(2026, 9, 14)); // Monday
+        leaveRequest.setStartDate(LocalDate.of(2026, 9, 10));
+        leaveRequest.setEndDate(LocalDate.of(2026, 9, 14));
         leaveRequest.setReason("Vacation");
         leaveRequest.setStatus(LeaveStatus.PENDING);
+
+        requestDTO = new LeaveRequestDTO();
+        requestDTO.setEmployeeId(1L);
+        requestDTO.setLeaveTypeId(1L);
+        requestDTO.setStartDate(LocalDate.of(2026, 9, 10));
+        requestDTO.setEndDate(LocalDate.of(2026, 9, 14));
+        requestDTO.setReason("Vacation");
     }
 
     @Test
@@ -87,7 +96,7 @@ public class LeaveRequestServiceTest {
         when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
 
-        LeaveRequest created = leaveRequestService.createLeaveRequest(leaveRequest);
+        LeaveResponseDTO created = leaveRequestService.createLeaveRequest(requestDTO);
 
         assertNotNull(created);
         assertEquals(LeaveStatus.PENDING, created.getStatus());
@@ -98,7 +107,7 @@ public class LeaveRequestServiceTest {
         employee.setActive(false);
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.createLeaveRequest(leaveRequest));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.createLeaveRequest(requestDTO));
         assertEquals("Inactive employees cannot apply for leave", ex.getMessage());
     }
 
@@ -108,7 +117,7 @@ public class LeaveRequestServiceTest {
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.createLeaveRequest(leaveRequest));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.createLeaveRequest(requestDTO));
         assertEquals("This leave type is not active", ex.getMessage());
     }
 
@@ -118,33 +127,33 @@ public class LeaveRequestServiceTest {
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
         when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(true);
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.createLeaveRequest(leaveRequest));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.createLeaveRequest(requestDTO));
         assertEquals("Leave request overlaps with an existing pending or approved leave", ex.getMessage());
     }
 
     @Test
     void createLeaveRequest_WeekendOnly_ThrowsException() {
-        leaveRequest.setStartDate(LocalDate.of(2026, 9, 12)); // Saturday
-        leaveRequest.setEndDate(LocalDate.of(2026, 9, 13)); // Sunday
+        requestDTO.setStartDate(LocalDate.of(2026, 9, 12));
+        requestDTO.setEndDate(LocalDate.of(2026, 9, 13));
 
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
         when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.createLeaveRequest(leaveRequest));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.createLeaveRequest(requestDTO));
         assertEquals("Requested leave duration contains only weekends", ex.getMessage());
     }
 
     @Test
     void createLeaveRequest_InsufficientBalance_ThrowsException() {
-        leaveRequest.setEndDate(LocalDate.of(2026, 9, 25)); // 12 working days requested, only 10 available
+        requestDTO.setEndDate(LocalDate.of(2026, 9, 25));
 
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
         when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
         when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
 
-        assertThrows(InsufficientLeaveException.class, () -> leaveRequestService.createLeaveRequest(leaveRequest));
+        assertThrows(InsufficientLeaveException.class, () -> leaveRequestService.createLeaveRequest(requestDTO));
     }
 
     @Test
@@ -153,10 +162,9 @@ public class LeaveRequestServiceTest {
         when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
 
-        LeaveRequest approved = leaveRequestService.approveLeaveRequest(1L);
+        LeaveResponseDTO approved = leaveRequestService.approveLeaveRequest(1L);
 
         assertEquals(LeaveStatus.APPROVED, approved.getStatus());
-        // "10 initial days - 3 requested working days (Thu-Mon) = 7 remaining days"
         assertEquals(7, leaveBalance.getAvailableDays());
         verify(leaveBalanceRepository, times(1)).save(leaveBalance);
     }
@@ -166,7 +174,7 @@ public class LeaveRequestServiceTest {
         when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
 
-        LeaveRequest rejected = leaveRequestService.rejectLeaveRequest(1L, "Not enough coverage");
+        LeaveResponseDTO rejected = leaveRequestService.rejectLeaveRequest(1L, "Not enough coverage");
 
         assertEquals(LeaveStatus.REJECTED, rejected.getStatus());
         assertEquals("Not enough coverage", rejected.getRejectionReason());
@@ -187,7 +195,7 @@ public class LeaveRequestServiceTest {
         when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
 
-        LeaveRequest cancelled = leaveRequestService.cancelLeaveRequest(1L);
+        LeaveResponseDTO cancelled = leaveRequestService.cancelLeaveRequest(1L);
 
         assertEquals(LeaveStatus.CANCELLED, cancelled.getStatus());
         verify(leaveBalanceRepository, never()).save(any(LeaveBalance.class));
@@ -196,12 +204,11 @@ public class LeaveRequestServiceTest {
     @Test
     void cancelLeaveRequest_Approved_Success() {
         leaveRequest.setStatus(LeaveStatus.APPROVED);
-        // "Balance should be initial 10, when cancelling an approved leave with 3 working days, it becomes 13."
         when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
         when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
 
-        LeaveRequest cancelled = leaveRequestService.cancelLeaveRequest(1L);
+        LeaveResponseDTO cancelled = leaveRequestService.cancelLeaveRequest(1L);
 
         assertEquals(LeaveStatus.CANCELLED, cancelled.getStatus());
         assertEquals(13, leaveBalance.getAvailableDays());
@@ -232,7 +239,7 @@ public class LeaveRequestServiceTest {
         Page<LeaveRequest> page = new PageImpl<>(List.of(leaveRequest));
         when(leaveRequestRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(page);
 
-        Page<LeaveRequest> result = leaveRequestService.searchLeaveRequests(1L, LeaveStatus.PENDING, LocalDate.now(), LocalDate.now().plusDays(5), 1L, PageRequest.of(0, 10));
+        Page<LeaveResponseDTO> result = leaveRequestService.searchLeaveRequests(1L, LeaveStatus.PENDING, LocalDate.now(), LocalDate.now().plusDays(5), 1L, PageRequest.of(0, 10));
 
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());

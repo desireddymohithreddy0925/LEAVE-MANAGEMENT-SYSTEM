@@ -1,6 +1,7 @@
 package com.leave_management_system.leave_management_system.controller;
 
-import com.leave_management_system.leave_management_system.entity.Employee;
+import com.leave_management_system.leave_management_system.dto.EmployeeRequestDTO;
+import com.leave_management_system.leave_management_system.dto.EmployeeResponseDTO;
 import com.leave_management_system.leave_management_system.service.EmployeeService;
 
 import org.springframework.web.bind.annotation.*;
@@ -21,57 +22,40 @@ public class EmployeeController {
     }
 
     @PostMapping
-    public Employee createEmployee(@Valid @RequestBody Employee employee) {
-
-        // "@RequestBody converts the JSON request body into an Employee object."
-        return employeeService.createEmployee(employee);
+    public EmployeeResponseDTO createEmployee(@Valid @RequestBody EmployeeRequestDTO dto) {
+        return employeeService.createEmployee(dto);
     }
 
     @GetMapping
-    public List<Employee> getAllEmployees(@RequestParam(required = false) String search) {
+    public List<EmployeeResponseDTO> getAllEmployees(@RequestParam(required = false) String search) {
         if (search != null && !search.trim().isEmpty()) {
             return employeeService.searchEmployees(search);
         }
-        // "Returns all employees stored in the database."
         return employeeService.getAllEmployees();
     }
 
     @GetMapping("/{id}")
-    public Employee getEmployeeById(@PathVariable Long id) {
-
-        // "@PathVariable gets the employee ID from the URL."
+    public EmployeeResponseDTO getEmployeeById(@PathVariable Long id) {
         return employeeService.getEmployeeById(id);
     }
 
     @PutMapping("/{id}")
-    public Employee updateEmployee(
-            @PathVariable Long id,
-            @RequestBody Employee employee) {
-
-        // "Updates an existing employee using the employee ID."
-        return employeeService.updateEmployee(id, employee);
+    public EmployeeResponseDTO updateEmployee(@PathVariable Long id, @Valid @RequestBody EmployeeRequestDTO dto) {
+        return employeeService.updateEmployee(id, dto);
     }
 
     @PatchMapping("/{id}/status")
-    public Employee changeEmployeeStatus(
-            @PathVariable Long id,
-            @RequestParam boolean active) {
-
-        // "Changes only the active/inactive status of an employee."
+    public EmployeeResponseDTO changeEmployeeStatus(@PathVariable Long id, @RequestParam boolean active) {
         return employeeService.changeEmployeeStatus(id, active);
     }
 
     @PutMapping("/{id}/department")
-    public Employee transferEmployee(
-            @PathVariable Long id,
-            @RequestParam Long departmentId) {
+    public EmployeeResponseDTO transferEmployee(@PathVariable Long id, @RequestParam Long departmentId) {
         return employeeService.transferEmployee(id, departmentId);
     }
 
     @DeleteMapping("/{id}")
     public void deleteEmployee(@PathVariable Long id) {
-
-        // "Deletes the employee using the employee ID."
         employeeService.deleteEmployee(id);
     }
 }

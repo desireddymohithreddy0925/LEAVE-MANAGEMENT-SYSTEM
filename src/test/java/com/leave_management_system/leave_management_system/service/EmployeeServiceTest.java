@@ -1,5 +1,7 @@
 package com.leave_management_system.leave_management_system.service;
 
+import com.leave_management_system.leave_management_system.dto.EmployeeRequestDTO;
+import com.leave_management_system.leave_management_system.dto.EmployeeResponseDTO;
 import com.leave_management_system.leave_management_system.entity.Department;
 import com.leave_management_system.leave_management_system.entity.Employee;
 import com.leave_management_system.leave_management_system.exception.DuplicateResourceException;
@@ -33,6 +35,7 @@ public class EmployeeServiceTest {
 
     private Employee employee;
     private Department department;
+    private EmployeeRequestDTO requestDTO;
 
     @BeforeEach
     void setUp() {
@@ -46,15 +49,21 @@ public class EmployeeServiceTest {
         employee.setLastName("Doe");
         employee.setEmail("john@example.com");
         employee.setDepartment(department);
+
+        requestDTO = new EmployeeRequestDTO();
+        requestDTO.setFirstName("John");
+        requestDTO.setLastName("Doe");
+        requestDTO.setEmail("john@example.com");
+        requestDTO.setDepartmentId(1L);
     }
 
     @Test
     void createEmployee_Success() {
-        when(employeeRepository.existsByEmail(employee.getEmail())).thenReturn(false);
+        when(employeeRepository.existsByEmail(requestDTO.getEmail())).thenReturn(false);
         when(departmentRepository.findById(1L)).thenReturn(Optional.of(department));
         when(employeeRepository.save(any(Employee.class))).thenReturn(employee);
 
-        Employee savedEmployee = employeeService.createEmployee(employee);
+        EmployeeResponseDTO savedEmployee = employeeService.createEmployee(requestDTO);
 
         assertNotNull(savedEmployee);
         assertEquals("john@example.com", savedEmployee.getEmail());
@@ -62,16 +71,16 @@ public class EmployeeServiceTest {
 
     @Test
     void createEmployee_DuplicateEmail_ThrowsException() {
-        when(employeeRepository.existsByEmail(employee.getEmail())).thenReturn(true);
+        when(employeeRepository.existsByEmail(requestDTO.getEmail())).thenReturn(true);
 
-        assertThrows(DuplicateResourceException.class, () -> employeeService.createEmployee(employee));
+        assertThrows(DuplicateResourceException.class, () -> employeeService.createEmployee(requestDTO));
     }
 
     @Test
     void createEmployee_DepartmentNotFound_ThrowsException() {
-        when(employeeRepository.existsByEmail(employee.getEmail())).thenReturn(false);
+        when(employeeRepository.existsByEmail(requestDTO.getEmail())).thenReturn(false);
         when(departmentRepository.findById(1L)).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> employeeService.createEmployee(employee));
+        assertThrows(ResourceNotFoundException.class, () -> employeeService.createEmployee(requestDTO));
     }
 }

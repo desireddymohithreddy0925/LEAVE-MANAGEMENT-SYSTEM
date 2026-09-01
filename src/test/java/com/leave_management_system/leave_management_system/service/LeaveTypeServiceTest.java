@@ -1,5 +1,7 @@
 package com.leave_management_system.leave_management_system.service;
 
+import com.leave_management_system.leave_management_system.dto.LeaveTypeRequestDTO;
+import com.leave_management_system.leave_management_system.dto.LeaveTypeResponseDTO;
 import com.leave_management_system.leave_management_system.entity.LeaveType;
 import com.leave_management_system.leave_management_system.exception.DuplicateResourceException;
 import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
@@ -27,19 +29,25 @@ public class LeaveTypeServiceTest {
     private LeaveTypeService leaveTypeService;
 
     private LeaveType leaveType;
+    private LeaveTypeRequestDTO requestDTO;
 
     @BeforeEach
     void setUp() {
         leaveType = new LeaveType("Annual Leave", "Annual leave desc", 20);
         leaveType.setId(1L);
+
+        requestDTO = new LeaveTypeRequestDTO();
+        requestDTO.setName("Annual Leave");
+        requestDTO.setDescription("Annual leave desc");
+        requestDTO.setDefaultDays(20);
     }
 
     @Test
     void createLeaveType_Success() {
-        when(leaveTypeRepository.findByName(leaveType.getName())).thenReturn(Optional.empty());
+        when(leaveTypeRepository.findByName(requestDTO.getName())).thenReturn(Optional.empty());
         when(leaveTypeRepository.save(any(LeaveType.class))).thenReturn(leaveType);
 
-        LeaveType savedLeaveType = leaveTypeService.createLeaveType(leaveType);
+        LeaveTypeResponseDTO savedLeaveType = leaveTypeService.createLeaveType(requestDTO);
 
         assertNotNull(savedLeaveType);
         assertEquals("Annual Leave", savedLeaveType.getName());
@@ -47,16 +55,16 @@ public class LeaveTypeServiceTest {
 
     @Test
     void createLeaveType_DuplicateName_ThrowsException() {
-        when(leaveTypeRepository.findByName(leaveType.getName())).thenReturn(Optional.of(leaveType));
+        when(leaveTypeRepository.findByName(requestDTO.getName())).thenReturn(Optional.of(leaveType));
 
-        assertThrows(DuplicateResourceException.class, () -> leaveTypeService.createLeaveType(leaveType));
+        assertThrows(DuplicateResourceException.class, () -> leaveTypeService.createLeaveType(requestDTO));
     }
 
     @Test
     void getLeaveTypeById_Success() {
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
 
-        LeaveType foundLeaveType = leaveTypeService.getLeaveTypeById(1L);
+        LeaveTypeResponseDTO foundLeaveType = leaveTypeService.getLeaveTypeById(1L);
 
         assertNotNull(foundLeaveType);
         assertEquals(1L, foundLeaveType.getId());
@@ -68,7 +76,7 @@ public class LeaveTypeServiceTest {
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
         when(leaveTypeRepository.save(any(LeaveType.class))).thenReturn(leaveType);
 
-        LeaveType activated = leaveTypeService.activateLeaveType(1L);
+        LeaveTypeResponseDTO activated = leaveTypeService.activateLeaveType(1L);
 
         assertTrue(activated.isActive());
         verify(leaveTypeRepository).save(leaveType);
@@ -80,7 +88,7 @@ public class LeaveTypeServiceTest {
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
         when(leaveTypeRepository.save(any(LeaveType.class))).thenReturn(leaveType);
 
-        LeaveType deactivated = leaveTypeService.deactivateLeaveType(1L);
+        LeaveTypeResponseDTO deactivated = leaveTypeService.deactivateLeaveType(1L);
 
         assertFalse(deactivated.isActive());
         verify(leaveTypeRepository).save(leaveType);

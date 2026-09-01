@@ -1,5 +1,7 @@
 package com.leave_management_system.leave_management_system.service;
 
+import com.leave_management_system.leave_management_system.dto.DepartmentRequestDTO;
+import com.leave_management_system.leave_management_system.dto.DepartmentResponseDTO;
 import com.leave_management_system.leave_management_system.entity.Department;
 import com.leave_management_system.leave_management_system.repository.DepartmentRepository;
 import com.leave_management_system.leave_management_system.repository.EmployeeRepository;
@@ -9,6 +11,7 @@ import com.leave_management_system.leave_management_system.exception.ResourceNot
 import com.leave_management_system.leave_management_system.exception.DuplicateResourceException;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class DepartmentService {
@@ -23,46 +26,39 @@ public class DepartmentService {
         this.employeeRepository = employeeRepository;
     }
 
-    public Department createDepartment(Department department) {
-
-        if (departmentRepository.existsByName(department.getName())) {
+    public DepartmentResponseDTO createDepartment(DepartmentRequestDTO dto) {
+        if (departmentRepository.existsByName(dto.getName())) {
             throw new DuplicateResourceException("Department already exists");
         }
 
-        // "save() inserts the new department into the database."
-        return departmentRepository.save(department);
+        Department department = new Department();
+        department.setName(dto.getName());
+        return DepartmentResponseDTO.fromEntity(departmentRepository.save(department));
     }
 
-    public List<Department> getAllDepartments() {
-
-        // "findAll() retrieves all departments from the database."
-        return departmentRepository.findAll();
+    public List<DepartmentResponseDTO> getAllDepartments() {
+        return departmentRepository.findAll().stream()
+                .map(DepartmentResponseDTO::fromEntity)
+                .collect(Collectors.toList());
     }
 
-    public Department getDepartmentById(Long id) {
-
-        // "findById() searches for a department using its primary-key ID."
-        return departmentRepository.findById(id)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Department not found with id: " + id));
+    public DepartmentResponseDTO getDepartmentById(Long id) {
+        Department department = departmentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + id));
+        return DepartmentResponseDTO.fromEntity(department);
     }
 
-    public Department updateDepartment(Long id, Department department) {
+    public DepartmentResponseDTO updateDepartment(Long id, DepartmentRequestDTO dto) {
+        Department existingDepartment = departmentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + id));
 
-        // "First, find the existing department using its ID."
-        Department existingDepartment = getDepartmentById(id);
-
-        // "Update the department name with the new value."
-        existingDepartment.setName(department.getName());
-
-        // "save() updates the existing department in the database."
-        return departmentRepository.save(existingDepartment);
+        existingDepartment.setName(dto.getName());
+        return DepartmentResponseDTO.fromEntity(departmentRepository.save(existingDepartment));
     }
 
     public void deleteDepartment(Long id) {
-
-        // "Check whether the department exists before deleting it."
-        Department department = getDepartmentById(id);
+        Department department = departmentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + id));
 
         if (employeeRepository.existsByDepartmentId(id)) {
             throw new IllegalStateException("Cannot delete department because it still has employees assigned");

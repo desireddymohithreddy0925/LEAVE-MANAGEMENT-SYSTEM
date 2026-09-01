@@ -1,5 +1,7 @@
 package com.leave_management_system.leave_management_system.service;
 
+import com.leave_management_system.leave_management_system.dto.LeaveRequestDTO;
+import com.leave_management_system.leave_management_system.dto.LeaveResponseDTO;
 import com.leave_management_system.leave_management_system.entity.LeaveRequest;
 import com.leave_management_system.leave_management_system.entity.LeaveStatus;
 import com.leave_management_system.leave_management_system.entity.LeaveBalance;
@@ -22,6 +24,7 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class LeaveRequestService {
@@ -42,23 +45,22 @@ public class LeaveRequestService {
     }
 
     @Transactional
-    public LeaveRequest createLeaveRequest(LeaveRequest leaveRequest) {
-        if (leaveRequest.getStartDate().isBefore(LocalDate.now())) {
+    public LeaveResponseDTO createLeaveRequest(LeaveRequestDTO dto) {
+        if (dto.getStartDate().isBefore(LocalDate.now())) {
             throw new IllegalArgumentException("Start date cannot be in the past");
         }
 
-        if (leaveRequest.getEndDate().isBefore(leaveRequest.getStartDate())) {
+        if (dto.getEndDate().isBefore(dto.getStartDate())) {
             throw new IllegalArgumentException("End date cannot be before start date");
         }
 
-        Employee employee = employeeRepository.findById(leaveRequest.getEmployee().getId())
+        Employee employee = employeeRepository.findById(dto.getEmployeeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
-        // "Check if employee is active. Inactive employees cannot apply for leave."
         if (!employee.isActive()) {
             throw new IllegalArgumentException("Inactive employees cannot apply for leave");
         }
 
-        LeaveType leaveType = leaveTypeRepository.findById(leaveRequest.getLeaveType().getId())
+        LeaveType leaveType = leaveTypeRepository.findById(dto.getLeaveTypeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Leave type not found"));
         // "Check if leave type is active."
         if (!leaveType.isActive()) {
@@ -68,15 +70,15 @@ public class LeaveRequestService {
         // "Overlap detection: check if there's any pending or approved leave for these dates."
         boolean hasOverlap = leaveRequestRepository.hasOverlappingLeave(
                 employee,
-                leaveRequest.getStartDate(),
-                leaveRequest.getEndDate(),
+                dto.getStartDate(),
+                dto.getEndDate(),
                 List.of(LeaveStatus.PENDING, LeaveStatus.APPROVED)
         );
         if (hasOverlap) {
             throw new IllegalArgumentException("Leave request overlaps with an existing pending or approved leave");
         }
 
-        long requestedDays = calculateWorkingDays(leaveRequest.getStartDate(), leaveRequest.getEndDate());
+        long requestedDays = calculateWorkingDays(dto.getStartDate(), dto.getEndDate());
         // "Ensure the requested duration contains at least one working day."
         if (requestedDays == 0) {
             throw new IllegalArgumentException("Requested leave duration contains only weekends");
@@ -90,18 +92,24 @@ public class LeaveRequestService {
             throw new InsufficientLeaveException("Insufficient leave balance. Available: " + balance.getAvailableDays() + ", Requested: " + requestedDays);
         }
 
+        LeaveRequest leaveRequest = new LeaveRequest();
         leaveRequest.setEmployee(employee);
         leaveRequest.setLeaveType(leaveType);
+        leaveRequest.setStartDate(dto.getStartDate());
+        leaveRequest.setEndDate(dto.getEndDate());
+        leaveRequest.setReason(dto.getReason());
         leaveRequest.setStatus(LeaveStatus.PENDING);
 
-        return leaveRequestRepository.save(leaveRequest);
+        return LeaveResponseDTO.fromEntity(leaveRequestRepository.save(leaveRequest));
     }
 
-    public List<LeaveRequest> getAllLeaveRequests() {
-        return leaveRequestRepository.findAll();
+    public List<LeaveResponseDTO> getAllLeaveRequests() {
+        return leaveRequestRepository.findAll().stream()
+                .map(LeaveResponseDTO::fromEntity)
+                .collect(Collectors.toList());
     }
 
-    public Page<LeaveRequest> searchLeaveRequests(Long employeeId, LeaveStatus status, LocalDate startDate, LocalDate endDate, Long leaveTypeId, Pageable pageable) {
+    public Page<LeaveResponseDTO> searchLeaveRequests(Long employeeId, LeaveStatus status, LocalDate startDate, LocalDate endDate, Long leaveTypeId, Pageable pageable) {
         Specification<LeaveRequest> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             
@@ -126,26 +134,31 @@ public class LeaveRequestService {
             return cb.and(predicates.toArray(new Predicate[0]));
         };
         
-        return leaveRequestRepository.findAll(spec, pageable);
+        return leaveRequestRepository.findAll(spec, pageable).map(LeaveResponseDTO::fromEntity);
     }
 
-    public LeaveRequest getLeaveRequestById(Long id) {
-        return leaveRequestRepository.findById(id)
+    public LeaveResponseDTO getLeaveRequestById(Long id) {
+        LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
+        return LeaveResponseDTO.fromEntity(leaveRequest);
     }
 
-    public List<LeaveRequest> getLeaveRequestsByEmployee(Long employeeId) {
+    public List<LeaveResponseDTO> getLeaveRequestsByEmployee(Long employeeId) {
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
-        return leaveRequestRepository.findByEmployee(employee);
+        return leaveRequestRepository.findByEmployee(employee).stream()
+                .map(LeaveResponseDTO::fromEntity)
+                .collect(Collectors.toList());
     }
 
-    public List<LeaveRequest> getLeaveRequestsByStatus(LeaveStatus status) {
-        return leaveRequestRepository.findByStatus(status);
+    public List<LeaveResponseDTO> getLeaveRequestsByStatus(LeaveStatus status) {
+        return leaveRequestRepository.findByStatus(status).stream()
+                .map(LeaveResponseDTO::fromEntity)
+                .collect(Collectors.toList());
     }
 
     @Transactional
-    public LeaveRequest approveLeaveRequest(Long id) {
+    public LeaveResponseDTO approveLeaveRequest(Long id) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
 
@@ -168,11 +181,11 @@ public class LeaveRequestService {
         leaveBalanceRepository.save(balance);
 
         leaveRequest.setStatus(LeaveStatus.APPROVED);
-        return leaveRequestRepository.save(leaveRequest);
+        return LeaveResponseDTO.fromEntity(leaveRequestRepository.save(leaveRequest));
     }
 
     @Transactional
-    public LeaveRequest rejectLeaveRequest(Long id, String rejectionReason) {
+    public LeaveResponseDTO rejectLeaveRequest(Long id, String rejectionReason) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
 
@@ -182,12 +195,11 @@ public class LeaveRequestService {
 
         leaveRequest.setStatus(LeaveStatus.REJECTED);
         leaveRequest.setRejectionReason(rejectionReason);
-        return leaveRequestRepository.save(leaveRequest);
+        return LeaveResponseDTO.fromEntity(leaveRequestRepository.save(leaveRequest));
     }
 
-    // "Cancels a leave request and restores balance if it was already approved."
     @Transactional
-    public LeaveRequest cancelLeaveRequest(Long id) {
+    public LeaveResponseDTO cancelLeaveRequest(Long id) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
 
@@ -210,7 +222,7 @@ public class LeaveRequestService {
         }
 
         leaveRequest.setStatus(LeaveStatus.CANCELLED);
-        return leaveRequestRepository.save(leaveRequest);
+        return LeaveResponseDTO.fromEntity(leaveRequestRepository.save(leaveRequest));
     }
 
     public void deleteLeaveRequest(Long id) {

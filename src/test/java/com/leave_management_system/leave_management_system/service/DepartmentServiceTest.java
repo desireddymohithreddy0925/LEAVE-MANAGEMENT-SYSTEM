@@ -1,5 +1,7 @@
 package com.leave_management_system.leave_management_system.service;
 
+import com.leave_management_system.leave_management_system.dto.DepartmentRequestDTO;
+import com.leave_management_system.leave_management_system.dto.DepartmentResponseDTO;
 import com.leave_management_system.leave_management_system.entity.Department;
 import com.leave_management_system.leave_management_system.exception.DuplicateResourceException;
 import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
@@ -31,31 +33,35 @@ public class DepartmentServiceTest {
     private DepartmentService departmentService;
 
     private Department department;
+    private DepartmentRequestDTO requestDTO;
 
     @BeforeEach
     void setUp() {
         department = new Department();
         department.setName("IT");
         department.setId(1L);
+
+        requestDTO = new DepartmentRequestDTO();
+        requestDTO.setName("IT");
     }
 
     @Test
     void createDepartment_Success() {
-        when(departmentRepository.existsByName(department.getName())).thenReturn(false);
+        when(departmentRepository.existsByName(requestDTO.getName())).thenReturn(false);
         when(departmentRepository.save(any(Department.class))).thenReturn(department);
 
-        Department savedDepartment = departmentService.createDepartment(department);
+        DepartmentResponseDTO savedDepartment = departmentService.createDepartment(requestDTO);
 
         assertNotNull(savedDepartment);
         assertEquals("IT", savedDepartment.getName());
-        verify(departmentRepository, times(1)).save(department);
+        verify(departmentRepository, times(1)).save(any(Department.class));
     }
 
     @Test
     void createDepartment_ThrowsDuplicateResourceException() {
-        when(departmentRepository.existsByName(department.getName())).thenReturn(true);
+        when(departmentRepository.existsByName(requestDTO.getName())).thenReturn(true);
 
-        assertThrows(DuplicateResourceException.class, () -> departmentService.createDepartment(department));
+        assertThrows(DuplicateResourceException.class, () -> departmentService.createDepartment(requestDTO));
         verify(departmentRepository, never()).save(any(Department.class));
     }
 
@@ -63,7 +69,7 @@ public class DepartmentServiceTest {
     void getDepartmentById_Success() {
         when(departmentRepository.findById(1L)).thenReturn(Optional.of(department));
 
-        Department foundDepartment = departmentService.getDepartmentById(1L);
+        DepartmentResponseDTO foundDepartment = departmentService.getDepartmentById(1L);
 
         assertNotNull(foundDepartment);
         assertEquals(1L, foundDepartment.getId());

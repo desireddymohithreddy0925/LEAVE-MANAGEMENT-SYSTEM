@@ -1,7 +1,8 @@
 package com.leave_management_system.leave_management_system.controller;
 
-import com.leave_management_system.leave_management_system.entity.Department;
-import com.leave_management_system.leave_management_system.entity.Employee;
+import com.leave_management_system.leave_management_system.dto.DepartmentRequestDTO;
+import com.leave_management_system.leave_management_system.dto.DepartmentResponseDTO;
+import com.leave_management_system.leave_management_system.dto.EmployeeResponseDTO;
 import com.leave_management_system.leave_management_system.service.DepartmentService;
 import com.leave_management_system.leave_management_system.service.EmployeeService;
 
@@ -27,40 +28,28 @@ public class DepartmentController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Department createDepartment(
-            @Valid @RequestBody Department department) {
-
-        // "@RequestBody converts the JSON request body into a Department object."
-        return departmentService.createDepartment(department);
+    public DepartmentResponseDTO createDepartment(@Valid @RequestBody DepartmentRequestDTO dto) {
+        return departmentService.createDepartment(dto);
     }
 
     @GetMapping
-    public List<Department> getAllDepartments() {
-
-        // "Returns all departments from the database."
+    public List<DepartmentResponseDTO> getAllDepartments() {
         return departmentService.getAllDepartments();
     }
 
     @GetMapping("/{id}")
-    public Department getDepartmentById(
-            @PathVariable Long id) {
-
-        // "@PathVariable gets the department ID from the URL."
+    public DepartmentResponseDTO getDepartmentById(@PathVariable Long id) {
         return departmentService.getDepartmentById(id);
     }
 
     @GetMapping("/{id}/employees")
-    public List<Employee> getDepartmentEmployees(@PathVariable Long id) {
+    public List<EmployeeResponseDTO> getDepartmentEmployees(@PathVariable Long id) {
         return employeeService.getEmployeesByDepartmentId(id);
     }
 
     @PutMapping("/{id}")
-    public Department updateDepartment(
-            @PathVariable Long id,
-            @RequestBody Department department) {
-
-        // "Updates an existing department using its ID."
-        return departmentService.updateDepartment(id, department);
+    public DepartmentResponseDTO updateDepartment(@PathVariable Long id, @Valid @RequestBody DepartmentRequestDTO dto) {
+        return departmentService.updateDepartment(id, dto);
     }
 
     @DeleteMapping("/{id}")
