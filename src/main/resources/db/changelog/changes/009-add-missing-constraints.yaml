@@ -1,0 +1,41 @@
+databaseChangeLog:
+  - changeSet:
+      id: 009-add-missing-constraints
+      author: antigravity
+      changes:
+        - addNotNullConstraint:
+            tableName: employees
+            columnName: first_name
+            columnDataType: varchar(255)
+        - addNotNullConstraint:
+            tableName: employees
+            columnName: last_name
+            columnDataType: varchar(255)
+        - addNotNullConstraint:
+            tableName: leave_requests
+            columnName: start_date
+            columnDataType: date
+        - addNotNullConstraint:
+            tableName: leave_requests
+            columnName: end_date
+            columnDataType: date
+        - addNotNullConstraint:
+            tableName: leave_requests
+            columnName: status
+            columnDataType: varchar(255)
+        - addNotNullConstraint:
+            tableName: leave_requests
+            columnName: leave_type_id
+            columnDataType: bigint
+        - createIndex:
+            tableName: leave_requests
+            indexName: idx_leave_requests_employee_id
+            columns:
+              - column:
+                  name: employee_id
+        - createIndex:
+            tableName: leave_requests
+            indexName: idx_leave_requests_status
+            columns:
+              - column:
+                  name: status

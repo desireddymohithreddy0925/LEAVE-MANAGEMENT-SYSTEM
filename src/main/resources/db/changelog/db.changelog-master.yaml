@@ -115,3 +115,6 @@ databaseChangeLog:
   - include:
       file: db/changelog/changes/008-add-rejection-reason-to-leave-requests.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/009-add-missing-constraints.yaml
+      relativeToChangelogFile: true
