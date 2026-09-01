@@ -83,4 +83,27 @@ public class EmployeeServiceTest {
 
         assertThrows(ResourceNotFoundException.class, () -> employeeService.createEmployee(requestDTO));
     }
+
+    @Test
+    void updateEmployee_DuplicateEmail_ThrowsException() {
+        Employee existingOther = new Employee();
+        existingOther.setId(2L);
+        existingOther.setEmail("john@example.com");
+
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(employeeRepository.findByEmail(requestDTO.getEmail())).thenReturn(Optional.of(existingOther));
+
+        assertThrows(DuplicateResourceException.class, () -> employeeService.updateEmployee(1L, requestDTO));
+    }
+
+    @Test
+    void searchEmployees_Success() {
+        when(employeeRepository.searchByKeyword("john")).thenReturn(java.util.List.of(employee));
+
+        java.util.List<EmployeeResponseDTO> results = employeeService.searchEmployees("john");
+
+        assertFalse(results.isEmpty());
+        assertEquals(1, results.size());
+        assertEquals("john@example.com", results.get(0).getEmail());
+    }
 }

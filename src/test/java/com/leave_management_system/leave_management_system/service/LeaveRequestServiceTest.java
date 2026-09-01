@@ -103,6 +103,22 @@ public class LeaveRequestServiceTest {
     }
 
     @Test
+    void createLeaveRequest_PastStartDate_ThrowsException() {
+        requestDTO.setStartDate(LocalDate.now().minusDays(1));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.createLeaveRequest(requestDTO));
+        assertEquals("Start date cannot be in the past", ex.getMessage());
+    }
+
+    @Test
+    void createLeaveRequest_EndDateBeforeStartDate_ThrowsException() {
+        requestDTO.setEndDate(LocalDate.of(2026, 9, 9)); // Before start date of 2026-09-10
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.createLeaveRequest(requestDTO));
+        assertEquals("End date cannot be before start date", ex.getMessage());
+    }
+
+    @Test
     void createLeaveRequest_InactiveEmployee_ThrowsException() {
         employee.setActive(false);
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));

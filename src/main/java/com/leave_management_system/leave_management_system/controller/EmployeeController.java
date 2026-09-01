@@ -22,6 +22,7 @@ public class EmployeeController {
     }
 
     @PostMapping
+    @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     public EmployeeResponseDTO createEmployee(@Valid @RequestBody EmployeeRequestDTO dto) {
         return employeeService.createEmployee(dto);
     }

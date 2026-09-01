@@ -81,4 +81,23 @@ public class DepartmentServiceTest {
 
         assertThrows(ResourceNotFoundException.class, () -> departmentService.getDepartmentById(1L));
     }
+
+    @Test
+    void deleteDepartment_HasEmployees_ThrowsException() {
+        when(departmentRepository.findById(1L)).thenReturn(Optional.of(department));
+        when(employeeRepository.existsByDepartmentId(1L)).thenReturn(true);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> departmentService.deleteDepartment(1L));
+        assertEquals("Cannot delete department because it still has employees assigned", ex.getMessage());
+    }
+
+    @Test
+    void deleteDepartment_Success() {
+        when(departmentRepository.findById(1L)).thenReturn(Optional.of(department));
+        when(employeeRepository.existsByDepartmentId(1L)).thenReturn(false);
+
+        departmentService.deleteDepartment(1L);
+
+        verify(departmentRepository, times(1)).delete(department);
+    }
 }
