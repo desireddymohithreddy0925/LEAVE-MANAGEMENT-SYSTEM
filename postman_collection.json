@@ -1,0 +1,347 @@
+{
+  "info": {
+    "name": "Leave Management System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Department",
+      "item": [
+        {
+          "name": "Create Department",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Engineering\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/departments",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "departments"]
+            }
+          }
+        },
+        {
+          "name": "Create Department (Failure: Duplicate)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Engineering\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/departments",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "departments"]
+            }
+          }
+        },
+        {
+          "name": "Get All Departments",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:8080/api/departments",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "departments"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Employee",
+      "item": [
+        {
+          "name": "Create Employee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"phone\": \"1234567890\",\n  \"departmentId\": 1\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/employees",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "employees"]
+            }
+          }
+        },
+        {
+          "name": "Create Employee (Failure: Invalid Email)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"email\": \"invalid-email\",\n  \"phone\": \"1234567890\",\n  \"departmentId\": 1\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/employees",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "employees"]
+            }
+          }
+        },
+        {
+          "name": "Search Employees",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:8080/api/employees?search=john",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "employees"],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "john"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Leave Type",
+      "item": [
+        {
+          "name": "Create Leave Type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Annual Leave\",\n  \"description\": \"Paid annual time off\",\n  \"defaultDays\": 20\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/leave-types",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "leave-types"]
+            }
+          }
+        },
+        {
+          "name": "Deactivate Leave Type",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "http://localhost:8080/api/leave-types/1/deactivate",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "leave-types", "1", "deactivate"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Leave Balance",
+      "item": [
+        {
+          "name": "Add Balance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": 1,\n  \"leaveTypeId\": 1,\n  \"availableDays\": 15\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/leave-balances",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "leave-balances"]
+            }
+          }
+        },
+        {
+          "name": "Get Employee Balance",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:8080/api/leave-balances/employee/1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "leave-balances", "employee", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Leave Request",
+      "item": [
+        {
+          "name": "Apply for Leave",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": 1,\n  \"leaveTypeId\": 1,\n  \"startDate\": \"2026-10-01\",\n  \"endDate\": \"2026-10-05\",\n  \"reason\": \"Family trip\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/leave-requests",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "leave-requests"]
+            }
+          }
+        },
+        {
+          "name": "Apply for Leave (Failure: Past Date)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": 1,\n  \"leaveTypeId\": 1,\n  \"startDate\": \"2023-01-01\",\n  \"endDate\": \"2023-01-05\",\n  \"reason\": \"Retroactive leave\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/leave-requests",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "leave-requests"]
+            }
+          }
+        },
+        {
+          "name": "Approve Leave",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "http://localhost:8080/api/leave-requests/1/approve",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "leave-requests", "1", "approve"]
+            }
+          }
+        },
+        {
+          "name": "Reject Leave",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "http://localhost:8080/api/leave-requests/1/reject?reason=Insufficient+staff",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "leave-requests", "1", "reject"],
+              "query": [
+                {
+                  "key": "reason",
+                  "value": "Insufficient+staff"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancel Leave",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "http://localhost:8080/api/leave-requests/1/cancel",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "leave-requests", "1", "cancel"]
+            }
+          }
+        },
+        {
+          "name": "Search/Filter/Paginate Leaves",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:8080/api/leave-requests?status=PENDING&page=0&size=5",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "leave-requests"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PENDING"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "5"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
