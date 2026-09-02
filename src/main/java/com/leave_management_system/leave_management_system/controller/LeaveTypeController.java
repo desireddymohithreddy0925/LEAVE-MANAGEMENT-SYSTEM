@@ -19,10 +19,8 @@ import java.util.List;
 @Tag(name = "Leave Type API", description = "Endpoints for managing leave types")
 public class LeaveTypeController {
 
-    // "Service handles the business logic for leave types."
     private final LeaveTypeService leaveTypeService;
 
-    // "Constructor injection for LeaveTypeService."
     public LeaveTypeController(LeaveTypeService leaveTypeService) {
         this.leaveTypeService = leaveTypeService;
     }

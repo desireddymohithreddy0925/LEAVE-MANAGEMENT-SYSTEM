@@ -17,13 +17,10 @@ import java.util.stream.Collectors;
 @Service
 public class EmployeeService {
 
-    // "EmployeeRepository handles employee database operations."
     private final EmployeeRepository employeeRepository;
 
-    // "DepartmentRepository handles department database operations."
     private final DepartmentRepository departmentRepository;
 
-    // "Constructor injection provides both repositories to the service."
     public EmployeeService(
             EmployeeRepository employeeRepository,
             DepartmentRepository departmentRepository) {

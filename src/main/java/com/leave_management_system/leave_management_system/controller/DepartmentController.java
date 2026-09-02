@@ -21,11 +21,9 @@ import java.util.List;
 @Tag(name = "Department API", description = "Endpoints for managing departments")
 public class DepartmentController {
 
-    // "Service contains the business logic for department operations."
     private final DepartmentService departmentService;
     private final EmployeeService employeeService;
 
-    // "Constructor injection injects DepartmentService into the controller."
     public DepartmentController(DepartmentService departmentService, EmployeeService employeeService) {
         this.departmentService = departmentService;
         this.employeeService = employeeService;
@@ -95,7 +93,6 @@ public class DepartmentController {
     public void deleteDepartment(
             @PathVariable Long id) {
 
-        // "Deletes the department using its ID."
         departmentService.deleteDepartment(id);
     }
 }

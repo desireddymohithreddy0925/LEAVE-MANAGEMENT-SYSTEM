@@ -18,10 +18,8 @@ import java.util.List;
 @Tag(name = "Employee API", description = "Endpoints for managing employees")
 public class EmployeeController {
 
-    // "EmployeeService contains the business logic for employee operations."
     private final EmployeeService employeeService;
 
-    // "Constructor injection injects EmployeeService into the controller."
     public EmployeeController(EmployeeService employeeService) {
         this.employeeService = employeeService;
     }

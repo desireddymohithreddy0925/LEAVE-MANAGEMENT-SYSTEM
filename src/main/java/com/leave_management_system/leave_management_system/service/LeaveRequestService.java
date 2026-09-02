@@ -21,7 +21,6 @@ import com.leave_management_system.leave_management_system.exception.ResourceNot
 import com.leave_management_system.leave_management_system.exception.InsufficientLeaveException;
 
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -62,13 +61,12 @@ public class LeaveRequestService {
 
         LeaveType leaveType = leaveTypeRepository.findById(dto.getLeaveTypeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Leave type not found"));
-        // "Check if leave type is active."
         if (!leaveType.isActive()) {
             throw new IllegalArgumentException("This leave type is not active");
         }
 
-        // "Overlap detection: check if there's any pending or approved leave for these
-        // dates."
+        // Overlap detection: check if there's any pending or approved leave for these
+        // dates.
         boolean hasOverlap = leaveRequestRepository.hasOverlappingLeave(
                 employee,
                 dto.getStartDate(),
@@ -79,7 +77,6 @@ public class LeaveRequestService {
         }
 
         long requestedDays = calculateWorkingDays(dto.getStartDate(), dto.getEndDate());
-        // "Ensure the requested duration contains at least one working day."
         if (requestedDays == 0) {
             throw new IllegalArgumentException("Requested leave duration contains only weekends");
         }
@@ -165,8 +162,8 @@ public class LeaveRequestService {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
 
-        // "Protect against double deduction by ensuring only PENDING requests can be
-        // approved."
+        // Protect against double deduction by ensuring only PENDING requests can be
+        // approved.
         if (leaveRequest.getStatus() != LeaveStatus.PENDING) {
             throw new IllegalArgumentException("Only pending requests can be approved");
         }
@@ -220,7 +217,6 @@ public class LeaveRequestService {
             }
         }
 
-        // "If the leave was already approved, we must restore the deducted days."
         if (leaveRequest.getStatus() == LeaveStatus.APPROVED) {
             long requestedDays = calculateWorkingDays(leaveRequest.getStartDate(), leaveRequest.getEndDate());
             LeaveBalance balance = leaveBalanceRepository
@@ -242,8 +238,8 @@ public class LeaveRequestService {
         leaveRequestRepository.delete(existing);
     }
 
-    // "Helper method to calculate working days between two dates, excluding
-    // weekends (Saturdays and Sundays)."
+    // Helper method to calculate working days between two dates, excluding
+    // weekends (Saturdays and Sundays).
     private long calculateWorkingDays(LocalDate startDate, LocalDate endDate) {
         long workingDays = 0;
         LocalDate date = startDate;

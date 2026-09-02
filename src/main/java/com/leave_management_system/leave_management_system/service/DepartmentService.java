@@ -16,11 +16,9 @@ import java.util.stream.Collectors;
 @Service
 public class DepartmentService {
 
-    // "Repository is used to communicate with the database."
     private final DepartmentRepository departmentRepository;
     private final EmployeeRepository employeeRepository;
 
-    // "Constructor injection is used to inject DepartmentRepository."
     public DepartmentService(DepartmentRepository departmentRepository, EmployeeRepository employeeRepository) {
         this.departmentRepository = departmentRepository;
         this.employeeRepository = employeeRepository;
@@ -64,7 +62,6 @@ public class DepartmentService {
             throw new IllegalStateException("Cannot delete department because it still has employees assigned");
         }
 
-        // "delete() removes the department."
         departmentRepository.delete(department);
     }
 }

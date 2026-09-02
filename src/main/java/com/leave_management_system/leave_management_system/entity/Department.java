@@ -16,7 +16,6 @@ public class Department {
     private String name;
 
     public Department() {
-         // "Default constructor required by JPA."
     }
 
     public Long getId() {
