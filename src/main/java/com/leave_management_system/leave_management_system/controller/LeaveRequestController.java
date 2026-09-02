@@ -75,8 +75,8 @@ public class LeaveRequestController {
     }
 
     @PutMapping("/{id}/reject")
-    @Operation(summary = "Reject a leave request", description = "Rejects a pending leave request with an optional reason.")
-    public LeaveResponseDTO rejectLeaveRequest(@PathVariable Long id, @RequestParam(required = false) String reason) {
+    @Operation(summary = "Reject a leave request", description = "Rejects a pending leave request with a mandatory reason.")
+    public LeaveResponseDTO rejectLeaveRequest(@PathVariable Long id, @RequestParam(required = true) String reason) {
         return leaveRequestService.rejectLeaveRequest(id, reason);
     }
 

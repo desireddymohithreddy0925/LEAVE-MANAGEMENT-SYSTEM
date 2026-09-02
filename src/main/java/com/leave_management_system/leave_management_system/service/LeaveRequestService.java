@@ -193,6 +193,10 @@ public class LeaveRequestService {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
 
+        if (rejectionReason == null || rejectionReason.trim().isEmpty()) {
+            throw new IllegalArgumentException("Rejection reason is mandatory");
+        }
+
         if (leaveRequest.getStatus() != LeaveStatus.PENDING) {
             throw new IllegalArgumentException("Only pending requests can be rejected");
         }
@@ -207,11 +211,13 @@ public class LeaveRequestService {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
 
-        if (leaveRequest.getStatus() == LeaveStatus.REJECTED) {
-            throw new IllegalArgumentException("Cannot cancel a rejected leave request");
-        }
-        if (leaveRequest.getStatus() == LeaveStatus.CANCELLED) {
-            throw new IllegalArgumentException("Leave request is already cancelled");
+        if (leaveRequest.getStatus() != LeaveStatus.PENDING && leaveRequest.getStatus() != LeaveStatus.APPROVED) {
+            if (leaveRequest.getStatus() == LeaveStatus.REJECTED) {
+                throw new IllegalArgumentException("Cannot cancel a rejected leave request");
+            }
+            if (leaveRequest.getStatus() == LeaveStatus.CANCELLED) {
+                throw new IllegalArgumentException("Leave request is already cancelled");
+            }
         }
 
         // "If the leave was already approved, we must restore the deducted days."

@@ -260,4 +260,81 @@ public class LeaveRequestServiceTest {
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
     }
+
+    @Test
+    void rejectLeaveRequest_BlankReason_ThrowsException() {
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.rejectLeaveRequest(1L, "   "));
+        assertEquals("Rejection reason is mandatory", ex.getMessage());
+    }
+
+    @Test
+    void rejectLeaveRequest_NullReason_ThrowsException() {
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.rejectLeaveRequest(1L, null));
+        assertEquals("Rejection reason is mandatory", ex.getMessage());
+    }
+
+    @Test
+    void approveLeaveRequest_Rejected_ThrowsException() {
+        leaveRequest.setStatus(LeaveStatus.REJECTED);
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.approveLeaveRequest(1L));
+        assertEquals("Only pending requests can be approved", ex.getMessage());
+    }
+    
+    @Test
+    void approveLeaveRequest_Cancelled_ThrowsException() {
+        leaveRequest.setStatus(LeaveStatus.CANCELLED);
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.approveLeaveRequest(1L));
+        assertEquals("Only pending requests can be approved", ex.getMessage());
+    }
+
+    @Test
+    void rejectLeaveRequest_AlreadyApproved_ThrowsException() {
+        leaveRequest.setStatus(LeaveStatus.APPROVED);
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.rejectLeaveRequest(1L, "reason"));
+        assertEquals("Only pending requests can be rejected", ex.getMessage());
+    }
+
+    @Test
+    void rejectLeaveRequest_AlreadyCancelled_ThrowsException() {
+        leaveRequest.setStatus(LeaveStatus.CANCELLED);
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.rejectLeaveRequest(1L, "reason"));
+        assertEquals("Only pending requests can be rejected", ex.getMessage());
+    }
+
+    @Test
+    void createLeaveRequest_WeekendEdgeCases() {
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
+        when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
+        when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveRequestRepository.save(any(LeaveRequest.class))).thenAnswer(i -> i.getArguments()[0]);
+
+        // Friday to Monday = 2 days
+        requestDTO.setStartDate(LocalDate.of(2026, 9, 11));
+        requestDTO.setEndDate(LocalDate.of(2026, 9, 14));
+        leaveRequestService.createLeaveRequest(requestDTO);
+
+        // Saturday to Monday = 1 day
+        requestDTO.setStartDate(LocalDate.of(2026, 9, 12));
+        requestDTO.setEndDate(LocalDate.of(2026, 9, 14));
+        leaveRequestService.createLeaveRequest(requestDTO);
+
+        // Sunday to Monday = 1 day
+        requestDTO.setStartDate(LocalDate.of(2026, 9, 13));
+        requestDTO.setEndDate(LocalDate.of(2026, 9, 14));
+        leaveRequestService.createLeaveRequest(requestDTO);
+
+        // Friday to Sunday = 1 day
+        requestDTO.setStartDate(LocalDate.of(2026, 9, 11));
+        requestDTO.setEndDate(LocalDate.of(2026, 9, 13));
+        leaveRequestService.createLeaveRequest(requestDTO);
+        
+        verify(leaveRequestRepository, times(4)).save(any(LeaveRequest.class));
+    }
 }
