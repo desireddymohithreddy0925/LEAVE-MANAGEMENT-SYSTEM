@@ -5,7 +5,7 @@ This is a complete, enterprise-ready Leave Management System backend built with 
 ## Tech Stack
 - **Java 17+**
 - **Spring Boot 3.3+** (Web, Data JPA, Validation)
-- **MySQL 9.7.1** (running via Docker)
+- **MySQL 9.7.1**
 - **Liquibase** (Database Migrations)
 - **Maven** (Build Tool)
 - **Springdoc OpenAPI** (Swagger API Documentation)
