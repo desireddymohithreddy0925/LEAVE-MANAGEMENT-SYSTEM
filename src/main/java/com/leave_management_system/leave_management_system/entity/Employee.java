@@ -24,9 +24,11 @@ public class Employee {
     // "Stores the unique ID of the employee."
 
     @NotBlank(message = "First name is required")
+    @Column(name = "first_name", nullable = false)
     private String firstName;
 
     @NotBlank(message = "Last name is required")
+    @Column(name = "last_name", nullable = false)
     private String lastName;
 
     @NotBlank(message = "Email is required")
@@ -40,6 +42,7 @@ public class Employee {
     private String phone;
     // "Stores the employee's phone number."
 
+    @Column(nullable = false)
     private boolean active;
     // "Stores whether the employee is currently active or inactive."
 

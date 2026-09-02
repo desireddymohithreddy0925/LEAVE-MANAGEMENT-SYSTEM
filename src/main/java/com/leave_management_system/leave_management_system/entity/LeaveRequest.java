@@ -5,7 +5,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "leave_requests")
+@Table(name = "leave_requests", indexes = {
+    @Index(name = "idx_leave_requests_employee_id", columnList = "employee_id"),
+    @Index(name = "idx_leave_requests_status", columnList = "status")
+})
 public class LeaveRequest {
 
     private static final String TABLE_NAME = "leave_requests";
@@ -23,13 +26,16 @@ public class LeaveRequest {
     @JoinColumn(name = "leave_type_id", nullable = false)
     private LeaveType leaveType;
 
+    @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
 
+    @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
     private String reason;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private LeaveStatus status;
 
     @Column(name = "rejection_reason")
