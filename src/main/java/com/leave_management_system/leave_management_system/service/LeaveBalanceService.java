@@ -1,8 +1,11 @@
 package com.leave_management_system.leave_management_system.service;
 
+import com.leave_management_system.leave_management_system.dto.LeaveBalanceRequestDTO;
+import com.leave_management_system.leave_management_system.dto.LeaveBalanceResponseDTO;
 import com.leave_management_system.leave_management_system.entity.Employee;
 import com.leave_management_system.leave_management_system.entity.LeaveBalance;
 import com.leave_management_system.leave_management_system.entity.LeaveType;
+import java.util.stream.Collectors;
 import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
 import com.leave_management_system.leave_management_system.repository.EmployeeRepository;
 import com.leave_management_system.leave_management_system.repository.LeaveBalanceRepository;
@@ -30,21 +33,18 @@ public class LeaveBalanceService {
         this.leaveTypeRepository = leaveTypeRepository;
     }
 
-    public LeaveBalance createLeaveBalance(
-            Long employeeId,
-            Long leaveTypeId,
-            Integer availableDays) {
+    public LeaveBalanceResponseDTO createLeaveBalance(LeaveBalanceRequestDTO dto) {
 
-        Employee employee = employeeRepository.findById(employeeId)
+        Employee employee = employeeRepository.findById(dto.getEmployeeId())
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
-                                "Employee not found with id: " + employeeId
+                                "Employee not found with id: " + dto.getEmployeeId()
                         ));
 
-        LeaveType leaveType = leaveTypeRepository.findById(leaveTypeId)
+        LeaveType leaveType = leaveTypeRepository.findById(dto.getLeaveTypeId())
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
-                                "Leave type not found with id: " + leaveTypeId
+                                "Leave type not found with id: " + dto.getLeaveTypeId()
                         ));
 
         if (leaveBalanceRepository.existsByEmployeeAndLeaveType(
@@ -59,17 +59,28 @@ public class LeaveBalanceService {
 
         leaveBalance.setEmployee(employee);
         leaveBalance.setLeaveType(leaveType);
-        leaveBalance.setAvailableDays(availableDays);
+        leaveBalance.setAvailableDays(dto.getAvailableDays());
 
-        return leaveBalanceRepository.save(leaveBalance);
+        return LeaveBalanceResponseDTO.fromEntity(leaveBalanceRepository.save(leaveBalance));
     }
 
-    public List<LeaveBalance> getAllLeaveBalances() {
-        return leaveBalanceRepository.findAll();
+    public List<LeaveBalanceResponseDTO> getAllLeaveBalances() {
+        return leaveBalanceRepository.findAll().stream()
+                .map(LeaveBalanceResponseDTO::fromEntity)
+                .collect(Collectors.toList());
     }
 
-    public LeaveBalance getLeaveBalanceById(Long id) {
+    public LeaveBalanceResponseDTO getLeaveBalanceById(Long id) {
 
+        LeaveBalance balance = leaveBalanceRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Leave balance not found with id: " + id
+                        ));
+        return LeaveBalanceResponseDTO.fromEntity(balance);
+    }
+
+    public LeaveBalance getLeaveBalanceEntityById(Long id) {
         return leaveBalanceRepository.findById(id)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
@@ -77,7 +88,7 @@ public class LeaveBalanceService {
                         ));
     }
 
-    public List<LeaveBalance> getBalancesByEmployee(
+    public List<LeaveBalanceResponseDTO> getBalancesByEmployee(
             Long employeeId) {
 
         Employee employee = employeeRepository.findById(employeeId)
@@ -86,23 +97,28 @@ public class LeaveBalanceService {
                                 "Employee not found with id: " + employeeId
                         ));
 
-        return leaveBalanceRepository.findByEmployee(employee);
+        return leaveBalanceRepository.findByEmployee(employee).stream()
+                .map(LeaveBalanceResponseDTO::fromEntity)
+                .collect(Collectors.toList());
     }
 
-    public LeaveBalance updateLeaveBalance(
+    public LeaveBalanceResponseDTO updateLeaveBalance(
             Long id,
-            Integer availableDays) {
+            LeaveBalanceRequestDTO dto) {
 
-        LeaveBalance leaveBalance = getLeaveBalanceById(id);
+        LeaveBalance leaveBalance = getLeaveBalanceEntityById(id);
 
-        leaveBalance.setAvailableDays(availableDays);
+        // In an update, typically we only update the available days, 
+        // assuming employeeId and leaveTypeId cannot be changed.
+        // If they need to be changed, additional validation is required.
+        leaveBalance.setAvailableDays(dto.getAvailableDays());
 
-        return leaveBalanceRepository.save(leaveBalance);
+        return LeaveBalanceResponseDTO.fromEntity(leaveBalanceRepository.save(leaveBalance));
     }
 
     public void deleteLeaveBalance(Long id) {
 
-        LeaveBalance leaveBalance = getLeaveBalanceById(id);
+        LeaveBalance leaveBalance = getLeaveBalanceEntityById(id);
 
         leaveBalanceRepository.delete(leaveBalance);
     }

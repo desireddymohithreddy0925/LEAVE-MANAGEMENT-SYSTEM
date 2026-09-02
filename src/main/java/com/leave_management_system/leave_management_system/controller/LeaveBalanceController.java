@@ -1,8 +1,9 @@
 package com.leave_management_system.leave_management_system.controller;
 
-import com.leave_management_system.leave_management_system.entity.LeaveBalance;
+import com.leave_management_system.leave_management_system.dto.LeaveBalanceRequestDTO;
+import com.leave_management_system.leave_management_system.dto.LeaveBalanceResponseDTO;
 import com.leave_management_system.leave_management_system.service.LeaveBalanceService;
-import jakarta.validation.constraints.Min;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,29 +28,18 @@ public class LeaveBalanceController {
 
     @PostMapping
     @Operation(summary = "Create or add leave balance", description = "Adds a leave balance for an employee.")
-    public ResponseEntity<LeaveBalance> createLeaveBalance(
-
-            @RequestParam Long employeeId,
-
-            @RequestParam Long leaveTypeId,
-
-            @RequestParam
-            @Min(value = 0, message = "Available days cannot be negative")
-            Integer availableDays) {
+    public ResponseEntity<LeaveBalanceResponseDTO> createLeaveBalance(
+            @Valid @RequestBody LeaveBalanceRequestDTO dto) {
 
         return new ResponseEntity<>(
-                leaveBalanceService.createLeaveBalance(
-                        employeeId,
-                        leaveTypeId,
-                        availableDays
-                ),
+                leaveBalanceService.createLeaveBalance(dto),
                 HttpStatus.CREATED
         );
     }
 
     @GetMapping
     @Operation(summary = "Get all leave balances", description = "Returns a list of all leave balances across all employees.")
-    public ResponseEntity<List<LeaveBalance>> getAllLeaveBalances() {
+    public ResponseEntity<List<LeaveBalanceResponseDTO>> getAllLeaveBalances() {
 
         return ResponseEntity.ok(
                 leaveBalanceService.getAllLeaveBalances()
@@ -58,7 +48,7 @@ public class LeaveBalanceController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Get leave balance by ID", description = "Returns the details of a specific leave balance.")
-    public ResponseEntity<LeaveBalance> getLeaveBalanceById(
+    public ResponseEntity<LeaveBalanceResponseDTO> getLeaveBalanceById(
             @PathVariable Long id) {
 
         return ResponseEntity.ok(
@@ -68,7 +58,7 @@ public class LeaveBalanceController {
 
     @GetMapping("/employee/{employeeId}")
     @Operation(summary = "Get employee balances", description = "Returns all leave balances for a specific employee.")
-    public ResponseEntity<List<LeaveBalance>> getBalancesByEmployee(
+    public ResponseEntity<List<LeaveBalanceResponseDTO>> getBalancesByEmployee(
             @PathVariable Long employeeId) {
 
         return ResponseEntity.ok(
@@ -78,17 +68,12 @@ public class LeaveBalanceController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Update a leave balance", description = "Updates the available days for a leave balance.")
-    public ResponseEntity<LeaveBalance> updateLeaveBalance(
+    public ResponseEntity<LeaveBalanceResponseDTO> updateLeaveBalance(
             @PathVariable Long id,
-            @RequestParam
-            @Min(value = 0, message = "Available days cannot be negative")
-            Integer availableDays) {
+            @Valid @RequestBody LeaveBalanceRequestDTO dto) {
 
         return ResponseEntity.ok(
-                leaveBalanceService.updateLeaveBalance(
-                        id,
-                        availableDays
-                )
+                leaveBalanceService.updateLeaveBalance(id, dto)
         );
     }
 

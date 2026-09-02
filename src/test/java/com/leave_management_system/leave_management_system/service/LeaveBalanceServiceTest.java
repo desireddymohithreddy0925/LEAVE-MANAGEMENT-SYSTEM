@@ -1,6 +1,8 @@
 package com.leave_management_system.leave_management_system.service;
 
 import com.leave_management_system.leave_management_system.entity.Employee;
+import com.leave_management_system.leave_management_system.dto.LeaveBalanceRequestDTO;
+import com.leave_management_system.leave_management_system.dto.LeaveBalanceResponseDTO;
 import com.leave_management_system.leave_management_system.entity.LeaveBalance;
 import com.leave_management_system.leave_management_system.entity.LeaveType;
 import com.leave_management_system.leave_management_system.exception.DuplicateResourceException;
@@ -61,7 +63,12 @@ public class LeaveBalanceServiceTest {
         when(leaveBalanceRepository.existsByEmployeeAndLeaveType(employee, leaveType)).thenReturn(false);
         when(leaveBalanceRepository.save(any(LeaveBalance.class))).thenReturn(leaveBalance);
 
-        LeaveBalance created = leaveBalanceService.createLeaveBalance(1L, 1L, 20);
+        LeaveBalanceRequestDTO req = new LeaveBalanceRequestDTO();
+        req.setEmployeeId(1L);
+        req.setLeaveTypeId(1L);
+        req.setAvailableDays(20);
+
+        LeaveBalanceResponseDTO created = leaveBalanceService.createLeaveBalance(req);
 
         assertNotNull(created);
         assertEquals(20, created.getAvailableDays());
@@ -73,6 +80,11 @@ public class LeaveBalanceServiceTest {
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
         when(leaveBalanceRepository.existsByEmployeeAndLeaveType(employee, leaveType)).thenReturn(true);
 
-        assertThrows(DuplicateResourceException.class, () -> leaveBalanceService.createLeaveBalance(1L, 1L, 20));
+        LeaveBalanceRequestDTO req = new LeaveBalanceRequestDTO();
+        req.setEmployeeId(1L);
+        req.setLeaveTypeId(1L);
+        req.setAvailableDays(20);
+
+        assertThrows(DuplicateResourceException.class, () -> leaveBalanceService.createLeaveBalance(req));
     }
 }
