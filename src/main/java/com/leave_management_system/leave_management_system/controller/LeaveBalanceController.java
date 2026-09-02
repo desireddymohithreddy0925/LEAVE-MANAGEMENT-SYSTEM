@@ -16,8 +16,10 @@ import java.util.List;
 @Tag(name = "Leave Balance API", description = "Endpoints for managing employee leave balances")
 public class LeaveBalanceController {
 
+    // "Service handles the business logic for leave balances."
     private final LeaveBalanceService leaveBalanceService;
 
+    // "Constructor injection for LeaveBalanceService."
     public LeaveBalanceController(
             LeaveBalanceService leaveBalanceService) {
         this.leaveBalanceService = leaveBalanceService;
