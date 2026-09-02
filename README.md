@@ -1,61 +1,63 @@
 # Leave Management System
 
 ## 1. Project Description
-The Leave Management System is a comprehensive RESTful backend application designed to streamline how companies manage employee time off. It empowers employees to seamlessly apply for leave and enables managers to review, approve, or reject these requests while maintaining strict, automated control over leave balances. It supports advanced features such as weekend exclusion during leave calculation, and hierarchical department management.
+This is a backend application for a Leave Management System built using Spring Boot. It allows employees to apply for leave and managers to approve or reject them. It also keeps track of employee leave balances and makes sure that things like weekends are not counted as leave days.
 
 ## 2. Tech Stack
 * **Language:** Java 21
-* **Framework:** Spring Boot 4.1.0 (Web, Data JPA, Validation)
-* **Database:** MySQL (Production), H2 (Testing)
-* **Migrations:** Liquibase
-* **Testing:** JUnit 5, Mockito, MockMvc, Spring Boot Test
-* **Documentation:** Swagger / OpenAPI 3
+* **Framework:** Spring Boot 4.1.0
+* **Database:** MySQL for the main app, H2 for testing
+* **Database Migrations:** Liquibase
+* **Testing:** JUnit 5, Mockito
+* **API Documentation:** Swagger / OpenAPI 3
 
 ## 3. Database Configuration
-The application relies on a relational database. By default, it expects a MySQL database named `leave_management_db` running on `localhost:3306`. Update `src/main/resources/application.properties` with your database credentials:
+The app uses MySQL. You need to have a database named `leave_management_db` running on `localhost:3306`. 
+
+You can update `src/main/resources/application.properties` with your database username and password:
 ```properties
 spring.datasource.url=jdbc:mysql://localhost:3306/leave_management_db
-spring.datasource.username=your_username
-spring.datasource.password=your_password
+spring.datasource.username=root
+spring.datasource.password=password
 ```
-For the test profile, an in-memory H2 database is automatically configured in `application-test.properties`.
+For testing, it automatically uses an in-memory H2 database.
 
 ## 4. Setup Instructions
-1. Ensure **Java 21** and **MySQL** are installed locally.
-2. Clone the repository and navigate into the root directory.
-3. Create a MySQL database named `leave_management_db`.
-4. Open a terminal and run the application using Maven Wrapper:
+1. Make sure you have Java 21 and MySQL installed.
+2. Clone the repository.
+3. Create a MySQL database called `leave_management_db`.
+4. Open a terminal in the project folder and run:
    ```bash
    ./mvnw clean spring-boot:run
    ```
-5. The application will start on port 8080.
+5. The app will start on port 8080.
 
 ## 5. Liquibase
-The database schema is entirely managed through Liquibase. On application startup, Liquibase reads `src/main/resources/db/changelog/db.changelog-master.yaml` and executes the necessary SQL to keep the database perfectly in sync with the application's entity models. All schema changes, including constraints and indexes, are version-controlled in the `db/changelog/changes` directory.
+The database tables are created automatically using Liquibase. When you run the application, it reads the `src/main/resources/db/changelog/db.changelog-master.yaml` file and creates the necessary tables and constraints in MySQL.
 
 ## 6. API Endpoints
-The application exposes the following key modules:
-- **Employees**: `/api/employees` (Create, View, Update, Search, Transfer, Status)
-- **Departments**: `/api/departments` (Create, View, Update, Delete, View Employees)
+These are the main modules in the project:
+- **Employees**: `/api/employees` (Create, View, Update, Search, Transfer)
+- **Departments**: `/api/departments` (Create, View, Update, Delete)
 - **Leave Types**: `/api/leave-types` (Create, View, Update, Delete, Activate/Deactivate)
-- **Leave Balances**: `/api/leave-balances` (Allocate balance, View balance per employee)
-- **Leave Requests**: `/api/leave-requests` (Apply, Approve, Reject, Cancel, Filter, Paginate)
+- **Leave Balances**: `/api/leave-balances` (Manage leave balances for employees)
+- **Leave Requests**: `/api/leave-requests` (Apply, Approve, Reject, Cancel, Filter)
 
-## 7. Swagger URL
-An interactive Swagger UI is bundled directly within the application. It visualizes the OpenAPI specifications and allows you to test endpoints directly from your browser without needing external tools.
-Access it here: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) or [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
+## 7. Swagger Documentation
+You can see all the API endpoints and test them using Swagger UI.
+Once the application is running, open this link in your browser: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
 
 ## 8. Postman Usage
-A comprehensive Postman Collection (`postman_collection.json`) is included in the root directory. 
+I have included a `postman_collection.json` file in the project folder.
 1. Open Postman.
-2. Click **Import** and select `postman_collection.json`.
-3. The collection contains folders for all 5 modules with pre-configured success and failure requests.
-4. Ensure the application is running locally on port 8080 before executing the requests.
+2. Click Import and select the `postman_collection.json` file.
+3. It has all the requests for testing the different APIs.
+4. Make sure the Spring Boot app is running on port 8080 before testing.
 
-## 9. Testing Instructions
-The project includes an extensive suite of unit and integration tests (39+ tests) covering edge cases, validations, business logic, and API endpoint integration. Tests run isolated against an H2 database.
-To run the tests:
+## 9. Testing
+There are unit and integration tests written for this project. They use an H2 database so they won't affect the MySQL database.
+To run all the tests, use this command:
 ```bash
 ./mvnw clean test
 ```
-All tests must pass successfully before committing any changes.
+All tests should pass without errors.
