@@ -1,27 +1,27 @@
 package com.leave_management_system.leave_management_system.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.leave_management_system.leave_management_system.dto.EmployeeRequestDTO;
+import com.leave_management_system.leave_management_system.dto.DepartmentRequestDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
-public class EmployeeControllerIntegrationTest {
+public class DepartmentControllerIntegrationTest {
 
     @Autowired
     private WebApplicationContext context;
@@ -36,53 +36,38 @@ public class EmployeeControllerIntegrationTest {
     }
 
     @Test
-    void createEmployee_Success() throws Exception {
-        EmployeeRequestDTO dto = new EmployeeRequestDTO();
-        dto.setFirstName("Integration");
-        dto.setLastName("Test");
-        dto.setEmail("integration.test@example.com");
-        dto.setPhone("1234567890");
+    void createDepartment_Success() throws Exception {
+        DepartmentRequestDTO dto = new DepartmentRequestDTO();
+        dto.setName("Integration IT");
 
-        mockMvc.perform(post("/api/employees")
+        mockMvc.perform(post("/api/departments")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.email").value("integration.test@example.com"));
+                .andExpect(jsonPath("$.name").value("Integration IT"));
     }
 
     @Test
-    void createEmployee_ValidationFails() throws Exception {
-        EmployeeRequestDTO dto = new EmployeeRequestDTO();
-        // Missing required fields
+    void createDepartment_DuplicateName() throws Exception {
+        DepartmentRequestDTO dto = new DepartmentRequestDTO();
+        dto.setName("Integration HR");
 
-        mockMvc.perform(post("/api/employees")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void searchEmployees_Success() throws Exception {
-        mockMvc.perform(get("/api/employees").param("search", "admin"))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    void createEmployee_DuplicateEmail() throws Exception {
-        EmployeeRequestDTO dto = new EmployeeRequestDTO();
-        dto.setFirstName("First");
-        dto.setLastName("Last");
-        dto.setEmail("duplicate.test@example.com");
-        dto.setPhone("1234567890");
-
-        mockMvc.perform(post("/api/employees")
+        // First insert
+        mockMvc.perform(post("/api/departments")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(post("/api/employees")
+        // Second insert - should fail
+        mockMvc.perform(post("/api/departments")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void getDepartmentById_NotFound() throws Exception {
+        mockMvc.perform(get("/api/departments/99999"))
+                .andExpect(status().isNotFound());
     }
 }
