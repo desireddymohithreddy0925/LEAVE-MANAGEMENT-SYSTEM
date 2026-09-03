@@ -70,7 +70,7 @@ This document maps the mandatory internship requirements to their specific imple
 ### 10. Searching, Filtering & Pagination
 - **Requirement:** Support dynamic filtering by employee, status, date range, and pagination.
 - **Implementation:** JPA `Specification<LeaveRequest>` in `LeaveRequestService.searchLeaveRequests()`
-- **API:** `GET /api/leave-requests/search?employeeId=...&page=0&size=10`
+- **API:** `GET /api/leave-requests?employeeId=...&page=0&size=10`
 - **Test:** `LeaveRequestControllerIntegrationTest.searchLeaveRequests_Pagination`
 - **Status:** **DONE**
 

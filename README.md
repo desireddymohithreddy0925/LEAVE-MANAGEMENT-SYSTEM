@@ -39,6 +39,15 @@ Once the application is running, navigate to:
 A comprehensive End-to-End Postman collection is included in this repository: `LMS_E2E_Workflow.postman_collection.json`. 
 You can import this directly into Postman to test the full lifecycle of a leave request.
 
+## Security Boundary & Known Limitations
+
+This project explicitly focuses on core business logic, strict state transitions, and robust exception handling. As per the defined scope of this internship project, the following are intentionally omitted:
+
+- **Authentication & Role-Based Authorization:** No JWT, Spring Security, or session management is implemented. All endpoints are currently open.
+- **Identity Context Context:** Because there is no active security context (e.g., `SecurityContextHolder`), the API explicitly accepts `employeeId` directly in the request payloads (e.g., when applying for a leave). In a production environment with authentication, this would be inherently derived from the authenticated user's token rather than trusted from the client payload.
+
+This demonstrates that the lack of authentication is a known and deliberate architectural boundary, allowing focus entirely on domain complexity and edge-case testing.
+
 ## Features Implemented
 - Complete Employee and Department tracking.
 - Leave Type configurations (e.g. Annual, Sick).

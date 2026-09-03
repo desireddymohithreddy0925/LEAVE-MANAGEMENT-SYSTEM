@@ -50,6 +50,10 @@ public class DepartmentService {
         Department existingDepartment = departmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + id));
 
+        if (!existingDepartment.getName().equals(dto.getName()) && departmentRepository.existsByName(dto.getName())) {
+            throw new DuplicateResourceException("Department already exists");
+        }
+
         existingDepartment.setName(dto.getName());
         return DepartmentResponseDTO.fromEntity(departmentRepository.save(existingDepartment));
     }

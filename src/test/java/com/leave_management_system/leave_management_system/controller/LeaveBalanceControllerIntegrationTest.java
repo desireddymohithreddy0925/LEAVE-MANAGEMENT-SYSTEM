@@ -38,12 +38,21 @@ public class LeaveBalanceControllerIntegrationTest {
         this.mockMvc = MockMvcBuilders.webAppContextSetup(this.context).build();
     }
 
+    private Long createDepartment() throws Exception {
+        com.leave_management_system.leave_management_system.dto.DepartmentRequestDTO dto = new com.leave_management_system.leave_management_system.dto.DepartmentRequestDTO();
+        dto.setName("Bal Dept " + System.currentTimeMillis());
+        MvcResult result = mockMvc.perform(post("/api/departments").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto))).andReturn();
+        return JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+    }
+
     private Long createEmployee() throws Exception {
+        Long deptId = createDepartment();
         EmployeeRequestDTO dto = new EmployeeRequestDTO();
         dto.setFirstName("Balance");
         dto.setLastName("Test");
         dto.setEmail("balance.test@example.com");
         dto.setPhone("1234567890");
+        dto.setDepartmentId(deptId);
 
         MvcResult result = mockMvc.perform(post("/api/employees")
                 .contentType(MediaType.APPLICATION_JSON)

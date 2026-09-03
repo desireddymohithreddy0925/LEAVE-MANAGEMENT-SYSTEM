@@ -4,6 +4,9 @@ import com.leave_management_system.leave_management_system.dto.LeaveRequestDTO;
 import com.leave_management_system.leave_management_system.dto.LeaveResponseDTO;
 import com.leave_management_system.leave_management_system.service.LeaveRequestService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -21,6 +24,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/leave-requests")
+@Validated
 @Tag(name = "Leave Request API", description = "Endpoints for managing employee leave requests")
 public class LeaveRequestController {
 
@@ -105,7 +109,7 @@ public class LeaveRequestController {
             @ApiResponse(responseCode = "400", description = "Request is not in pending status or reason is missing"),
             @ApiResponse(responseCode = "404", description = "Leave request not found")
     })
-    public LeaveResponseDTO rejectLeaveRequest(@PathVariable Long id, @RequestParam(required = true) String reason) {
+    public LeaveResponseDTO rejectLeaveRequest(@PathVariable Long id, @RequestParam(required = true) @NotBlank(message = "Rejection reason is mandatory") @Size(max = 500, message = "Rejection reason must not exceed 500 characters") String reason) {
         return leaveRequestService.rejectLeaveRequest(id, reason);
     }
 

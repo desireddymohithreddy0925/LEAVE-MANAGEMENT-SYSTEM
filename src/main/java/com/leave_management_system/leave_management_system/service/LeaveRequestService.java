@@ -45,10 +45,6 @@ public class LeaveRequestService {
 
     @Transactional
     public LeaveResponseDTO createLeaveRequest(LeaveRequestDTO dto) {
-        if (dto.getStartDate().isBefore(LocalDate.now())) {
-            throw new IllegalArgumentException("Start date cannot be in the past");
-        }
-
         if (dto.getEndDate().isBefore(dto.getStartDate())) {
             throw new IllegalArgumentException("End date cannot be before start date");
         }
@@ -189,10 +185,6 @@ public class LeaveRequestService {
     public LeaveResponseDTO rejectLeaveRequest(Long id, String rejectionReason) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
-
-        if (rejectionReason == null || rejectionReason.trim().isEmpty()) {
-            throw new IllegalArgumentException("Rejection reason is mandatory");
-        }
 
         if (leaveRequest.getStatus() != LeaveStatus.PENDING) {
             throw new IllegalArgumentException("Only pending requests can be rejected");

@@ -102,13 +102,7 @@ public class LeaveRequestServiceTest {
         assertEquals(LeaveStatus.PENDING, created.getStatus());
     }
 
-    @Test
-    void createLeaveRequest_PastStartDate_ThrowsException() {
-        requestDTO.setStartDate(LocalDate.now().minusDays(1));
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.createLeaveRequest(requestDTO));
-        assertEquals("Start date cannot be in the past", ex.getMessage());
-    }
 
     @Test
     void createLeaveRequest_EndDateBeforeStartDate_ThrowsException() {
@@ -261,19 +255,7 @@ public class LeaveRequestServiceTest {
         assertEquals(1, result.getTotalElements());
     }
 
-    @Test
-    void rejectLeaveRequest_BlankReason_ThrowsException() {
-        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.rejectLeaveRequest(1L, "   "));
-        assertEquals("Rejection reason is mandatory", ex.getMessage());
-    }
 
-    @Test
-    void rejectLeaveRequest_NullReason_ThrowsException() {
-        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.rejectLeaveRequest(1L, null));
-        assertEquals("Rejection reason is mandatory", ex.getMessage());
-    }
 
     @Test
     void approveLeaveRequest_Rejected_ThrowsException() {
@@ -308,6 +290,14 @@ public class LeaveRequestServiceTest {
     }
 
     @Test
+    void rejectLeaveRequest_AlreadyRejected_ThrowsException() {
+        leaveRequest.setStatus(LeaveStatus.REJECTED);
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.rejectLeaveRequest(1L, "reason"));
+        assertEquals("Only pending requests can be rejected", ex.getMessage());
+    }
+
+    @Test
     void createLeaveRequest_WeekendEdgeCases() {
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
@@ -336,5 +326,62 @@ public class LeaveRequestServiceTest {
         leaveRequestService.createLeaveRequest(requestDTO);
         
         verify(leaveRequestRepository, times(4)).save(any(LeaveRequest.class));
+    }
+
+    @Test
+    void createLeaveRequest_FridayToMonday_ExactBalance_Success() {
+        leaveBalance.setAvailableDays(2);
+        requestDTO.setStartDate(LocalDate.of(2026, 9, 11)); // Friday
+        requestDTO.setEndDate(LocalDate.of(2026, 9, 14)); // Monday
+
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
+        when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
+        when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveRequestRepository.save(any(LeaveRequest.class))).thenAnswer(i -> i.getArguments()[0]);
+
+        LeaveResponseDTO response = leaveRequestService.createLeaveRequest(requestDTO);
+        assertNotNull(response);
+    }
+
+    @Test
+    void createLeaveRequest_FridayToMonday_InsufficientBalance_ThrowsException() {
+        leaveBalance.setAvailableDays(1); // Need 2
+        requestDTO.setStartDate(LocalDate.of(2026, 9, 11)); // Friday
+        requestDTO.setEndDate(LocalDate.of(2026, 9, 14)); // Monday
+
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
+        when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
+        when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+
+        assertThrows(InsufficientLeaveException.class, () -> leaveRequestService.createLeaveRequest(requestDTO));
+    }
+
+    @Test
+    void cancelLeaveRequest_ApproveThenCancel_BalanceRestored() {
+        // 1. Initial State
+        leaveBalance.setAvailableDays(10);
+        leaveRequest.setStartDate(LocalDate.of(2026, 9, 16)); // Wed
+        leaveRequest.setEndDate(LocalDate.of(2026, 9, 18)); // Fri (3 days)
+        leaveRequest.setStatus(LeaveStatus.PENDING);
+        
+        // 2. Approve
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveRequestRepository.save(any(LeaveRequest.class))).thenAnswer(i -> i.getArguments()[0]);
+        
+        LeaveResponseDTO approved = leaveRequestService.approveLeaveRequest(1L);
+        assertEquals(LeaveStatus.APPROVED, approved.getStatus());
+        assertEquals(7, leaveBalance.getAvailableDays()); // Balance deducted
+        
+        // 3. Cancel
+        LeaveResponseDTO cancelled = leaveRequestService.cancelLeaveRequest(1L);
+        assertEquals(LeaveStatus.CANCELLED, cancelled.getStatus());
+        assertEquals(10, leaveBalance.getAvailableDays()); // Balance restored
+        
+        // 4. Cancel again
+        assertThrows(IllegalArgumentException.class, () -> leaveRequestService.cancelLeaveRequest(1L));
+        assertEquals(10, leaveBalance.getAvailableDays()); // Balance remains 10
     }
 }

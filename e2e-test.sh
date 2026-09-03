@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BASE_URL="http://localhost:8081/api"
+BASE_URL="http://localhost:8080/api"
 
 echo "--- 1. Create Department ---"
 curl -s -X POST "$BASE_URL/departments" -H "Content-Type: application/json" -d '{"name": "Engineering", "description": "Eng Dept"}' | jq .

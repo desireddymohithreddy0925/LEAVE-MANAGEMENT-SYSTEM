@@ -100,4 +100,14 @@ public class DepartmentServiceTest {
 
         verify(departmentRepository, times(1)).delete(department);
     }
+
+    @Test
+    void updateDepartment_DuplicateName_ThrowsException() {
+        requestDTO.setName("HR");
+        when(departmentRepository.findById(1L)).thenReturn(Optional.of(department)); // department name is "IT"
+        when(departmentRepository.existsByName("HR")).thenReturn(true);
+
+        assertThrows(DuplicateResourceException.class, () -> departmentService.updateDepartment(1L, requestDTO));
+        verify(departmentRepository, never()).save(any(Department.class));
+    }
 }
