@@ -140,3 +140,49 @@ This demonstrates that the lack of authentication is a known and deliberate arch
                          │ timestamp      │
                          └────────────────┘
 ```
+
+## API Endpoints
+
+### 1. Employees (`/api/employees`)
+- `GET /` - Get all employees
+- `GET /{id}` - Get employee by ID
+- `POST /` - Add a new employee
+- `PUT /{id}` - Update employee details
+- `PATCH /{id}/status` - Update employee status
+- `PUT /{id}/department` - Update employee department
+- `DELETE /{id}` - Delete an employee
+
+### 2. Departments (`/api/departments`)
+- `GET /` - Get all departments
+- `GET /{id}` - Get department by ID
+- `GET /{id}/employees` - Get all employees in a department
+- `POST /` - Add a new department
+- `PUT /{id}` - Update a department
+- `DELETE /{id}` - Delete a department
+
+### 3. Leave Types (`/api/leave-types`)
+- `GET /` - Get all leave types
+- `GET /{id}` - Get leave type by ID
+- `POST /` - Create a new leave type
+- `PUT /{id}` - Update a leave type
+- `PUT /{id}/activate` - Activate a leave type
+- `PUT /{id}/deactivate` - Deactivate a leave type
+- `DELETE /{id}` - Delete a leave type
+
+### 4. Leave Balances (`/api/leave-balances`)
+- `GET /` - Get all leave balances
+- `GET /{id}` - Get leave balance by ID
+- `GET /employee/{employeeId}` - Get leave balances for a specific employee
+- `POST /` - Create a leave balance
+- `PUT /{id}` - Update a leave balance
+- `DELETE /{id}` - Delete a leave balance
+
+### 5. Leave Requests (`/api/leave-requests`)
+- `GET /` - Get all leave requests
+- `GET /{id}` - Get leave request by ID
+- `GET /employee/{employeeId}` - Get all leave requests for a specific employee
+- `GET /status/{status}` - Get leave requests filtered by status
+- `POST /` - Submit a new leave request
+- `PUT /{id}/approve` - Approve a leave request
+- `PUT /{id}/reject` - Reject a leave request
+- `PUT /{id}/cancel` - Cancel a leave request
