@@ -55,6 +55,7 @@ This demonstrates that the lack of authentication is a known and deliberate arch
 - Strict State Machine transitions (`PENDING` -> `APPROVED` / `REJECTED` / `CANCELLED`).
 - Intelligent date calculations (automatically skips weekends).
 - Bullet-proof exception handling providing consistent HTTP 400/404/409 errors.
+
 ## ER Diagrams
 
                             ┌──────────────┐
