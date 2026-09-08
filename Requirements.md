@@ -11,7 +11,7 @@ You are expected to use:
 - Spring Security
 - JWT
 - Spring Data JPA
-- **PostgreSQL** — your chosen replacement for the specified MySQL
+- **MySQL**
 - Liquibase
 - Maven
 - Bean Validation
@@ -280,7 +280,7 @@ sensitive credentials
 
 # 10. Database
 
-The original specification says MySQL, but since you've decided to use **PostgreSQL**, use PostgreSQL consistently throughout the implementation.
+Use MySQL consistently throughout the implementation.
 
 Minimum tables:
 
@@ -474,7 +474,7 @@ Docker Compose should start:
 ```
 Spring Boot Application
         +
-PostgreSQL
+MySQL
 ```
 
 Configuration must come from environment variables.
@@ -509,7 +509,7 @@ JWT_SECRET
 JWT_EXPIRATION
 ```
 
-For your PostgreSQL setup, `DB_URL` would point to PostgreSQL rather than MySQL.
+For your MySQL setup, `DB_URL` would point to MySQL.
 
 ---
 
@@ -675,7 +675,7 @@ ER diagram
                    ↓
               Repositories
                    ↓
-              PostgreSQL
+              MySQL
 ```
 
 Around this core you add:
@@ -704,7 +704,7 @@ So this is **not just another CRUD Leave Management System**. The main purpose o
 
 In shot:-
 Build: Production-ready Secure Leave & Employee Platform using Spring Boot.
-Tech Stack: Java 17+, Spring Boot 3.x, Spring Security, JWT, JPA, PostgreSQL, Liquibase, Maven, Validation, DTOs, Swagger, JUnit 5, Mockito, Docker, GitHub Actions, Actuator, structured logging.
+Tech Stack: Java 17+, Spring Boot 3.x, Spring Security, JWT, JPA, MySQL, Liquibase, Maven, Validation, DTOs, Swagger, JUnit 5, Mockito, Docker, GitHub Actions, Actuator, structured logging.
 Roles: ADMIN, HR, MANAGER, EMPLOYEE with server-side RBAC.
 Authentication: Register, Login, Refresh, Logout, BCrypt, JWT + Refresh Token, expiry/invalid/disabled-token handling.
 Authorization: 401 for unauthenticated, 403 for unauthorized users.
@@ -719,7 +719,7 @@ Pagination/Filtering: Employees and leave requests.
 Concurrency: Handle simultaneous approvals, applications, cancellations and balance updates using transactions/locking/constraints.
 Testing: 80+ meaningful tests covering unit, controller, repository, integration, security and concurrency/business scenarios.
 Swagger: Document APIs, JWT authentication, DTOs, responses and errors.
-Docker: Dockerfile + Compose with Spring Boot + PostgreSQL; sensitive values through environment variables.
+Docker: Dockerfile + Compose with Spring Boot + MySQL; sensitive values through environment variables.
 Configuration: Dev/Test/Prod profiles and environment-based secrets.
 Actuator: /actuator/health, /actuator/info.
 CI/CD: GitHub Actions → Build → Tests → Package → Docker build; failed tests must fail PRs.

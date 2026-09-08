@@ -11,7 +11,7 @@ You are expected to use:
 - Spring Security
 - JWT
 - Spring Data JPA
-- **PostgreSQL** — your chosen replacement for the specified MySQL
+- **MySQL**
 - Liquibase
 - Maven
 - Bean Validation
@@ -280,7 +280,7 @@ sensitive credentials
 
 # 10. Database
 
-The original specification says MySQL, but since you've decided to use **PostgreSQL**, use PostgreSQL consistently throughout the implementation.
+Use MySQL consistently throughout the implementation.
 
 Minimum tables:
 
@@ -474,7 +474,7 @@ Docker Compose should start:
 ```
 Spring Boot Application
         +
-PostgreSQL
+MySQL
 ```
 
 Configuration must come from environment variables.
@@ -509,7 +509,7 @@ JWT_SECRET
 JWT_EXPIRATION
 ```
 
-For your PostgreSQL setup, `DB_URL` would point to PostgreSQL rather than MySQL.
+For your MySQL setup, `DB_URL` would point to MySQL.
 
 ---
 
@@ -675,7 +675,7 @@ ER diagram
                    ↓
               Repositories
                    ↓
-              PostgreSQL
+              MySQL
 ```
 
 Around this core you add:

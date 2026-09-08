@@ -55,3 +55,87 @@ This demonstrates that the lack of authentication is a known and deliberate arch
 - Strict State Machine transitions (`PENDING` -> `APPROVED` / `REJECTED` / `CANCELLED`).
 - Intelligent date calculations (automatically skips weekends).
 - Bullet-proof exception handling providing consistent HTTP 400/404/409 errors.
+## ER Diagrams
+
+                            ┌──────────────┐
+                            │    ROLES     │
+                            │──────────────│
+                            │ PK id        │
+                            │ name         │
+                            └──────┬───────┘
+                                   │
+                                   │
+                            ┌──────▼───────┐
+                            │  USER_ROLES  │
+                            │──────────────│
+                            │ PK user_id   │
+                            │ PK role_id   │
+                            └──────┬───────┘
+                                   │
+                                   │
+┌────────────────┐          ┌─────▼──────┐
+│ REFRESH_TOKENS │          │   USERS    │
+│────────────────│          │────────────│
+│ PK id          │◄─────────│ PK id      │
+│ user_id FK     │          │ email      │
+│ token_hash     │          │ password   │
+│ expires_at     │          │ active     │
+│ revoked        │          └─────┬──────┘
+└────────────────┘                │
+                                  │ 1:1
+                                  ▼
+                         ┌─────────────────┐
+                         │    EMPLOYEES    │
+                         │─────────────────│
+                         │ PK id           │
+                         │ user_id FK      │
+                         │ employee_code   │
+                         │ department_id FK│
+                         │ manager_id FK   │◄─────┐
+                         │ status          │      │
+                         │ salary          │      │
+                         └───────┬─────────┘      │
+                                 │                │
+                    ┌────────────┼──────────┐     │
+                    │            │          │     │
+                    ▼            ▼          ▼     │
+             ┌────────────┐ ┌──────────┐ ┌──────────────┐
+             │DEPARTMENTS │ │  LEAVE   │ │    LEAVE     │
+             │            │ │ BALANCES │ │   REQUESTS   │
+             │ PK id      │ │          │ │              │
+             │ name       │ │ PK id    │ │ PK id        │
+             │ manager FK │ │ emp FK   │ │ emp FK       │
+             │ active     │ │ type FK  │ │ type FK      │
+             └────────────┘ │ year     │ │ start_date   │
+                            │ total    │ │ end_date     │
+                            │ used     │ │ working_days │
+                            │ available│ │ status       │
+                            └────┬─────┘ │ reason       │
+                                 │       └──────┬───────┘
+                                 │              │
+                                 └──────┬───────┘
+                                        ▼
+                                ┌──────────────┐
+                                │ LEAVE_TYPES  │
+                                │──────────────│
+                                │ PK id        │
+                                │ name         │
+                                │ default_days │
+                                │ active       │
+                                └──────────────┘
+
+
+                         ┌────────────────┐
+                         │   AUDIT_LOGS   │
+                         │────────────────│
+                         │ PK id          │
+                         │ user_id FK     │
+                         │ action         │
+                         │ entity_type    │
+                         │ entity_id      │
+                         │ old_value      │
+                         │ new_value      │
+                         │ ip_address     │
+                         │ timestamp      │
+                         └────────────────┘
+
