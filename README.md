@@ -55,88 +55,93 @@ This demonstrates that the lack of authentication is a known and deliberate arch
 - Strict State Machine transitions (`PENDING` -> `APPROVED` / `REJECTED` / `CANCELLED`).
 - Intelligent date calculations (automatically skips weekends).
 - Bullet-proof exception handling providing consistent HTTP 400/404/409 errors.
-
 ## ER Diagrams
 
-                            ┌──────────────┐
-                            │    ROLES     │
-                            │──────────────│
-                            │ PK id        │
-                            │ name         │
-                            └──────┬───────┘
-                                   │
-                                   │
-                            ┌──────▼───────┐
-                            │  USER_ROLES  │
-                            │──────────────│
-                            │ PK user_id   │
-                            │ PK role_id   │
-                            └──────┬───────┘
-                                   │
-                                   │
-┌────────────────┐          ┌─────▼──────┐
-│ REFRESH_TOKENS │          │   USERS    │
-│────────────────│          │────────────│
-│ PK id          │◄─────────│ PK id      │
-│ user_id FK     │          │ email      │
-│ token_hash     │          │ password   │
-│ expires_at     │          │ active     │
-│ revoked        │          └─────┬──────┘
-└────────────────┘                │
-                                  │ 1:1
-                                  ▼
-                         ┌─────────────────┐
-                         │    EMPLOYEES    │
-                         │─────────────────│
-                         │ PK id           │
-                         │ user_id FK      │
-                         │ employee_code   │
-                         │ department_id FK│
-                         │ manager_id FK   │◄─────┐
-                         │ status          │      │
-                         │ salary          │      │
-                         └───────┬─────────┘      │
-                                 │                │
-                    ┌────────────┼──────────┐     │
-                    │            │          │     │
-                    ▼            ▼          ▼     │
-             ┌────────────┐ ┌──────────┐ ┌──────────────┐
-             │DEPARTMENTS │ │  LEAVE   │ │    LEAVE     │
-             │            │ │ BALANCES │ │   REQUESTS   │
-             │ PK id      │ │          │ │              │
-             │ name       │ │ PK id    │ │ PK id        │
-             │ manager FK │ │ emp FK   │ │ emp FK       │
-             │ active     │ │ type FK  │ │ type FK      │
-             └────────────┘ │ year     │ │ start_date   │
-                            │ total    │ │ end_date     │
-                            │ used     │ │ working_days │
-                            │ available│ │ status       │
-                            └────┬─────┘ │ reason       │
-                                 │       └──────┬───────┘
-                                 │              │
-                                 └──────┬───────┘
-                                        ▼
-                                ┌──────────────┐
-                                │ LEAVE_TYPES  │
-                                │──────────────│
-                                │ PK id        │
-                                │ name         │
-                                │ default_days │
-                                │ active       │
-                                └──────────────┘
+```mermaid
+erDiagram
+    USERS {
+        int id PK
+        string email
+        string password
+        boolean active
+    }
+    ROLES {
+        int id PK
+        string name
+    }
+    USER_ROLES {
+        int user_id PK,FK
+        int role_id PK,FK
+    }
+    REFRESH_TOKENS {
+        int id PK
+        int user_id FK
+        string token_hash
+        timestamp expires_at
+        boolean revoked
+    }
+    EMPLOYEES {
+        int id PK
+        int user_id FK
+        string employee_code
+        int department_id FK
+        int manager_id FK
+        string status
+        decimal salary
+    }
+    DEPARTMENTS {
+        int id PK
+        string name
+        int manager_id FK
+        boolean active
+    }
+    LEAVE_TYPES {
+        int id PK
+        string name
+        int default_days
+        boolean active
+    }
+    LEAVE_BALANCES {
+        int id PK
+        int emp_id FK
+        int type_id FK
+        int year
+        int total
+        int used
+        int available
+    }
+    LEAVE_REQUESTS {
+        int id PK
+        int emp_id FK
+        int type_id FK
+        date start_date
+        date end_date
+        int working_days
+        string status
+        string reason
+    }
+    AUDIT_LOGS {
+        int id PK
+        int user_id FK
+        string action
+        string entity_type
+        int entity_id
+        string old_value
+        string new_value
+        string ip_address
+        timestamp timestamp
+    }
 
-
-                         ┌────────────────┐
-                         │   AUDIT_LOGS   │
-                         │────────────────│
-                         │ PK id          │
-                         │ user_id FK     │
-                         │ action         │
-                         │ entity_type    │
-                         │ entity_id      │
-                         │ old_value      │
-                         │ new_value      │
-                         │ ip_address     │
-                         │ timestamp      │
-                         └────────────────┘
-
+    USERS ||--o{ USER_ROLES : "assigned to"
+    ROLES ||--o{ USER_ROLES : "granted to"
+    USERS ||--o{ REFRESH_TOKENS : "has"
+    USERS ||--|| EMPLOYEES : "profile for"
+    EMPLOYEES ||--o{ EMPLOYEES : "managed by"
+    EMPLOYEES }o--|| DEPARTMENTS : "belongs to"
+    DEPARTMENTS |o--|| EMPLOYEES : "managed by"
+    EMPLOYEES ||--o{ LEAVE_BALANCES : "has"
+    LEAVE_TYPES ||--o{ LEAVE_BALANCES : "defines limit for"
+    EMPLOYEES ||--o{ LEAVE_REQUESTS : "submits"
+    LEAVE_TYPES ||--o{ LEAVE_REQUESTS : "categorized as"
+    USERS ||--o{ AUDIT_LOGS : "performs"
+```
