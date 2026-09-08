@@ -55,72 +55,41 @@ This demonstrates that the lack of authentication is a known and deliberate arch
 - Strict State Machine transitions (`PENDING` -> `APPROVED` / `REJECTED` / `CANCELLED`).
 - Intelligent date calculations (automatically skips weekends).
 - Bullet-proof exception handling providing consistent HTTP 400/404/409 errors.
-## Database Schema (ER Tables)
+## ER Diagrams
 
-### 1. USERS & ROLES
-| Table | Column | Type | Constraints / Relations |
-|-------|--------|------|-------------------------|
-| **USERS** | id | int | Primary Key |
-| | email | string | Unique, Not Null |
-| | password | string | Not Null |
-| | active | boolean | Default True |
-| **ROLES** | id | int | Primary Key |
-| | name | string | Unique, Not Null |
-| **USER_ROLES** | user_id | int | PK, FK -> USERS(id) |
-| | role_id | int | PK, FK -> ROLES(id) |
-| **REFRESH_TOKENS**| id | int | Primary Key |
-| | user_id | int | FK -> USERS(id) |
-| | token_hash | string | Not Null |
-| | expires_at | timestamp | Not Null |
-| | revoked | boolean | Default False |
+```mermaid
+flowchart TD
+    %% Entities
+    USERS[USERS]
+    ROLES[ROLES]
+    USER_ROLES[USER_ROLES]
+    REFRESH_TOKENS[REFRESH_TOKENS]
+    
+    EMPLOYEES[EMPLOYEES]
+    DEPARTMENTS[DEPARTMENTS]
+    
+    LEAVE_TYPES[LEAVE_TYPES]
+    LEAVE_BALANCES[LEAVE_BALANCES]
+    LEAVE_REQUESTS[LEAVE_REQUESTS]
+    
+    AUDIT_LOGS[AUDIT_LOGS]
 
-### 2. CORE HR
-| Table | Column | Type | Constraints / Relations |
-|-------|--------|------|-------------------------|
-| **EMPLOYEES** | id | int | Primary Key |
-| | user_id | int | FK -> USERS(id) (1:1) |
-| | employee_code | string | Unique, Not Null |
-| | department_id | int | FK -> DEPARTMENTS(id) |
-| | manager_id | int | FK -> EMPLOYEES(id) |
-| | status | string | Not Null |
-| | salary | decimal | Not Null |
-| **DEPARTMENTS** | id | int | Primary Key |
-| | name | string | Unique, Not Null |
-| | manager_id | int | FK -> EMPLOYEES(id) |
-| | active | boolean | Default True |
-
-### 3. LEAVE MANAGEMENT
-| Table | Column | Type | Constraints / Relations |
-|-------|--------|------|-------------------------|
-| **LEAVE_TYPES** | id | int | Primary Key |
-| | name | string | Unique, Not Null |
-| | default_days | int | Not Null |
-| | active | boolean | Default True |
-| **LEAVE_BALANCES**| id | int | Primary Key |
-| | emp_id | int | FK -> EMPLOYEES(id) |
-| | type_id | int | FK -> LEAVE_TYPES(id) |
-| | year | int | Not Null |
-| | total | int | Not Null |
-| | used | int | Not Null |
-| | available | int | Not Null |
-| **LEAVE_REQUESTS**| id | int | Primary Key |
-| | emp_id | int | FK -> EMPLOYEES(id) |
-| | type_id | int | FK -> LEAVE_TYPES(id) |
-| | start_date | date | Not Null |
-| | end_date | date | Not Null |
-| | working_days | int | Not Null |
-| | status | string | Not Null |
-| | reason | string | |
-
-### 4. AUDIT
-| Table | Column | Type | Constraints / Relations |
-|-------|--------|------|-------------------------|
-| **AUDIT_LOGS** | id | int | Primary Key |
-| | user_id | int | FK -> USERS(id) |
-| | action | string | Not Null |
-| | entity_type | string | Not Null |
-| | entity_id | int | Not Null |
-| | old_value | string | |
-| | new_value | string | |
-| | ip_address | string | |
-| | timestamp | timestamp | Not Null |
+    %% Relationships
+    USERS -->|has| REFRESH_TOKENS
+    USERS -->|assigned| USER_ROLES
+    ROLES -->|granted to| USER_ROLES
+    
+    USERS -->|1:1 Profile| EMPLOYEES
+    
+    EMPLOYEES -->|belongs to| DEPARTMENTS
+    DEPARTMENTS -->|managed by| EMPLOYEES
+    EMPLOYEES -->|manages| EMPLOYEES
+    
+    EMPLOYEES -->|has| LEAVE_BALANCES
+    LEAVE_TYPES -->|defines limits for| LEAVE_BALANCES
+    
+    EMPLOYEES -->|submits| LEAVE_REQUESTS
+    LEAVE_TYPES -->|categorized as| LEAVE_REQUESTS
+    
+    USERS -->|performs| AUDIT_LOGS
+```
