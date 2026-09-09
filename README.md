@@ -39,14 +39,15 @@ Once the application is running, navigate to:
 A comprehensive End-to-End Postman collection is included in this repository: `LMS_E2E_Workflow.postman_collection.json`. 
 You can import this directly into Postman to test the full lifecycle of a leave request.
 
-## Security Boundary & Known Limitations
+## Security Design (Production-Ready Platform)
 
-This project explicitly focuses on core business logic, strict state transitions, and robust exception handling. As per the defined scope of this internship project, the following are intentionally omitted:
+The platform enforces robust, server-side security using **Spring Security** and **JWT (JSON Web Tokens)** to ensure a production-ready environment.
 
-- **Authentication & Role-Based Authorization:** No JWT, Spring Security, or session management is implemented. All endpoints are currently open.
-- **Identity Context Context:** Because there is no active security context (e.g., `SecurityContextHolder`), the API explicitly accepts `employeeId` directly in the request payloads (e.g., when applying for a leave). In a production environment with authentication, this would be inherently derived from the authenticated user's token rather than trusted from the client payload.
-
-This demonstrates that the lack of authentication is a known and deliberate architectural boundary, allowing focus entirely on domain complexity and edge-case testing.
+- **Authentication:** Stateless authentication utilizing JWT access tokens alongside refresh tokens. Dedicated endpoints for Register, Login, Refresh, and Logout. Passwords are securely hashed using BCrypt.
+- **Role-Based Access Control (RBAC):** Strict server-side authorization classifying users into specific roles: `ADMIN`, `HR`, `MANAGER`, and `EMPLOYEE`. Endpoints enforce access dynamically based on role.
+- **Identity Context Context:** The API utilizes the authenticated `SecurityContextHolder` to reliably identify the active user rather than trusting client-provided payloads, mitigating ID manipulation.
+- **Exception Handling:** Correctly responds with `401 Unauthorized` for unauthenticated requests and `403 Forbidden` for unauthorized attempts.
+- **Security Audit Logging:** Comprehensive tracking of security events including login success/failure, logout, token issues, and unauthorized access via Spring Application Events.
 
 ## Features Implemented
 - Complete Employee and Department tracking.
