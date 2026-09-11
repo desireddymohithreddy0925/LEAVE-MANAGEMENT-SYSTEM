@@ -18,7 +18,7 @@ public class LeaveBalanceRequestDTO {
     @NotNull(message = "Available days is required")
     @Min(value = 0, message = "Available days cannot be negative")
     @Max(value = 365, message = "Available days cannot exceed 365")
-    private Integer availableDays;
+    private Integer available;
 
     public Long getEmployeeId() { return employeeId; }
     public void setEmployeeId(Long employeeId) { this.employeeId = employeeId; }
@@ -26,6 +26,6 @@ public class LeaveBalanceRequestDTO {
     public Long getLeaveTypeId() { return leaveTypeId; }
     public void setLeaveTypeId(Long leaveTypeId) { this.leaveTypeId = leaveTypeId; }
 
-    public Integer getAvailableDays() { return availableDays; }
-    public void setAvailableDays(Integer availableDays) { this.availableDays = availableDays; }
+    public Integer getAvailable() { return available; }
+    public void setAvailable(Integer available) { this.available = available; }
 }

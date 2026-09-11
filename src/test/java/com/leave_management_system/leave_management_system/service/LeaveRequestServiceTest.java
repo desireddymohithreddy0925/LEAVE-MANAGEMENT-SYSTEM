@@ -59,7 +59,7 @@ public class LeaveRequestServiceTest {
     void setUp() {
         employee = new Employee();
         employee.setId(1L);
-        employee.setActive(true);
+        employee.setStatus("ACTIVE");
 
         leaveType = new LeaveType("Annual Leave", "Desc", 20);
         leaveType.setId(1L);
@@ -69,7 +69,7 @@ public class LeaveRequestServiceTest {
         leaveBalance.setId(1L);
         leaveBalance.setEmployee(employee);
         leaveBalance.setLeaveType(leaveType);
-        leaveBalance.setAvailableDays(10);
+        leaveBalance.setAvailable(10);
 
         leaveRequest = new LeaveRequest();
         leaveRequest.setId(1L);
@@ -114,7 +114,7 @@ public class LeaveRequestServiceTest {
 
     @Test
     void createLeaveRequest_InactiveEmployee_ThrowsException() {
-        employee.setActive(false);
+        employee.setStatus("INACTIVE");
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.createLeaveRequest(requestDTO));
@@ -175,7 +175,7 @@ public class LeaveRequestServiceTest {
         LeaveResponseDTO approved = leaveRequestService.approveLeaveRequest(1L);
 
         assertEquals(LeaveStatus.APPROVED, approved.getStatus());
-        assertEquals(7, leaveBalance.getAvailableDays());
+        assertEquals(7, leaveBalance.getAvailable());
         verify(leaveBalanceRepository, times(1)).save(leaveBalance);
     }
 
@@ -221,7 +221,7 @@ public class LeaveRequestServiceTest {
         LeaveResponseDTO cancelled = leaveRequestService.cancelLeaveRequest(1L);
 
         assertEquals(LeaveStatus.CANCELLED, cancelled.getStatus());
-        assertEquals(13, leaveBalance.getAvailableDays());
+        assertEquals(13, leaveBalance.getAvailable());
         verify(leaveBalanceRepository, times(1)).save(leaveBalance);
     }
 
@@ -330,7 +330,7 @@ public class LeaveRequestServiceTest {
 
     @Test
     void createLeaveRequest_FridayToMonday_ExactBalance_Success() {
-        leaveBalance.setAvailableDays(2);
+        leaveBalance.setAvailable(2);
         requestDTO.setStartDate(LocalDate.of(2026, 9, 11)); // Friday
         requestDTO.setEndDate(LocalDate.of(2026, 9, 14)); // Monday
 
@@ -346,7 +346,7 @@ public class LeaveRequestServiceTest {
 
     @Test
     void createLeaveRequest_FridayToMonday_InsufficientBalance_ThrowsException() {
-        leaveBalance.setAvailableDays(1); // Need 2
+        leaveBalance.setAvailable(1); // Need 2
         requestDTO.setStartDate(LocalDate.of(2026, 9, 11)); // Friday
         requestDTO.setEndDate(LocalDate.of(2026, 9, 14)); // Monday
 
@@ -361,7 +361,7 @@ public class LeaveRequestServiceTest {
     @Test
     void cancelLeaveRequest_ApproveThenCancel_BalanceRestored() {
         // 1. Initial State
-        leaveBalance.setAvailableDays(10);
+        leaveBalance.setAvailable(10);
         leaveRequest.setStartDate(LocalDate.of(2026, 9, 16)); // Wed
         leaveRequest.setEndDate(LocalDate.of(2026, 9, 18)); // Fri (3 days)
         leaveRequest.setStatus(LeaveStatus.PENDING);
@@ -373,15 +373,15 @@ public class LeaveRequestServiceTest {
         
         LeaveResponseDTO approved = leaveRequestService.approveLeaveRequest(1L);
         assertEquals(LeaveStatus.APPROVED, approved.getStatus());
-        assertEquals(7, leaveBalance.getAvailableDays()); // Balance deducted
+        assertEquals(7, leaveBalance.getAvailable()); // Balance deducted
         
         // 3. Cancel
         LeaveResponseDTO cancelled = leaveRequestService.cancelLeaveRequest(1L);
         assertEquals(LeaveStatus.CANCELLED, cancelled.getStatus());
-        assertEquals(10, leaveBalance.getAvailableDays()); // Balance restored
+        assertEquals(10, leaveBalance.getAvailable()); // Balance restored
         
         // 4. Cancel again
         assertThrows(IllegalArgumentException.class, () -> leaveRequestService.cancelLeaveRequest(1L));
-        assertEquals(10, leaveBalance.getAvailableDays()); // Balance remains 10
+        assertEquals(10, leaveBalance.getAvailable()); // Balance remains 10
     }
 }

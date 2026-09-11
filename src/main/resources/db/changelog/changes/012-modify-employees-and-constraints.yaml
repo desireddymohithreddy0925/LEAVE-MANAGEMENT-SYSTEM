@@ -1,0 +1,97 @@
+databaseChangeLog:
+  - changeSet:
+      id: 012-modify-employees-and-departments
+      author: antigravity
+      changes:
+        - addColumn:
+            tableName: employees
+            columns:
+              - column:
+                  name: user_id
+                  type: bigint
+                  constraints:
+                    unique: true
+              - column:
+                  name: employee_code
+                  type: varchar(255)
+                  constraints:
+                    unique: true
+              - column:
+                  name: manager_id
+                  type: bigint
+              - column:
+                  name: status
+                  type: varchar(255)
+              - column:
+                  name: salary
+                  type: decimal(10,2)
+
+        - addForeignKeyConstraint:
+            baseTableName: employees
+            baseColumnNames: user_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_employee_user
+
+        - addForeignKeyConstraint:
+            baseTableName: employees
+            baseColumnNames: manager_id
+            referencedTableName: employees
+            referencedColumnNames: id
+            constraintName: fk_employee_manager
+
+        - addColumn:
+            tableName: departments
+            columns:
+              - column:
+                  name: manager_id
+                  type: bigint
+        
+        - addForeignKeyConstraint:
+            baseTableName: departments
+            baseColumnNames: manager_id
+            referencedTableName: employees
+            referencedColumnNames: id
+            constraintName: fk_department_manager
+
+        - dropUniqueConstraint:
+            tableName: leave_balances
+            constraintName: uk_employee_leave_type
+
+        - addColumn:
+            tableName: leave_balances
+            columns:
+              - column:
+                  name: year
+                  type: int
+                  constraints:
+                    nullable: false
+              - column:
+                  name: total
+                  type: int
+                  constraints:
+                    nullable: false
+              - column:
+                  name: used
+                  type: int
+                  constraints:
+                    nullable: false
+
+        - renameColumn:
+            tableName: leave_balances
+            oldColumnName: available_days
+            newColumnName: available
+            columnDataType: int
+
+        - addUniqueConstraint:
+            tableName: leave_balances
+            columnNames: employee_id, leave_type_id, year
+            constraintName: uq_leave_balance
+
+        - dropColumn:
+            tableName: employees
+            columnName: email
+            
+        - dropColumn:
+            tableName: employees
+            columnName: active

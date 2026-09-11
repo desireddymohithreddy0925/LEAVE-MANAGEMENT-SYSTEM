@@ -1,0 +1,82 @@
+databaseChangeLog:
+  - changeSet:
+      id: 011-setup-tokens-and-audit
+      author: antigravity
+      changes:
+        - createTable:
+            tableName: refresh_tokens
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_refresh_tokens_user
+                    references: users(id)
+              - column:
+                  name: token_hash
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: expires_at
+                  type: datetime
+                  constraints:
+                    nullable: false
+              - column:
+                  name: revoked
+                  type: bit(1)
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+
+        - createTable:
+            tableName: audit_logs
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: bigint
+                  constraints:
+                    foreignKeyName: fk_audit_logs_user
+                    references: users(id)
+              - column:
+                  name: action
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: entity_type
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: entity_id
+                  type: bigint
+              - column:
+                  name: old_value
+                  type: varchar(1000)
+              - column:
+                  name: new_value
+                  type: varchar(1000)
+              - column:
+                  name: ip_address
+                  type: varchar(255)
+              - column:
+                  name: timestamp
+                  type: datetime
+                  constraints:
+                    nullable: false

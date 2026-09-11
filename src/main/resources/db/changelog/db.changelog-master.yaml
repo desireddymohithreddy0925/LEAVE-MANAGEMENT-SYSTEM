@@ -119,3 +119,15 @@ databaseChangeLog:
   - include:
       file: changes/009-add-missing-constraints.yaml
       relativeToChangelogFile: true
+
+  - include:
+      file: changes/010-setup-security-tables.yaml
+      relativeToChangelogFile: true
+
+  - include:
+      file: changes/011-setup-tokens-and-audit.yaml
+      relativeToChangelogFile: true
+
+  - include:
+      file: changes/012-modify-employees-and-constraints.yaml
+      relativeToChangelogFile: true

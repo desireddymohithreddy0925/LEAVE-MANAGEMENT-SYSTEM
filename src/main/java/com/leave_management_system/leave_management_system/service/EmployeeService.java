@@ -10,6 +10,10 @@ import com.leave_management_system.leave_management_system.repository.EmployeeRe
 import org.springframework.stereotype.Service;
 import com.leave_management_system.leave_management_system.exception.DuplicateResourceException;
 import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
+import com.leave_management_system.leave_management_system.repository.UserRepository;
+import com.leave_management_system.leave_management_system.repository.RoleRepository;
+import com.leave_management_system.leave_management_system.entity.User;
+import com.leave_management_system.leave_management_system.entity.Role;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -18,27 +22,49 @@ import java.util.stream.Collectors;
 public class EmployeeService {
 
     private final EmployeeRepository employeeRepository;
-
     private final DepartmentRepository departmentRepository;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
 
     public EmployeeService(
             EmployeeRepository employeeRepository,
-            DepartmentRepository departmentRepository) {
+            DepartmentRepository departmentRepository,
+            UserRepository userRepository,
+            RoleRepository roleRepository) {
 
         this.employeeRepository = employeeRepository;
         this.departmentRepository = departmentRepository;
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
     }
 
     public EmployeeResponseDTO createEmployee(EmployeeRequestDTO dto) {
-        if (employeeRepository.existsByEmail(dto.getEmail())) {
+        if (userRepository.existsByEmail(dto.getEmail())) {
             throw new DuplicateResourceException("Email already exists");
         }
+
+        User user = new User();
+        user.setEmail(dto.getEmail());
+        user.setPassword("ChangeMe123!"); // Default password, should ideally be hashed
+        user.setActive(true);
+
+        Role employeeRole = roleRepository.findByName("EMPLOYEE")
+            .orElseGet(() -> {
+                Role r = new Role("EMPLOYEE");
+                return roleRepository.save(r);
+            });
+        user.getRoles().add(employeeRole);
+
+        user = userRepository.save(user);
 
         Employee employee = new Employee();
         employee.setFirstName(dto.getFirstName());
         employee.setLastName(dto.getLastName());
-        employee.setEmail(dto.getEmail());
         employee.setPhone(dto.getPhone());
+        employee.setEmployeeCode(dto.getEmployeeCode());
+        employee.setStatus(dto.getStatus());
+        employee.setSalary(dto.getSalary());
+        employee.setUser(user);
 
         if (dto.getDepartmentId() != null) {
             Department department = departmentRepository.findById(dto.getDepartmentId())
@@ -46,7 +72,6 @@ public class EmployeeService {
             employee.setDepartment(department);
         }
 
-        employee.setActive(true);
         return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
     }
 
@@ -66,16 +91,22 @@ public class EmployeeService {
         Employee employee = employeeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
 
-        employeeRepository.findByEmail(dto.getEmail()).ifPresent(existing -> {
-            if (!existing.getId().equals(id)) {
+        userRepository.findByEmail(dto.getEmail()).ifPresent(existingUser -> {
+            if (employee.getUser() == null || !existingUser.getId().equals(employee.getUser().getId())) {
                 throw new DuplicateResourceException("Email already exists");
             }
         });
 
+        if (employee.getUser() != null) {
+            employee.getUser().setEmail(dto.getEmail());
+        }
+
         employee.setFirstName(dto.getFirstName());
         employee.setLastName(dto.getLastName());
-        employee.setEmail(dto.getEmail());
         employee.setPhone(dto.getPhone());
+        employee.setEmployeeCode(dto.getEmployeeCode());
+        employee.setStatus(dto.getStatus());
+        employee.setSalary(dto.getSalary());
 
         if (dto.getDepartmentId() != null) {
             Department department = departmentRepository.findById(dto.getDepartmentId())
@@ -88,10 +119,13 @@ public class EmployeeService {
         return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
     }
 
-    public EmployeeResponseDTO changeEmployeeStatus(Long id, boolean active) {
+    public EmployeeResponseDTO changeEmployeeStatus(Long id, String status) {
         Employee employee = employeeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
-        employee.setActive(active);
+        employee.setStatus(status);
+        if (employee.getUser() != null) {
+            employee.getUser().setActive("ACTIVE".equals(status));
+        }
         return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
     }
 

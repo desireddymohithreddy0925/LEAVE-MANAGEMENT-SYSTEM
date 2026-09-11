@@ -53,7 +53,7 @@ public class LeaveBalanceServiceTest {
         leaveBalance.setId(1L);
         leaveBalance.setEmployee(employee);
         leaveBalance.setLeaveType(leaveType);
-        leaveBalance.setAvailableDays(20);
+        leaveBalance.setAvailable(20);
     }
 
     @Test
@@ -66,12 +66,12 @@ public class LeaveBalanceServiceTest {
         LeaveBalanceRequestDTO req = new LeaveBalanceRequestDTO();
         req.setEmployeeId(1L);
         req.setLeaveTypeId(1L);
-        req.setAvailableDays(20);
+        req.setAvailable(20);
 
         LeaveBalanceResponseDTO created = leaveBalanceService.createLeaveBalance(req);
 
         assertNotNull(created);
-        assertEquals(20, created.getAvailableDays());
+        assertEquals(20, created.getAvailable());
     }
 
     @Test
@@ -83,7 +83,7 @@ public class LeaveBalanceServiceTest {
         LeaveBalanceRequestDTO req = new LeaveBalanceRequestDTO();
         req.setEmployeeId(1L);
         req.setLeaveTypeId(1L);
-        req.setAvailableDays(20);
+        req.setAvailable(20);
 
         assertThrows(DuplicateResourceException.class, () -> leaveBalanceService.createLeaveBalance(req));
     }

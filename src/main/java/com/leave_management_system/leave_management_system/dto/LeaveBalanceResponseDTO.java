@@ -6,7 +6,10 @@ public class LeaveBalanceResponseDTO {
     private Long id;
     private EmployeeResponseDTO employee;
     private LeaveTypeResponseDTO leaveType;
-    private Integer availableDays;
+    private Integer year;
+    private Integer total;
+    private Integer used;
+    private Integer available;
 
     public static LeaveBalanceResponseDTO fromEntity(LeaveBalance balance) {
         if (balance == null) return null;
@@ -14,7 +17,10 @@ public class LeaveBalanceResponseDTO {
         dto.setId(balance.getId());
         dto.setEmployee(EmployeeResponseDTO.fromEntity(balance.getEmployee()));
         dto.setLeaveType(LeaveTypeResponseDTO.fromEntity(balance.getLeaveType()));
-        dto.setAvailableDays(balance.getAvailableDays());
+        dto.setYear(balance.getYear());
+        dto.setTotal(balance.getTotal());
+        dto.setUsed(balance.getUsed());
+        dto.setAvailable(balance.getAvailable());
         return dto;
     }
 
@@ -27,6 +33,12 @@ public class LeaveBalanceResponseDTO {
     public LeaveTypeResponseDTO getLeaveType() { return leaveType; }
     public void setLeaveType(LeaveTypeResponseDTO leaveType) { this.leaveType = leaveType; }
 
-    public Integer getAvailableDays() { return availableDays; }
-    public void setAvailableDays(Integer availableDays) { this.availableDays = availableDays; }
+    public Integer getYear() { return year; }
+    public void setYear(Integer year) { this.year = year; }
+    public Integer getTotal() { return total; }
+    public void setTotal(Integer total) { this.total = total; }
+    public Integer getUsed() { return used; }
+    public void setUsed(Integer used) { this.used = used; }
+    public Integer getAvailable() { return available; }
+    public void setAvailable(Integer available) { this.available = available; }
 }

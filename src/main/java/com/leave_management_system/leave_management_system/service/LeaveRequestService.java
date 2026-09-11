@@ -51,8 +51,8 @@ public class LeaveRequestService {
 
         Employee employee = employeeRepository.findById(dto.getEmployeeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
-        if (!employee.isActive()) {
-            throw new IllegalArgumentException("Inactive employees cannot apply for leave");
+        if (!"ACTIVE".equals(employee.getStatus())) {
+            throw new IllegalStateException("Employee is not active");
         }
 
         LeaveType leaveType = leaveTypeRepository.findById(dto.getLeaveTypeId())
@@ -82,8 +82,8 @@ public class LeaveRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Leave balance not found for this employee and leave type"));
 
-        if (balance.getAvailableDays() < requestedDays) {
-            throw new InsufficientLeaveException("Insufficient leave balance. Available: " + balance.getAvailableDays()
+        if (balance.getAvailable() < requestedDays) {
+            throw new InsufficientLeaveException("Insufficient leave balance. Available: " + balance.getAvailable()
                     + ", Requested: " + requestedDays);
         }
 
@@ -170,11 +170,11 @@ public class LeaveRequestService {
                 .findByEmployeeAndLeaveType(leaveRequest.getEmployee(), leaveRequest.getLeaveType())
                 .orElseThrow(() -> new ResourceNotFoundException("Leave balance not found"));
 
-        if (balance.getAvailableDays() < requestedDays) {
+        if (balance.getAvailable() < requestedDays) {
             throw new InsufficientLeaveException("Insufficient leave balance");
         }
 
-        balance.setAvailableDays(balance.getAvailableDays() - (int) requestedDays);
+        balance.setAvailable(balance.getAvailable() - (int) requestedDays);
         leaveBalanceRepository.save(balance);
 
         leaveRequest.setStatus(LeaveStatus.APPROVED);
@@ -215,7 +215,7 @@ public class LeaveRequestService {
                     .findByEmployeeAndLeaveType(leaveRequest.getEmployee(), leaveRequest.getLeaveType())
                     .orElseThrow(() -> new ResourceNotFoundException("Leave balance not found"));
 
-            balance.setAvailableDays(balance.getAvailableDays() + (int) requestedDays);
+            balance.setAvailable(balance.getAvailable() + (int) requestedDays);
             leaveBalanceRepository.save(balance);
         }
 

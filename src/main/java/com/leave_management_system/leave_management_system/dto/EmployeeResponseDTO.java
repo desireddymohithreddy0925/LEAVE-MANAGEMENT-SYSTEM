@@ -6,9 +6,11 @@ public class EmployeeResponseDTO {
     private Long id;
     private String firstName;
     private String lastName;
+    private String employeeCode;
     private String email;
     private String phone;
-    private boolean active;
+    private String status;
+    private java.math.BigDecimal salary;
     private DepartmentResponseDTO department;
 
     public static EmployeeResponseDTO fromEntity(Employee employee) {
@@ -17,9 +19,13 @@ public class EmployeeResponseDTO {
         dto.setId(employee.getId());
         dto.setFirstName(employee.getFirstName());
         dto.setLastName(employee.getLastName());
-        dto.setEmail(employee.getEmail());
+        dto.setEmployeeCode(employee.getEmployeeCode());
+        if (employee.getUser() != null) {
+            dto.setEmail(employee.getUser().getEmail());
+        }
         dto.setPhone(employee.getPhone());
-        dto.setActive(employee.isActive());
+        dto.setStatus(employee.getStatus());
+        dto.setSalary(employee.getSalary());
         if (employee.getDepartment() != null) {
             dto.setDepartment(DepartmentResponseDTO.fromEntity(employee.getDepartment()));
         }
@@ -33,12 +39,16 @@ public class EmployeeResponseDTO {
     public void setFirstName(String firstName) { this.firstName = firstName; }
     public String getLastName() { return lastName; }
     public void setLastName(String lastName) { this.lastName = lastName; }
+    public String getEmployeeCode() { return employeeCode; }
+    public void setEmployeeCode(String employeeCode) { this.employeeCode = employeeCode; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
-    public boolean isActive() { return active; }
-    public void setActive(boolean active) { this.active = active; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public java.math.BigDecimal getSalary() { return salary; }
+    public void setSalary(java.math.BigDecimal salary) { this.salary = salary; }
     public DepartmentResponseDTO getDepartment() { return department; }
     public void setDepartment(DepartmentResponseDTO department) { this.department = department; }
 }

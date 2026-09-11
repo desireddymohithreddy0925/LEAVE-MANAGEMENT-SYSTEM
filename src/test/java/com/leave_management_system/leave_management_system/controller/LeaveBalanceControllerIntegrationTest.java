@@ -82,7 +82,7 @@ public class LeaveBalanceControllerIntegrationTest {
         LeaveBalanceRequestDTO dto = new LeaveBalanceRequestDTO();
         dto.setEmployeeId(employeeId);
         dto.setLeaveTypeId(leaveTypeId);
-        dto.setAvailableDays(20);
+        dto.setAvailable(20);
 
         mockMvc.perform(post("/api/leave-balances")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -99,7 +99,7 @@ public class LeaveBalanceControllerIntegrationTest {
         LeaveBalanceRequestDTO dto = new LeaveBalanceRequestDTO();
         dto.setEmployeeId(employeeId);
         dto.setLeaveTypeId(leaveTypeId);
-        dto.setAvailableDays(20);
+        dto.setAvailable(20);
 
         mockMvc.perform(post("/api/leave-balances")
                 .contentType(MediaType.APPLICATION_JSON)

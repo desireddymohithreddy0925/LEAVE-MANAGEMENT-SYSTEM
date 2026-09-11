@@ -1,25 +1,28 @@
 package com.leave_management_system.leave_management_system.entity;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
-@Table(name = "departments")
-public class Department {
+@Table(name = "roles")
+public class Role {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Department name is required")
     @Column(nullable = false, unique = true)
     private String name;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "manager_id")
-    private Employee manager;
+    @ManyToMany(mappedBy = "roles")
+    private Set<User> users = new HashSet<>();
 
-    public Department() {
+    public Role() {
+    }
+
+    public Role(String name) {
+        this.name = name;
     }
 
     public Long getId() {
@@ -38,12 +41,11 @@ public class Department {
         this.name = name;
     }
 
-    public Employee getManager() {
-        return manager;
+    public Set<User> getUsers() {
+        return users;
     }
 
-    public void setManager(Employee manager) {
-        this.manager = manager;
+    public void setUsers(Set<User> users) {
+        this.users = users;
     }
 }
-    

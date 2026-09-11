@@ -1,8 +1,8 @@
 package com.leave_management_system.leave_management_system.entity;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import java.math.BigDecimal;
 
 @Entity
 
@@ -24,16 +24,25 @@ public class Employee {
     @Column(name = "last_name", nullable = false)
     private String lastName;
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Invalid email format")
-    @Column(unique = true, nullable = false)
-
-    private String email;
+    @NotBlank(message = "Employee code is required")
+    @Column(name = "employee_code", nullable = false, unique = true)
+    private String employeeCode;
 
     private String phone;
 
     @Column(nullable = false)
-    private boolean active;
+    private String status;
+
+    @Column(nullable = false)
+    private BigDecimal salary;
+
+    @OneToOne
+    @JoinColumn(name = "user_id", unique = true)
+    private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "manager_id")
+    private Employee manager;
 
     @ManyToOne
 
@@ -72,14 +81,13 @@ public class Employee {
     }
 
 
-    public String getEmail() {
-        return email;
+    public String getEmployeeCode() {
+        return employeeCode;
     }
 
-    public void setEmail(String email) {
-        this.email = email;
+    public void setEmployeeCode(String employeeCode) {
+        this.employeeCode = employeeCode;
     }
-
 
     public String getPhone() {
         return phone;
@@ -89,13 +97,36 @@ public class Employee {
         this.phone = phone;
     }
 
-
-    public boolean isActive() {
-        return active;
+    public String getStatus() {
+        return status;
     }
 
-    public void setActive(boolean active) {
-        this.active = active;
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public BigDecimal getSalary() {
+        return salary;
+    }
+
+    public void setSalary(BigDecimal salary) {
+        this.salary = salary;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
+
+    public Employee getManager() {
+        return manager;
+    }
+
+    public void setManager(Employee manager) {
+        this.manager = manager;
     }
 
 

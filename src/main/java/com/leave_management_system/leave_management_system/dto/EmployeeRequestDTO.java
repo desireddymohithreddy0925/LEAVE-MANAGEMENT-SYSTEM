@@ -23,7 +23,15 @@ public class EmployeeRequestDTO {
     @Size(max = 20, message = "Phone must not exceed 20 characters")
     @Pattern(regexp = "^\\+?[0-9\\-\\s]*$", message = "Invalid phone number format")
     private String phone;
-    
+
+    @NotBlank(message = "Employee code is required")
+    private String employeeCode;
+
+    @NotBlank(message = "Status is required")
+    private String status;
+
+    @NotNull(message = "Salary is required")
+    private java.math.BigDecimal salary;
     @NotNull(message = "Department ID is required")
     private Long departmentId;
 
@@ -36,6 +44,12 @@ public class EmployeeRequestDTO {
     public void setEmail(String email) { this.email = email; }
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
+    public String getEmployeeCode() { return employeeCode; }
+    public void setEmployeeCode(String employeeCode) { this.employeeCode = employeeCode; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public java.math.BigDecimal getSalary() { return salary; }
+    public void setSalary(java.math.BigDecimal salary) { this.salary = salary; }
     public Long getDepartmentId() { return departmentId; }
     public void setDepartmentId(Long departmentId) { this.departmentId = departmentId; }
 }

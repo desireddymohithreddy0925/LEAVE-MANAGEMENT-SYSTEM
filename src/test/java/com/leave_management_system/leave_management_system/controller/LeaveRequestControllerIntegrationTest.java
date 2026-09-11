@@ -76,7 +76,7 @@ public class LeaveRequestControllerIntegrationTest {
         LeaveBalanceRequestDTO dto = new LeaveBalanceRequestDTO();
         dto.setEmployeeId(empId);
         dto.setLeaveTypeId(typeId);
-        dto.setAvailableDays(20);
+        dto.setAvailable(20);
         mockMvc.perform(post("/api/leave-balances").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto)));
     }
 

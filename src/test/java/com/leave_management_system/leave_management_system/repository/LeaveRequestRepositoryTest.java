@@ -37,8 +37,9 @@ public class LeaveRequestRepositoryTest {
         employee = new Employee();
         employee.setFirstName("John");
         employee.setLastName("Doe");
-        employee.setEmail("john.overlap." + java.util.UUID.randomUUID().toString() + "@example.com");
-        employee.setActive(true);
+        employee.setEmployeeCode("EMP-001");
+        employee.setStatus("ACTIVE");
+        employee.setSalary(new java.math.BigDecimal("50000"));
         employee = employeeRepository.save(employee);
 
         LeaveType leaveType = new LeaveType("Annual" + java.util.UUID.randomUUID().toString().substring(0, 8), "", 20);

@@ -13,11 +13,11 @@ import java.util.Optional;
 
 public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
-    Optional<Employee> findByEmail(String email);
+    Optional<Employee> findByUserEmail(String email);
 
-    boolean existsByEmail(String email);
+    boolean existsByUserEmail(String email);
 
-    @Query("SELECT e FROM Employee e WHERE LOWER(e.firstName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(e.lastName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(e.email) LIKE LOWER(CONCAT('%', :keyword, '%'))")
+    @Query("SELECT e FROM Employee e WHERE LOWER(e.firstName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(e.lastName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(e.user.email) LIKE LOWER(CONCAT('%', :keyword, '%'))")
     List<Employee> searchByKeyword(@Param("keyword") String keyword);
 
     List<Employee> findByDepartmentId(Long departmentId);

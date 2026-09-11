@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 
@@ -77,8 +78,11 @@ public class EmployeeController {
             @ApiResponse(responseCode = "200", description = "Status updated successfully"),
             @ApiResponse(responseCode = "404", description = "Employee not found")
     })
-    public EmployeeResponseDTO changeEmployeeStatus(@PathVariable Long id, @RequestParam boolean active) {
-        return employeeService.changeEmployeeStatus(id, active);
+    public ResponseEntity<EmployeeResponseDTO> changeStatus(
+            @PathVariable Long id,
+            @RequestParam String status) {
+
+        return ResponseEntity.ok(employeeService.changeEmployeeStatus(id, status));
     }
 
     @PutMapping("/{id}/department")

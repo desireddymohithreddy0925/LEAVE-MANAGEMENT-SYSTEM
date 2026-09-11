@@ -58,7 +58,7 @@ public class LeaveRequestController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) Long leaveTypeId,
             Pageable pageable) {
-        
+
         return leaveRequestService.searchLeaveRequests(employeeId, status, startDate, endDate, leaveTypeId, pageable);
     }
 
@@ -109,7 +109,8 @@ public class LeaveRequestController {
             @ApiResponse(responseCode = "400", description = "Request is not in pending status or reason is missing"),
             @ApiResponse(responseCode = "404", description = "Leave request not found")
     })
-    public LeaveResponseDTO rejectLeaveRequest(@PathVariable Long id, @RequestParam(required = true) @NotBlank(message = "Rejection reason is mandatory") @Size(max = 500, message = "Rejection reason must not exceed 500 characters") String reason) {
+    public LeaveResponseDTO rejectLeaveRequest(@PathVariable Long id,
+            @RequestParam(required = true) @NotBlank(message = "Rejection reason is mandatory") @Size(max = 500, message = "Rejection reason must not exceed 500 characters") String reason) {
         return leaveRequestService.rejectLeaveRequest(id, reason);
     }
 

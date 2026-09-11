@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Min;
     name = "leave_balances",
     uniqueConstraints = {
         @UniqueConstraint(
-            columnNames = {"employee_id", "leave_type_id"}
+            columnNames = {"employee_id", "leave_type_id", "year"}
         )
     }
 )
@@ -26,9 +26,18 @@ public class LeaveBalance {
     @JoinColumn(name = "leave_type_id", nullable = false)
     private LeaveType leaveType;
 
+    @Column(nullable = false)
+    private Integer year;
+
+    @Column(nullable = false)
+    private Integer total;
+
+    @Column(nullable = false)
+    private Integer used;
+
     @Min(value = 0, message = "Available days cannot be negative")
-    @Column(name = "available_days", nullable = false)
-    private Integer availableDays;
+    @Column(nullable = false)
+    private Integer available;
 
     public LeaveBalance() {
     }
@@ -36,10 +45,16 @@ public class LeaveBalance {
     public LeaveBalance(
             Employee employee,
             LeaveType leaveType,
-            Integer availableDays) {
+            Integer year,
+            Integer total,
+            Integer used,
+            Integer available) {
         this.employee = employee;
         this.leaveType = leaveType;
-        this.availableDays = availableDays;
+        this.year = year;
+        this.total = total;
+        this.used = used;
+        this.available = available;
     }
 
     public Long getId() {
@@ -66,11 +81,35 @@ public class LeaveBalance {
         this.leaveType = leaveType;
     }
 
-    public Integer getAvailableDays() {
-        return availableDays;
+    public Integer getYear() {
+        return year;
     }
 
-    public void setAvailableDays(Integer availableDays) {
-        this.availableDays = availableDays;
+    public void setYear(Integer year) {
+        this.year = year;
+    }
+
+    public Integer getTotal() {
+        return total;
+    }
+
+    public void setTotal(Integer total) {
+        this.total = total;
+    }
+
+    public Integer getUsed() {
+        return used;
+    }
+
+    public void setUsed(Integer used) {
+        this.used = used;
+    }
+
+    public Integer getAvailable() {
+        return available;
+    }
+
+    public void setAvailable(Integer available) {
+        this.available = available;
     }
 }
