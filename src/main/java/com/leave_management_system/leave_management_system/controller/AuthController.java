@@ -42,4 +42,11 @@ public class AuthController {
     public ResponseEntity<AuthResponseDTO> refreshToken(@Valid @RequestBody TokenRefreshRequestDTO request) {
         return ResponseEntity.ok(authService.refreshToken(request));
     }
+
+    @PostMapping("/logout")
+    @Operation(summary = "Logout user", description = "Logs out a user by invalidating the refresh token")
+    public ResponseEntity<String> logoutUser(@Valid @RequestBody TokenRefreshRequestDTO request) {
+        authService.logout(request.getRefreshToken());
+        return ResponseEntity.ok("User logged out successfully");
+    }
 }

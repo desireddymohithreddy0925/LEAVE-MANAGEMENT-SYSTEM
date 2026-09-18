@@ -103,4 +103,8 @@ public class AuthService {
                 })
                 .orElseThrow(() -> new RuntimeException("Refresh token is not in database!"));
     }
+
+    public void logout(String refreshToken) {
+        refreshTokenService.deleteByToken(refreshToken);
+    }
 }
