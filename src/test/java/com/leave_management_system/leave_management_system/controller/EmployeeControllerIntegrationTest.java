@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +44,7 @@ public class EmployeeControllerIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
     void createEmployee_Success() throws Exception {
         Long deptId = createDepartment();
         EmployeeRequestDTO dto = new EmployeeRequestDTO();
@@ -51,6 +53,9 @@ public class EmployeeControllerIntegrationTest {
         dto.setEmail("integration.test@example.com");
         dto.setPhone("1234567890");
         dto.setDepartmentId(deptId);
+        dto.setEmployeeCode("EMP-" + System.currentTimeMillis());
+        dto.setStatus("ACTIVE");
+        dto.setSalary(new java.math.BigDecimal("50000"));
 
         mockMvc.perform(post("/api/employees")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -60,6 +65,7 @@ public class EmployeeControllerIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
     void createEmployee_ValidationFails() throws Exception {
         EmployeeRequestDTO dto = new EmployeeRequestDTO();
         // Missing required fields
@@ -71,12 +77,14 @@ public class EmployeeControllerIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
     void searchEmployees_Success() throws Exception {
         mockMvc.perform(get("/api/employees").param("search", "admin"))
                 .andExpect(status().isOk());
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
     void createEmployee_DuplicateEmail() throws Exception {
         Long deptId = createDepartment();
         EmployeeRequestDTO dto = new EmployeeRequestDTO();
@@ -85,6 +93,9 @@ public class EmployeeControllerIntegrationTest {
         dto.setEmail("duplicate.test@example.com");
         dto.setPhone("1234567890");
         dto.setDepartmentId(deptId);
+        dto.setEmployeeCode("EMP-" + System.currentTimeMillis());
+        dto.setStatus("ACTIVE");
+        dto.setSalary(new java.math.BigDecimal("50000"));
 
         mockMvc.perform(post("/api/employees")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -95,5 +106,24 @@ public class EmployeeControllerIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    @WithMockUser(roles = "EMPLOYEE")
+    void createEmployee_UnauthorizedForEmployee() throws Exception {
+        EmployeeRequestDTO dto = new EmployeeRequestDTO();
+        dto.setFirstName("First");
+        dto.setLastName("Last");
+        dto.setEmail("unauthorized@example.com");
+        dto.setPhone("1234567890");
+        dto.setDepartmentId(1L);
+        dto.setEmployeeCode("EMP-" + System.currentTimeMillis());
+        dto.setStatus("ACTIVE");
+        dto.setSalary(new java.math.BigDecimal("50000"));
+
+        mockMvc.perform(post("/api/employees")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isForbidden()); // 403 Forbidden
     }
 }
