@@ -44,7 +44,7 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    @Operation(summary = "Logout user", description = "Logs out a user by invalidating the refresh token")
+    @Operation(summary = "Logout user", description = "Logs out a user by invalidating their refresh token. Note: Client-side access JWTs will remain valid until their expiration (stateless).")
     public ResponseEntity<String> logoutUser(@Valid @RequestBody TokenRefreshRequestDTO request) {
         authService.logout(request.getRefreshToken());
         return ResponseEntity.ok("User logged out successfully");
