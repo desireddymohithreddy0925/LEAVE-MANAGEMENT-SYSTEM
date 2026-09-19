@@ -18,6 +18,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class AuthService {
@@ -51,9 +52,10 @@ public class AuthService {
         String jwt = jwtUtils.generateJwtToken(authentication);
         
         User user = userRepository.findByEmail(loginRequest.getEmail()).orElseThrow();
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
+        String rawRefreshToken = UUID.randomUUID().toString();
+        refreshTokenService.createRefreshToken(user.getId(), rawRefreshToken);
 
-        return new AuthResponseDTO(jwt, refreshToken.getTokenHash(), UserResponseDTO.fromEntity(user));
+        return new AuthResponseDTO(jwt, rawRefreshToken, UserResponseDTO.fromEntity(user));
     }
 
     public AuthResponseDTO register(RegisterRequestDTO registerRequest) {
@@ -86,9 +88,10 @@ public class AuthService {
         SecurityContextHolder.getContext().setAuthentication(authentication);
         
         String jwt = jwtUtils.generateJwtToken(authentication);
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
+        String rawRefreshToken = UUID.randomUUID().toString();
+        refreshTokenService.createRefreshToken(user.getId(), rawRefreshToken);
 
-        return new AuthResponseDTO(jwt, refreshToken.getTokenHash(), UserResponseDTO.fromEntity(user));
+        return new AuthResponseDTO(jwt, rawRefreshToken, UserResponseDTO.fromEntity(user));
     }
 
     public AuthResponseDTO refreshToken(TokenRefreshRequestDTO request) {

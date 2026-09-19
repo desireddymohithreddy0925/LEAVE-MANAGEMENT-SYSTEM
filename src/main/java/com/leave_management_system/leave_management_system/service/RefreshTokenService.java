@@ -8,9 +8,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 public class RefreshTokenService {
@@ -28,24 +30,37 @@ public class RefreshTokenService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public Optional<RefreshToken> findByToken(String token) {
-        // We must hash the incoming token to match it with the DB
-        // But since BCrypt produces a different hash each time, we can't just query by it easily unless we use SHA256 or iterate. 
-        // Wait, for RefreshTokens, it's better to use SHA-256 for fast lookup, or just store a plain token. 
-        // Let's assume the entity tokenHash stores plain token for now, or we store SHA256 hash.
-        return refreshTokenRepository.findByTokenHash(token);
+    private String hashToken(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] encodedhash = digest.digest(token.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder(2 * encodedhash.length);
+            for (byte b : encodedhash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Error hashing token", e);
+        }
     }
 
-    public RefreshToken createRefreshToken(Long userId) {
+    public Optional<RefreshToken> findByToken(String token) {
+        return refreshTokenRepository.findByTokenHash(hashToken(token));
+    }
+
+    public RefreshToken createRefreshToken(Long userId, String rawToken) {
         RefreshToken refreshToken = new RefreshToken();
 
         refreshToken.setUser(userRepository.findById(userId).get());
         refreshToken.setExpiresAt(LocalDateTime.now().plusNanos(refreshTokenDurationMs * 1_000_000));
-        refreshToken.setTokenHash(UUID.randomUUID().toString()); // Use UUID as token
+        refreshToken.setTokenHash(hashToken(rawToken));
         refreshToken.setRevoked(false);
 
-        refreshToken = refreshTokenRepository.save(refreshToken);
-        return refreshToken;
+        return refreshTokenRepository.save(refreshToken);
     }
 
     public RefreshToken verifyExpiration(RefreshToken token) {
@@ -63,6 +78,6 @@ public class RefreshTokenService {
 
     @Transactional
     public void deleteByToken(String token) {
-        refreshTokenRepository.findByTokenHash(token).ifPresent(refreshTokenRepository::delete);
+        refreshTokenRepository.findByTokenHash(hashToken(token)).ifPresent(refreshTokenRepository::delete);
     }
 }
