@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,6 +27,7 @@ public class LeaveBalanceController {
         this.leaveBalanceService = leaveBalanceService;
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     @Operation(summary = "Create or add leave balance", description = "Adds a leave balance for an employee.")
     @ApiResponses({
@@ -43,6 +45,7 @@ public class LeaveBalanceController {
         );
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     @Operation(summary = "Get all leave balances", description = "Returns a list of all leave balances across all employees.")
     @ApiResponses({
@@ -55,6 +58,7 @@ public class LeaveBalanceController {
         );
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/{id}")
     @Operation(summary = "Get leave balance by ID", description = "Returns the details of a specific leave balance.")
     @ApiResponses({
@@ -69,6 +73,7 @@ public class LeaveBalanceController {
         );
     }
 
+    @PreAuthorize("@securityService.canViewEmployee(authentication, #employeeId)")
     @GetMapping("/employee/{employeeId}")
     @Operation(summary = "Get employee balances", description = "Returns all leave balances for a specific employee.")
     @ApiResponses({
@@ -83,6 +88,7 @@ public class LeaveBalanceController {
         );
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     @Operation(summary = "Update a leave balance", description = "Updates the available days for a leave balance.")
     @ApiResponses({
@@ -99,6 +105,7 @@ public class LeaveBalanceController {
         );
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete a leave balance", description = "Deletes a leave balance record.")
     @ApiResponses({

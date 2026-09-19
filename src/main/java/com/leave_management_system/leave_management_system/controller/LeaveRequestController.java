@@ -6,6 +6,7 @@ import com.leave_management_system.leave_management_system.service.LeaveRequestS
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -34,6 +35,7 @@ public class LeaveRequestController {
         this.leaveRequestService = leaveRequestService;
     }
 
+    @PreAuthorize("@securityService.isSelf(authentication, #dto.employeeId)")
     @PostMapping
     @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     @Operation(summary = "Apply for leave", description = "Creates a new leave request for an employee.")
@@ -46,6 +48,7 @@ public class LeaveRequestController {
         return leaveRequestService.createLeaveRequest(dto);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     @Operation(summary = "Search leave requests", description = "Search leave requests with filtering and pagination.")
     @ApiResponses({
@@ -62,6 +65,7 @@ public class LeaveRequestController {
         return leaveRequestService.searchLeaveRequests(employeeId, status, startDate, endDate, leaveTypeId, pageable);
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @GetMapping("/{id}")
     @Operation(summary = "Get leave request by ID", description = "Returns the details of a specific leave request.")
     @ApiResponses({
@@ -72,6 +76,7 @@ public class LeaveRequestController {
         return leaveRequestService.getLeaveRequestById(id);
     }
 
+    @PreAuthorize("@securityService.canViewEmployee(authentication, #employeeId)")
     @GetMapping("/employee/{employeeId}")
     @Operation(summary = "Get employee leave requests", description = "Returns all leave requests for a specific employee.")
     @ApiResponses({
@@ -82,6 +87,7 @@ public class LeaveRequestController {
         return leaveRequestService.getLeaveRequestsByEmployee(employeeId);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/status/{status}")
     @Operation(summary = "Get leave requests by status", description = "Returns all leave requests with a specific status.")
     @ApiResponses({
@@ -91,6 +97,7 @@ public class LeaveRequestController {
         return leaveRequestService.getLeaveRequestsByStatus(status);
     }
 
+    @PreAuthorize("@securityService.canManageLeaveRequest(authentication, #id)")
     @PutMapping("/{id}/approve")
     @Operation(summary = "Approve a leave request", description = "Approves a pending leave request.")
     @ApiResponses({
@@ -102,6 +109,7 @@ public class LeaveRequestController {
         return leaveRequestService.approveLeaveRequest(id);
     }
 
+    @PreAuthorize("@securityService.canManageLeaveRequest(authentication, #id)")
     @PutMapping("/{id}/reject")
     @Operation(summary = "Reject a leave request", description = "Rejects a pending leave request with a mandatory reason.")
     @ApiResponses({
@@ -114,6 +122,7 @@ public class LeaveRequestController {
         return leaveRequestService.rejectLeaveRequest(id, reason);
     }
 
+    @PreAuthorize("@securityService.canManageLeaveRequest(authentication, #id) or @securityService.isSelf(authentication, @leaveRequestService.getLeaveRequestById(#id).employeeId)")
     @PutMapping("/{id}/cancel")
     @Operation(summary = "Cancel a leave request", description = "Cancels a pending or approved leave request.")
     @ApiResponses({

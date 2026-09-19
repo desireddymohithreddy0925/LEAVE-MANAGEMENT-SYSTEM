@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +26,7 @@ public class EmployeeController {
         this.employeeService = employeeService;
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     @Operation(summary = "Create a new employee", description = "Creates a new employee and assigns them to a department.")
@@ -38,6 +40,7 @@ public class EmployeeController {
         return employeeService.createEmployee(dto);
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @GetMapping
     @Operation(summary = "Get all employees or search by keyword", description = "Returns a list of all employees, optionally filtered by a search keyword (name or email).")
     @ApiResponses({
@@ -50,6 +53,7 @@ public class EmployeeController {
         return employeeService.getAllEmployees();
     }
 
+    @PreAuthorize("@securityService.canViewEmployee(authentication, #id)")
     @GetMapping("/{id}")
     @Operation(summary = "Get employee by ID", description = "Returns the details of a specific employee.")
     @ApiResponses({
@@ -60,6 +64,7 @@ public class EmployeeController {
         return employeeService.getEmployeeById(id);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     @Operation(summary = "Update an employee", description = "Updates the details of an existing employee.")
     @ApiResponses({
@@ -72,6 +77,7 @@ public class EmployeeController {
         return employeeService.updateEmployee(id, dto);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{id}/status")
     @Operation(summary = "Change employee status", description = "Activates or deactivates an employee.")
     @ApiResponses({
@@ -85,6 +91,7 @@ public class EmployeeController {
         return ResponseEntity.ok(employeeService.changeEmployeeStatus(id, status));
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}/department")
     @Operation(summary = "Transfer employee to department", description = "Moves an employee to a different department.")
     @ApiResponses({
@@ -95,6 +102,7 @@ public class EmployeeController {
         return employeeService.transferEmployee(id, departmentId);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete an employee", description = "Permanently deletes an employee from the system.")
     @ApiResponses({
