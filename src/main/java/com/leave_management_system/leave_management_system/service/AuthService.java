@@ -16,6 +16,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -94,6 +95,7 @@ public class AuthService {
         return new AuthResponseDTO(jwt, rawRefreshToken, UserResponseDTO.fromEntity(user));
     }
 
+    @Transactional
     public AuthResponseDTO refreshToken(TokenRefreshRequestDTO request) {
         String requestRefreshToken = request.getRefreshToken();
 
@@ -101,8 +103,14 @@ public class AuthService {
                 .map(refreshTokenService::verifyExpiration)
                 .map(RefreshToken::getUser)
                 .map(user -> {
+                    refreshTokenService.deleteByToken(requestRefreshToken);
+
                     String token = jwtUtils.generateTokenFromUsername(user.getEmail());
-                    return new AuthResponseDTO(token, requestRefreshToken, UserResponseDTO.fromEntity(user));
+                    
+                    String newRawRefreshToken = UUID.randomUUID().toString();
+                    refreshTokenService.createRefreshToken(user.getId(), newRawRefreshToken);
+
+                    return new AuthResponseDTO(token, newRawRefreshToken, UserResponseDTO.fromEntity(user));
                 })
                 .orElseThrow(() -> new RuntimeException("Refresh token is not in database!"));
     }
