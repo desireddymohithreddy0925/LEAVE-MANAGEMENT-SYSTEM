@@ -117,8 +117,8 @@ public class LeaveRequestServiceTest {
         employee.setStatus("INACTIVE");
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.createLeaveRequest(requestDTO));
-        assertEquals("Inactive employees cannot apply for leave", ex.getMessage());
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> leaveRequestService.createLeaveRequest(requestDTO));
+        assertEquals("Employee is not active", ex.getMessage());
     }
 
     @Test

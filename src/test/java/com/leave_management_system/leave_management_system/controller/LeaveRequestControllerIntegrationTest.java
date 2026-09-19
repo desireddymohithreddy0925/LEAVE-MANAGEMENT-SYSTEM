@@ -23,6 +23,7 @@ import com.jayway.jsonpath.JsonPath;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.test.context.support.WithMockUser;
 import com.leave_management_system.leave_management_system.dto.EmployeeRequestDTO;
 import com.leave_management_system.leave_management_system.dto.LeaveTypeRequestDTO;
 import com.leave_management_system.leave_management_system.dto.LeaveBalanceRequestDTO;
@@ -30,6 +31,7 @@ import com.leave_management_system.leave_management_system.dto.LeaveBalanceReque
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
+@WithMockUser(username = "req.test@example.com", roles = "ADMIN")
 public class LeaveRequestControllerIntegrationTest {
 
     @Autowired
@@ -59,6 +61,9 @@ public class LeaveRequestControllerIntegrationTest {
         dto.setEmail("req.test@example.com");
         dto.setPhone("1234567890");
         dto.setDepartmentId(deptId);
+        dto.setEmployeeCode("EMP-" + System.currentTimeMillis());
+        dto.setStatus("ACTIVE");
+        dto.setSalary(new java.math.BigDecimal("50000"));
         MvcResult result = mockMvc.perform(post("/api/employees").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(dto))).andReturn();
         return JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
     }

@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.web.context.WebApplicationContext;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -24,6 +25,7 @@ import com.jayway.jsonpath.JsonPath;
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
+@WithMockUser(roles = "ADMIN")
 public class LeaveBalanceControllerIntegrationTest {
 
     @Autowired
@@ -53,6 +55,9 @@ public class LeaveBalanceControllerIntegrationTest {
         dto.setEmail("balance.test@example.com");
         dto.setPhone("1234567890");
         dto.setDepartmentId(deptId);
+        dto.setEmployeeCode("EMP-" + System.currentTimeMillis());
+        dto.setStatus("ACTIVE");
+        dto.setSalary(new java.math.BigDecimal("50000"));
 
         MvcResult result = mockMvc.perform(post("/api/employees")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -88,7 +93,7 @@ public class LeaveBalanceControllerIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.availableDays").value(20));
+                .andExpect(jsonPath("$.available").value(12));
     }
 
     @Test

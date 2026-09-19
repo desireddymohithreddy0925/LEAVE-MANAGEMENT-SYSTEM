@@ -23,6 +23,7 @@ import com.jayway.jsonpath.JsonPath;
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
+@org.springframework.security.test.context.support.WithMockUser(roles = "ADMIN")
 public class LeaveTypeControllerIntegrationTest {
 
     @Autowired
