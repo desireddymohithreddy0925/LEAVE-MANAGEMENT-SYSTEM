@@ -43,22 +43,7 @@ public class JwtUtils {
                 .parseClaimsJws(token).getBody().getSubject();
     }
 
-    public boolean validateJwtToken(String authToken) {
-        try {
-            Jwts.parserBuilder().setSigningKey(key()).build().parseClaimsJws(authToken);
-            return true;
-        } catch (MalformedJwtException e) {
-            // log.error("Invalid JWT token: {}", e.getMessage());
-        } catch (ExpiredJwtException e) {
-            // log.error("JWT token is expired: {}", e.getMessage());
-        } catch (UnsupportedJwtException e) {
-            // log.error("JWT token is unsupported: {}", e.getMessage());
-        } catch (IllegalArgumentException e) {
-            // log.error("JWT claims string is empty: {}", e.getMessage());
-        } catch (Exception e) {
-            // log.error("Invalid token: {}", e.getMessage());
-        }
-
-        return false;
+    public void validateJwtToken(String authToken) {
+        Jwts.parserBuilder().setSigningKey(key()).build().parseClaimsJws(authToken);
     }
 }
