@@ -26,7 +26,7 @@ public class LeaveTypeController {
         this.leaveTypeService = leaveTypeService;
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     @PostMapping
     @Operation(summary = "Create a new leave type", description = "Creates a new type of leave (e.g., Annual, Sick).")
     @ApiResponses({
@@ -38,6 +38,7 @@ public class LeaveTypeController {
         return new ResponseEntity<>(leaveTypeService.createLeaveType(dto), HttpStatus.CREATED);
     }
 
+    @PreAuthorize("isAuthenticated()")
     @GetMapping
     @Operation(summary = "Get all leave types", description = "Returns a list of all available leave types.")
     @ApiResponses({
@@ -47,6 +48,7 @@ public class LeaveTypeController {
         return ResponseEntity.ok(leaveTypeService.getAllLeaveTypes());
     }
 
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/{id}")
     @Operation(summary = "Get leave type by ID", description = "Returns the details of a specific leave type.")
     @ApiResponses({
@@ -57,7 +59,7 @@ public class LeaveTypeController {
         return ResponseEntity.ok(leaveTypeService.getLeaveTypeById(id));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     @PutMapping("/{id}")
     @Operation(summary = "Update a leave type", description = "Updates the details of an existing leave type.")
     @ApiResponses({
@@ -70,7 +72,7 @@ public class LeaveTypeController {
         return ResponseEntity.ok(leaveTypeService.updateLeaveType(id, dto));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete a leave type", description = "Deletes a leave type from the system.")
     @ApiResponses({
@@ -83,7 +85,7 @@ public class LeaveTypeController {
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     @PutMapping("/{id}/activate")
     @Operation(summary = "Activate a leave type", description = "Marks a leave type as active, allowing employees to apply for it.")
     @ApiResponses({
@@ -94,7 +96,7 @@ public class LeaveTypeController {
         return ResponseEntity.ok(leaveTypeService.activateLeaveType(id));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     @PutMapping("/{id}/deactivate")
     @Operation(summary = "Deactivate a leave type", description = "Marks a leave type as inactive.")
     @ApiResponses({

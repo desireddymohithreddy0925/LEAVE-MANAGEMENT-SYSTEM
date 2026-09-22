@@ -30,7 +30,7 @@ public class DepartmentController {
         this.employeeService = employeeService;
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create a new department", description = "Creates a new department in the system.")
@@ -43,7 +43,7 @@ public class DepartmentController {
         return departmentService.createDepartment(dto);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
     @GetMapping
     @Operation(summary = "Get all departments", description = "Returns a list of all available departments.")
     @ApiResponses({
@@ -53,7 +53,7 @@ public class DepartmentController {
         return departmentService.getAllDepartments();
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
     @GetMapping("/{id}")
     @Operation(summary = "Get department by ID", description = "Returns the details of a specific department.")
     @ApiResponses({
@@ -64,7 +64,7 @@ public class DepartmentController {
         return departmentService.getDepartmentById(id);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
     @GetMapping("/{id}/employees")
     @Operation(summary = "Get employees in a department", description = "Returns a list of all employees assigned to the specified department.")
     @ApiResponses({
@@ -75,7 +75,7 @@ public class DepartmentController {
         return employeeService.getEmployeesByDepartmentId(id);
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     @PutMapping("/{id}")
     @Operation(summary = "Update a department", description = "Updates the details of an existing department.")
     @ApiResponses({
@@ -88,7 +88,7 @@ public class DepartmentController {
         return departmentService.updateDepartment(id, dto);
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Delete a department", description = "Deletes a department. Will fail if the department still has employees.")

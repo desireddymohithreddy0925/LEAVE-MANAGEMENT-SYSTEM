@@ -26,7 +26,7 @@ public class EmployeeController {
         this.employeeService = employeeService;
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     @PostMapping
     @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     @Operation(summary = "Create a new employee", description = "Creates a new employee and assigns them to a department.")
@@ -40,7 +40,7 @@ public class EmployeeController {
         return employeeService.createEmployee(dto);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
     @GetMapping
     @Operation(summary = "Get all employees or search by keyword", description = "Returns a list of all employees, optionally filtered by a search keyword (name or email).")
     @ApiResponses({
@@ -64,7 +64,7 @@ public class EmployeeController {
         return employeeService.getEmployeeById(id);
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     @PutMapping("/{id}")
     @Operation(summary = "Update an employee", description = "Updates the details of an existing employee.")
     @ApiResponses({
@@ -77,7 +77,7 @@ public class EmployeeController {
         return employeeService.updateEmployee(id, dto);
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     @PatchMapping("/{id}/status")
     @Operation(summary = "Change employee status", description = "Activates or deactivates an employee.")
     @ApiResponses({
@@ -91,7 +91,7 @@ public class EmployeeController {
         return ResponseEntity.ok(employeeService.changeEmployeeStatus(id, status));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     @PutMapping("/{id}/department")
     @Operation(summary = "Transfer employee to department", description = "Moves an employee to a different department.")
     @ApiResponses({
@@ -102,7 +102,7 @@ public class EmployeeController {
         return employeeService.transferEmployee(id, departmentId);
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete an employee", description = "Permanently deletes an employee from the system.")
     @ApiResponses({

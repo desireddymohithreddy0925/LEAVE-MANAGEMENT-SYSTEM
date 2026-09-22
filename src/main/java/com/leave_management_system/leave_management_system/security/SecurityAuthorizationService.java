@@ -49,25 +49,25 @@ public class SecurityAuthorizationService {
     }
 
     public boolean canViewEmployee(Authentication authentication, Long targetEmployeeId) {
-        boolean isAdmin = authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-        if (isAdmin) return true;
+        boolean isHRorAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_HR"));
+        if (isHRorAdmin) return true;
 
         return isSelf(authentication, targetEmployeeId) || isManagerOfEmployee(authentication, targetEmployeeId);
     }
 
     public boolean canManageLeaveBalance(Authentication authentication, Long targetEmployeeId) {
-        boolean isAdmin = authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-        if (isAdmin) return true;
+        boolean isHRorAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_HR"));
+        if (isHRorAdmin) return true;
 
         return isManagerOfEmployee(authentication, targetEmployeeId);
     }
 
     public boolean canManageLeaveRequest(Authentication authentication, Long leaveRequestId) {
-        boolean isAdmin = authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-        if (isAdmin) return true;
+        boolean isHRorAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_HR"));
+        if (isHRorAdmin) return true;
 
         Optional<LeaveRequest> leaveRequest = leaveRequestRepository.findById(leaveRequestId);
         if (leaveRequest.isEmpty()) {
@@ -76,5 +76,19 @@ public class SecurityAuthorizationService {
         
         Long targetEmployeeId = leaveRequest.get().getEmployee().getId();
         return isManagerOfEmployee(authentication, targetEmployeeId);
+    }
+
+    public boolean canViewLeaveRequest(Authentication authentication, Long leaveRequestId) {
+        boolean isHRorAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_HR"));
+        if (isHRorAdmin) return true;
+
+        Optional<LeaveRequest> leaveRequest = leaveRequestRepository.findById(leaveRequestId);
+        if (leaveRequest.isEmpty()) {
+            return false;
+        }
+
+        Long targetEmployeeId = leaveRequest.get().getEmployee().getId();
+        return isSelf(authentication, targetEmployeeId) || isManagerOfEmployee(authentication, targetEmployeeId);
     }
 }

@@ -35,7 +35,7 @@ public class LeaveRequestController {
         this.leaveRequestService = leaveRequestService;
     }
 
-    @PreAuthorize("@securityService.isSelf(authentication, #dto.employeeId)")
+    @PreAuthorize("@securityService.isSelf(authentication, #dto.employeeId) or hasAnyRole('ADMIN', 'HR')")
     @PostMapping
     @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     @Operation(summary = "Apply for leave", description = "Creates a new leave request for an employee.")
@@ -48,7 +48,7 @@ public class LeaveRequestController {
         return leaveRequestService.createLeaveRequest(dto);
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     @GetMapping
     @Operation(summary = "Search leave requests", description = "Search leave requests with filtering and pagination.")
     @ApiResponses({
@@ -65,7 +65,7 @@ public class LeaveRequestController {
         return leaveRequestService.searchLeaveRequests(employeeId, status, startDate, endDate, leaveTypeId, pageable);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("@securityService.canViewLeaveRequest(authentication, #id)")
     @GetMapping("/{id}")
     @Operation(summary = "Get leave request by ID", description = "Returns the details of a specific leave request.")
     @ApiResponses({
@@ -87,7 +87,7 @@ public class LeaveRequestController {
         return leaveRequestService.getLeaveRequestsByEmployee(employeeId);
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     @GetMapping("/status/{status}")
     @Operation(summary = "Get leave requests by status", description = "Returns all leave requests with a specific status.")
     @ApiResponses({
@@ -122,7 +122,7 @@ public class LeaveRequestController {
         return leaveRequestService.rejectLeaveRequest(id, reason);
     }
 
-    @PreAuthorize("@securityService.canManageLeaveRequest(authentication, #id) or @securityService.isSelf(authentication, @leaveRequestService.getLeaveRequestById(#id).employeeId)")
+    @PreAuthorize("@securityService.canViewLeaveRequest(authentication, #id)")
     @PutMapping("/{id}/cancel")
     @Operation(summary = "Cancel a leave request", description = "Cancels a pending or approved leave request.")
     @ApiResponses({
