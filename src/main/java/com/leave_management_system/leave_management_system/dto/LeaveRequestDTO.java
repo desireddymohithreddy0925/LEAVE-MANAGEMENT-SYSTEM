@@ -7,8 +7,7 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 
 public class LeaveRequestDTO {
-    @NotNull(message = "Employee ID is required")
-    @Positive(message = "Employee ID must be positive")
+    // employeeId is optional as it will be injected from the SecurityContext for regular employees
     private Long employeeId;
 
     @NotNull(message = "Leave Type ID is required")

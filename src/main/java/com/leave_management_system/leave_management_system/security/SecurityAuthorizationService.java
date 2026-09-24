@@ -21,7 +21,7 @@ public class SecurityAuthorizationService {
         this.leaveRequestRepository = leaveRequestRepository;
     }
 
-    private Optional<Employee> getAuthenticatedEmployee(Authentication authentication) {
+    public Optional<Employee> getAuthenticatedEmployee(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return Optional.empty();
         }

@@ -22,6 +22,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 import java.util.List;
+import org.springframework.security.core.Authentication;
+import com.leave_management_system.leave_management_system.security.SecurityAuthorizationService;
 
 @RestController
 @RequestMapping("/api/leave-requests")
@@ -30,12 +32,14 @@ import java.util.List;
 public class LeaveRequestController {
 
     private final LeaveRequestService leaveRequestService;
+    private final SecurityAuthorizationService securityService;
 
-    public LeaveRequestController(LeaveRequestService leaveRequestService) {
+    public LeaveRequestController(LeaveRequestService leaveRequestService, SecurityAuthorizationService securityService) {
         this.leaveRequestService = leaveRequestService;
+        this.securityService = securityService;
     }
 
-    @PreAuthorize("@securityService.isSelf(authentication, #dto.employeeId) or hasAnyRole('ADMIN', 'HR')")
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN', 'HR')")
     @PostMapping
     @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     @Operation(summary = "Apply for leave", description = "Creates a new leave request for an employee.")
@@ -45,6 +49,21 @@ public class LeaveRequestController {
             @ApiResponse(responseCode = "404", description = "Employee or Leave type not found")
     })
     public LeaveResponseDTO createLeaveRequest(@Valid @RequestBody LeaveRequestDTO dto) {
+        Authentication authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        
+        boolean isHRorAdmin = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_HR"));
+
+        if (!isHRorAdmin) {
+            // Force employeeId to be the authenticated user's ID
+            com.leave_management_system.leave_management_system.entity.Employee employee = 
+                securityService.getAuthenticatedEmployee(authentication)
+                    .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException("User not found"));
+            dto.setEmployeeId(employee.getId());
+        } else if (dto.getEmployeeId() == null) {
+            throw new IllegalArgumentException("Employee ID is required when created by HR or ADMIN");
+        }
+
         return leaveRequestService.createLeaveRequest(dto);
     }
 
