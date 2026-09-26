@@ -14,9 +14,11 @@ import org.springframework.stereotype.Service;
 import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
 import com.leave_management_system.leave_management_system.exception.DuplicateResourceException;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.List;
 
 @Service
+@PreAuthorize("hasAnyRole('ADMIN', 'HR')")
 public class LeaveBalanceService {
 
         private final LeaveBalanceRepository leaveBalanceRepository;
@@ -81,6 +83,7 @@ public class LeaveBalanceService {
                                                 "Leave balance not found with id: " + id));
         }
 
+        @PreAuthorize("@securityService.canViewEmployee(authentication, #employeeId)")
         public List<LeaveBalanceResponseDTO> getBalancesByEmployee(
                         Long employeeId) {
 

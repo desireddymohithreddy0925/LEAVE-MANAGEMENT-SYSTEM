@@ -20,12 +20,14 @@ import org.springframework.transaction.annotation.Transactional;
 import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
 import com.leave_management_system.leave_management_system.exception.InsufficientLeaveException;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@PreAuthorize("hasAnyRole('ADMIN', 'HR')")
 public class LeaveRequestService {
 
     private final LeaveRequestRepository leaveRequestRepository;
@@ -44,6 +46,7 @@ public class LeaveRequestService {
     }
 
     @Transactional
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN', 'HR')")
     public LeaveResponseDTO createLeaveRequest(LeaveRequestDTO dto) {
         if (dto.getEndDate().isBefore(dto.getStartDate())) {
             throw new IllegalArgumentException("End date cannot be before start date");
@@ -133,12 +136,14 @@ public class LeaveRequestService {
         return leaveRequestRepository.findAll(spec, pageable).map(LeaveResponseDTO::fromEntity);
     }
 
+    @PreAuthorize("@securityService.canViewLeaveRequest(authentication, #id)")
     public LeaveResponseDTO getLeaveRequestById(Long id) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
         return LeaveResponseDTO.fromEntity(leaveRequest);
     }
 
+    @PreAuthorize("@securityService.canViewEmployee(authentication, #employeeId)")
     public List<LeaveResponseDTO> getLeaveRequestsByEmployee(Long employeeId) {
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
@@ -154,6 +159,7 @@ public class LeaveRequestService {
     }
 
     @Transactional
+    @PreAuthorize("@securityService.canManageLeaveRequest(authentication, #id)")
     public LeaveResponseDTO approveLeaveRequest(Long id) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
@@ -182,6 +188,7 @@ public class LeaveRequestService {
     }
 
     @Transactional
+    @PreAuthorize("@securityService.canManageLeaveRequest(authentication, #id)")
     public LeaveResponseDTO rejectLeaveRequest(Long id, String rejectionReason) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
@@ -196,6 +203,7 @@ public class LeaveRequestService {
     }
 
     @Transactional
+    @PreAuthorize("@securityService.canViewLeaveRequest(authentication, #id)")
     public LeaveResponseDTO cancelLeaveRequest(Long id) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));

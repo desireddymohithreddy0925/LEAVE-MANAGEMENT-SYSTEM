@@ -15,10 +15,12 @@ import com.leave_management_system.leave_management_system.repository.RoleReposi
 import com.leave_management_system.leave_management_system.entity.User;
 import com.leave_management_system.leave_management_system.entity.Role;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@PreAuthorize("hasAnyRole('ADMIN', 'HR')")
 public class EmployeeService {
 
     private final EmployeeRepository employeeRepository;
@@ -75,12 +77,14 @@ public class EmployeeService {
         return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
     public List<EmployeeResponseDTO> getAllEmployees() {
         return employeeRepository.findAll().stream()
                 .map(EmployeeResponseDTO::fromEntity)
                 .collect(Collectors.toList());
     }
 
+    @PreAuthorize("@securityService.canViewEmployee(authentication, #id)")
     public EmployeeResponseDTO getEmployeeById(Long id) {
         Employee employee = employeeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
@@ -129,12 +133,14 @@ public class EmployeeService {
         return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
     public List<EmployeeResponseDTO> searchEmployees(String keyword) {
         return employeeRepository.searchByKeyword(keyword).stream()
                 .map(EmployeeResponseDTO::fromEntity)
                 .collect(Collectors.toList());
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
     public List<EmployeeResponseDTO> getEmployeesByDepartmentId(Long departmentId) {
         return employeeRepository.findByDepartmentId(departmentId).stream()
                 .map(EmployeeResponseDTO::fromEntity)

@@ -15,6 +15,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -115,6 +116,7 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("Refresh token is not in database!"));
     }
 
+    @PreAuthorize("isAuthenticated()")
     public void logout(String refreshToken) {
         refreshTokenService.deleteByToken(refreshToken);
     }

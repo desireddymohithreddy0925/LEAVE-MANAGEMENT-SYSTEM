@@ -63,12 +63,14 @@ public class AuthControllerIntegrationTest {
         logoutReq.setRefreshToken(auth.getRefreshToken());
 
         mockMvc.perform(post("/api/auth/logout")
+                .header("Authorization", "Bearer " + auth.getAccessToken())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(logoutReq)))
                 .andExpect(status().isOk());
     }
 
     @Test
+    @org.springframework.security.test.context.support.WithMockUser(username="testuser", roles="EMPLOYEE")
     void testLogoutWithInvalidRefreshToken() throws Exception {
         TokenRefreshRequestDTO logoutReq = new TokenRefreshRequestDTO();
         logoutReq.setRefreshToken("invalid-token-123");
@@ -81,6 +83,7 @@ public class AuthControllerIntegrationTest {
     }
 
     @Test
+    @org.springframework.security.test.context.support.WithMockUser(username="testuser", roles="EMPLOYEE")
     void testLogoutWithBlankRefreshToken() throws Exception {
         TokenRefreshRequestDTO logoutReq = new TokenRefreshRequestDTO();
         logoutReq.setRefreshToken("");

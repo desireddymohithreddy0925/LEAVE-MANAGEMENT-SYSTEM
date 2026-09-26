@@ -8,10 +8,12 @@ import com.leave_management_system.leave_management_system.repository.LeaveTypeR
 import org.springframework.stereotype.Service;
 import com.leave_management_system.leave_management_system.exception.DuplicateResourceException;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@PreAuthorize("hasAnyRole('ADMIN', 'HR')")
 public class LeaveTypeService {
 
     private final LeaveTypeRepository leaveTypeRepository;
@@ -32,12 +34,14 @@ public class LeaveTypeService {
         return LeaveTypeResponseDTO.fromEntity(leaveTypeRepository.save(leaveType));
     }
 
+    @PreAuthorize("isAuthenticated()")
     public List<LeaveTypeResponseDTO> getAllLeaveTypes() {
         return leaveTypeRepository.findAll().stream()
                 .map(LeaveTypeResponseDTO::fromEntity)
                 .collect(Collectors.toList());
     }
 
+    @PreAuthorize("isAuthenticated()")
     public LeaveTypeResponseDTO getLeaveTypeById(Long id) {
         LeaveType leaveType = leaveTypeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave type not found with id: " + id));

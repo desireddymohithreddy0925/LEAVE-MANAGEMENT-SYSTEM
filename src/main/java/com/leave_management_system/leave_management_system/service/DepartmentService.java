@@ -10,10 +10,12 @@ import org.springframework.stereotype.Service;
 import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
 import com.leave_management_system.leave_management_system.exception.DuplicateResourceException;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@PreAuthorize("hasAnyRole('ADMIN', 'HR')")
 public class DepartmentService {
 
     private final DepartmentRepository departmentRepository;
@@ -34,12 +36,14 @@ public class DepartmentService {
         return DepartmentResponseDTO.fromEntity(departmentRepository.save(department));
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
     public List<DepartmentResponseDTO> getAllDepartments() {
         return departmentRepository.findAll().stream()
                 .map(DepartmentResponseDTO::fromEntity)
                 .collect(Collectors.toList());
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
     public DepartmentResponseDTO getDepartmentById(Long id) {
         Department department = departmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + id));
