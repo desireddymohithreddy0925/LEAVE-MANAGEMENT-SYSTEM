@@ -126,12 +126,13 @@ public class EmployeeServiceTest {
 
     @Test
     void searchEmployees_Success() {
-        when(employeeRepository.searchByKeyword("john")).thenReturn(java.util.List.of(employee));
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 10);
+        when(employeeRepository.searchByKeyword(eq("john"), any())).thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of(employee)));
 
-        java.util.List<EmployeeResponseDTO> results = employeeService.searchEmployees("john");
+        org.springframework.data.domain.Page<EmployeeResponseDTO> results = employeeService.searchEmployees("john", pageable);
 
         assertFalse(results.isEmpty());
-        assertEquals(1, results.size());
-        assertEquals("jane.doe@example.com", results.get(0).getEmail());
+        assertEquals(1, results.getTotalElements());
+        assertEquals("jane.doe@example.com", results.getContent().get(0).getEmail());
     }
 }

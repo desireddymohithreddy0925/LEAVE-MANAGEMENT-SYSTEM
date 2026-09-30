@@ -10,6 +10,7 @@ import com.leave_management_system.leave_management_system.repository.EmployeeRe
 import com.leave_management_system.leave_management_system.repository.RoleRepository;
 import com.leave_management_system.leave_management_system.repository.UserRepository;
 import com.leave_management_system.leave_management_system.security.JwtUtils;
+import com.leave_management_system.leave_management_system.exception.TokenRefreshException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -113,7 +114,7 @@ public class AuthService {
 
                     return new AuthResponseDTO(token, newRawRefreshToken, UserResponseDTO.fromEntity(user));
                 })
-                .orElseThrow(() -> new RuntimeException("Refresh token is not in database!"));
+                .orElseThrow(() -> new TokenRefreshException("Refresh token is not in database!"));
     }
 
     @PreAuthorize("isAuthenticated()")

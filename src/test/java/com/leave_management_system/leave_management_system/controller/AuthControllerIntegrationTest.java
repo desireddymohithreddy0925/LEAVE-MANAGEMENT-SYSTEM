@@ -111,7 +111,7 @@ public class AuthControllerIntegrationTest {
         mockMvc.perform(post("/api/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().is5xxServerError()); 
+                .andExpect(status().isUnauthorized()); 
     }
 
     @Test
@@ -136,7 +136,7 @@ public class AuthControllerIntegrationTest {
         mockMvc.perform(post("/api/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().is5xxServerError());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -156,7 +156,7 @@ public class AuthControllerIntegrationTest {
         mockMvc.perform(post("/api/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().is5xxServerError()); 
+                .andExpect(status().isUnauthorized()); 
     }
 
     @Test
@@ -176,6 +176,6 @@ public class AuthControllerIntegrationTest {
         mockMvc.perform(post("/api/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().is5xxServerError()); 
+                .andExpect(status().isUnauthorized()); 
     }
 }

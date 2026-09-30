@@ -3,6 +3,7 @@ package com.leave_management_system.leave_management_system.service;
 import com.leave_management_system.leave_management_system.entity.RefreshToken;
 import com.leave_management_system.leave_management_system.repository.RefreshTokenRepository;
 import com.leave_management_system.leave_management_system.repository.UserRepository;
+import com.leave_management_system.leave_management_system.exception.TokenRefreshException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -66,7 +67,7 @@ public class RefreshTokenService {
     public RefreshToken verifyExpiration(RefreshToken token) {
         if (token.getExpiresAt().isBefore(LocalDateTime.now()) || token.isRevoked()) {
             refreshTokenRepository.delete(token);
-            throw new RuntimeException("Refresh token was expired or revoked. Please make a new signin request");
+            throw new TokenRefreshException("Refresh token was expired or revoked. Please make a new signin request");
         }
         return token;
     }

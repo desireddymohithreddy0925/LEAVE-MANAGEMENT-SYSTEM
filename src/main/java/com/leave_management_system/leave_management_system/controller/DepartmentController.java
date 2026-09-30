@@ -102,4 +102,17 @@ public class DepartmentController {
 
         departmentService.deleteDepartment(id);
     }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PatchMapping("/{id}/manager")
+    @Operation(summary = "Assign manager to department", description = "Assigns or removes a manager for a department.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Manager assigned successfully"),
+            @ApiResponse(responseCode = "404", description = "Department or Manager not found")
+    })
+    public DepartmentResponseDTO assignManager(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long managerId) {
+        return departmentService.assignManager(id, managerId);
+    }
 }

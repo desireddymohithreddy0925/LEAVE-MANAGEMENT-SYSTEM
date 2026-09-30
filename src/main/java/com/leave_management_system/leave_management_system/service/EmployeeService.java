@@ -1,5 +1,6 @@
 package com.leave_management_system.leave_management_system.service;
 
+import com.leave_management_system.leave_management_system.dto.EmployeeProfileUpdateDTO;
 import com.leave_management_system.leave_management_system.dto.EmployeeRequestDTO;
 import com.leave_management_system.leave_management_system.dto.EmployeeResponseDTO;
 import com.leave_management_system.leave_management_system.entity.Department;
@@ -16,6 +17,8 @@ import com.leave_management_system.leave_management_system.entity.User;
 import com.leave_management_system.leave_management_system.entity.Role;
 
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -78,10 +81,9 @@ public class EmployeeService {
     }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
-    public List<EmployeeResponseDTO> getAllEmployees() {
-        return employeeRepository.findAll().stream()
-                .map(EmployeeResponseDTO::fromEntity)
-                .collect(Collectors.toList());
+    public Page<EmployeeResponseDTO> getAllEmployees(Pageable pageable) {
+        return employeeRepository.findAll(pageable)
+                .map(EmployeeResponseDTO::fromEntity);
     }
 
     @PreAuthorize("@securityService.canViewEmployee(authentication, #id)")
@@ -134,10 +136,9 @@ public class EmployeeService {
     }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
-    public List<EmployeeResponseDTO> searchEmployees(String keyword) {
-        return employeeRepository.searchByKeyword(keyword).stream()
-                .map(EmployeeResponseDTO::fromEntity)
-                .collect(Collectors.toList());
+    public Page<EmployeeResponseDTO> searchEmployees(String keyword, Pageable pageable) {
+        return employeeRepository.searchByKeyword(keyword, pageable)
+                .map(EmployeeResponseDTO::fromEntity);
     }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
@@ -163,5 +164,59 @@ public class EmployeeService {
             throw new ResourceNotFoundException("Employee not found with id: " + id);
         }
         employeeRepository.deleteById(id);
+    }
+
+    @PreAuthorize("@securityService.isSelf(authentication, #id)")
+    public EmployeeResponseDTO updateProfile(Long id, EmployeeProfileUpdateDTO dto) {
+        Employee employee = employeeRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
+
+        employee.setFirstName(dto.getFirstName());
+        employee.setLastName(dto.getLastName());
+        employee.setPhone(dto.getPhone());
+        return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
+    }
+
+    public EmployeeResponseDTO assignManager(Long employeeId, Long managerId) {
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + employeeId));
+
+        if (managerId != null) {
+            Employee manager = employeeRepository.findById(managerId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Manager not found with id: " + managerId));
+            if (employeeId.equals(managerId)) {
+                throw new IllegalArgumentException("An employee cannot be their own manager");
+            }
+            employee.setManager(manager);
+        } else {
+            employee.setManager(null);
+        }
+
+        return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
+    }
+
+    public EmployeeResponseDTO changeRole(Long id, String roleName) {
+        Employee employee = employeeRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
+
+        if (employee.getUser() == null) {
+            throw new IllegalStateException("Employee has no associated user account");
+        }
+
+        Role newRole = roleRepository.findByName(roleName)
+                .orElseGet(() -> roleRepository.save(new Role(roleName)));
+
+        employee.getUser().getRoles().clear();
+        employee.getUser().getRoles().add(newRole);
+
+        userRepository.save(employee.getUser());
+        return EmployeeResponseDTO.fromEntity(employee);
+    }
+
+    @PreAuthorize("hasAnyRole('MANAGER', 'HR', 'ADMIN')")
+    public List<EmployeeResponseDTO> getManagerTeam(Long managerId) {
+        return employeeRepository.findTeamByManagerId(managerId).stream()
+                .map(EmployeeResponseDTO::fromEntity)
+                .collect(Collectors.toList());
     }
 }

@@ -1,5 +1,6 @@
 package com.leave_management_system.leave_management_system.controller;
 
+import com.leave_management_system.leave_management_system.dto.EmployeeProfileUpdateDTO;
 import com.leave_management_system.leave_management_system.dto.EmployeeRequestDTO;
 import com.leave_management_system.leave_management_system.dto.EmployeeResponseDTO;
 import com.leave_management_system.leave_management_system.service.EmployeeService;
@@ -12,7 +13,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 @RestController
@@ -42,15 +44,17 @@ public class EmployeeController {
 
     @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
     @GetMapping
-    @Operation(summary = "Get all employees or search by keyword", description = "Returns a list of all employees, optionally filtered by a search keyword (name or email).")
+    @Operation(summary = "Get all employees or search by keyword", description = "Returns a paginated list of employees, optionally filtered by a search keyword.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successfully retrieved list")
     })
-    public List<EmployeeResponseDTO> getAllEmployees(@RequestParam(required = false) String search) {
+    public Page<EmployeeResponseDTO> getAllEmployees(
+            @RequestParam(required = false) String search,
+            Pageable pageable) {
         if (search != null && !search.trim().isEmpty()) {
-            return employeeService.searchEmployees(search);
+            return employeeService.searchEmployees(search, pageable);
         }
-        return employeeService.getAllEmployees();
+        return employeeService.getAllEmployees(pageable);
     }
 
     @PreAuthorize("@securityService.canViewEmployee(authentication, #id)")
@@ -112,5 +116,44 @@ public class EmployeeController {
     })
     public void deleteEmployee(@PathVariable Long id) {
         employeeService.deleteEmployee(id);
+    }
+
+    @PreAuthorize("@securityService.isSelf(authentication, #id)")
+    @PutMapping("/{id}/profile")
+    @Operation(summary = "Update employee profile", description = "Allows an employee to update their own basic profile fields.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Profile updated successfully"),
+            @ApiResponse(responseCode = "404", description = "Employee not found")
+    })
+    public EmployeeResponseDTO updateProfile(
+            @PathVariable Long id,
+            @Valid @RequestBody EmployeeProfileUpdateDTO dto) {
+        return employeeService.updateProfile(id, dto);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PatchMapping("/{id}/manager")
+    @Operation(summary = "Assign manager to employee", description = "Assigns or removes a manager for an employee.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Manager assigned successfully"),
+            @ApiResponse(responseCode = "404", description = "Employee or Manager not found")
+    })
+    public EmployeeResponseDTO assignManager(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long managerId) {
+        return employeeService.assignManager(id, managerId);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PatchMapping("/{id}/role")
+    @Operation(summary = "Change employee role", description = "Changes the system role of an employee.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Role changed successfully"),
+            @ApiResponse(responseCode = "404", description = "Employee not found")
+    })
+    public EmployeeResponseDTO changeRole(
+            @PathVariable Long id,
+            @RequestParam String roleName) {
+        return employeeService.changeRole(id, roleName);
     }
 }

@@ -3,6 +3,7 @@ package com.leave_management_system.leave_management_system.service;
 import com.leave_management_system.leave_management_system.dto.DepartmentRequestDTO;
 import com.leave_management_system.leave_management_system.dto.DepartmentResponseDTO;
 import com.leave_management_system.leave_management_system.entity.Department;
+import com.leave_management_system.leave_management_system.entity.Employee;
 import com.leave_management_system.leave_management_system.repository.DepartmentRepository;
 import com.leave_management_system.leave_management_system.repository.EmployeeRepository;
 
@@ -71,5 +72,25 @@ public class DepartmentService {
         }
 
         departmentRepository.delete(department);
+    }
+
+    public DepartmentResponseDTO assignManager(Long departmentId, Long managerId) {
+        Department department = departmentRepository.findById(departmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + departmentId));
+
+        if (managerId != null) {
+            Employee manager = employeeRepository.findById(managerId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Manager not found with id: " + managerId));
+            
+            if (!"ACTIVE".equals(manager.getStatus())) {
+                throw new IllegalStateException("Cannot assign an inactive employee as manager");
+            }
+            
+            department.setManager(manager);
+        } else {
+            department.setManager(null);
+        }
+
+        return DepartmentResponseDTO.fromEntity(departmentRepository.save(department));
     }
 }
