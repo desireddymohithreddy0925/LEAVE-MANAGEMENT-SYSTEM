@@ -103,6 +103,7 @@ public class AuthControllerIntegrationTest {
 
         // Logout
         mockMvc.perform(post("/api/auth/logout")
+                .header("Authorization", "Bearer " + auth.getAccessToken())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
