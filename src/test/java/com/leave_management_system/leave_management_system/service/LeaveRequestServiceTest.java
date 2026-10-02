@@ -93,7 +93,7 @@ public class LeaveRequestServiceTest {
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
         when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
-        when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
 
         LeaveResponseDTO created = leaveRequestService.createLeaveRequest(requestDTO);
@@ -161,7 +161,7 @@ public class LeaveRequestServiceTest {
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
         when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
-        when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
 
         assertThrows(InsufficientLeaveException.class, () -> leaveRequestService.createLeaveRequest(requestDTO));
     }
@@ -169,7 +169,7 @@ public class LeaveRequestServiceTest {
     @Test
     void approveLeaveRequest_Success() {
         when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
-        when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
 
         LeaveResponseDTO approved = leaveRequestService.approveLeaveRequest(1L);
@@ -215,7 +215,7 @@ public class LeaveRequestServiceTest {
     void cancelLeaveRequest_Approved_Success() {
         leaveRequest.setStatus(LeaveStatus.APPROVED);
         when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
-        when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
 
         LeaveResponseDTO cancelled = leaveRequestService.cancelLeaveRequest(1L);
@@ -302,7 +302,7 @@ public class LeaveRequestServiceTest {
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
         when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
-        when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenAnswer(i -> i.getArguments()[0]);
 
         // Friday to Monday = 2 days
@@ -337,7 +337,7 @@ public class LeaveRequestServiceTest {
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
         when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
-        when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenAnswer(i -> i.getArguments()[0]);
 
         LeaveResponseDTO response = leaveRequestService.createLeaveRequest(requestDTO);
@@ -353,7 +353,7 @@ public class LeaveRequestServiceTest {
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
         when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
-        when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
 
         assertThrows(InsufficientLeaveException.class, () -> leaveRequestService.createLeaveRequest(requestDTO));
     }
@@ -368,7 +368,7 @@ public class LeaveRequestServiceTest {
         
         // 2. Approve
         when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
-        when(leaveBalanceRepository.findByEmployeeAndLeaveType(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenAnswer(i -> i.getArguments()[0]);
         
         LeaveResponseDTO approved = leaveRequestService.approveLeaveRequest(1L);

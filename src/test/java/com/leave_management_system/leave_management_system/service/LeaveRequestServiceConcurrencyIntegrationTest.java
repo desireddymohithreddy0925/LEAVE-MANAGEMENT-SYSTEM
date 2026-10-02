@@ -17,6 +17,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -109,6 +114,9 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
 
         for (int i = 0; i < threads; i++) {
             executorService.submit(() -> {
+                SecurityContext context = SecurityContextHolder.createEmptyContext();
+                context.setAuthentication(new UsernamePasswordAuthenticationToken("concurrency@test.com", "password", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+                SecurityContextHolder.setContext(context);
                 try {
                     latch.await();
                     leaveRequestService.approveLeaveRequest(pendingLeaveRequest.getId());
@@ -145,6 +153,9 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
 
         for (int i = 0; i < threads; i++) {
             executorService.submit(() -> {
+                SecurityContext context = SecurityContextHolder.createEmptyContext();
+                context.setAuthentication(new UsernamePasswordAuthenticationToken("concurrency@test.com", "password", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+                SecurityContextHolder.setContext(context);
                 try {
                     latch.await();
                     LeaveRequestDTO dto = new LeaveRequestDTO();

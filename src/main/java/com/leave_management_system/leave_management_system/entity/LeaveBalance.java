@@ -39,6 +39,9 @@ public class LeaveBalance {
     @Column(nullable = false)
     private Integer available;
 
+    @Version
+    private Long version;
+
     public LeaveBalance() {
     }
 
@@ -111,5 +114,13 @@ public class LeaveBalance {
 
     public void setAvailable(Integer available) {
         this.available = available;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

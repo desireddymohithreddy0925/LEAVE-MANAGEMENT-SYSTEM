@@ -44,6 +44,9 @@ public class LeaveRequest {
     @Column(name = "applied_at")
     private LocalDateTime appliedAt;
 
+    @Version
+    private Long version;
+
     @PrePersist
     protected void onCreate() {
         this.appliedAt = LocalDateTime.now();
@@ -122,5 +125,13 @@ public class LeaveRequest {
 
     public void setAppliedAt(LocalDateTime appliedAt) {
         this.appliedAt = appliedAt;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

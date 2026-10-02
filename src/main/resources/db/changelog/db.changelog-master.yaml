@@ -131,3 +131,7 @@ databaseChangeLog:
   - include:
       file: changes/012-modify-employees-and-constraints.yaml
       relativeToChangelogFile: true
+
+  - include:
+      file: changes/013-add-version-columns.yaml
+      relativeToChangelogFile: true

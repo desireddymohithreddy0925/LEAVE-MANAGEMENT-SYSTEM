@@ -81,7 +81,7 @@ public class LeaveRequestService {
         }
 
         LeaveBalance balance = leaveBalanceRepository
-                .findByEmployeeAndLeaveType(employee, leaveType)
+                .findByEmployeeAndLeaveTypeWithLock(employee, leaveType)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Leave balance not found for this employee and leave type"));
 
@@ -173,7 +173,7 @@ public class LeaveRequestService {
         long requestedDays = calculateWorkingDays(leaveRequest.getStartDate(), leaveRequest.getEndDate());
 
         LeaveBalance balance = leaveBalanceRepository
-                .findByEmployeeAndLeaveType(leaveRequest.getEmployee(), leaveRequest.getLeaveType())
+                .findByEmployeeAndLeaveTypeWithLock(leaveRequest.getEmployee(), leaveRequest.getLeaveType())
                 .orElseThrow(() -> new ResourceNotFoundException("Leave balance not found"));
 
         if (balance.getAvailable() < requestedDays) {
@@ -220,7 +220,7 @@ public class LeaveRequestService {
         if (leaveRequest.getStatus() == LeaveStatus.APPROVED) {
             long requestedDays = calculateWorkingDays(leaveRequest.getStartDate(), leaveRequest.getEndDate());
             LeaveBalance balance = leaveBalanceRepository
-                    .findByEmployeeAndLeaveType(leaveRequest.getEmployee(), leaveRequest.getLeaveType())
+                    .findByEmployeeAndLeaveTypeWithLock(leaveRequest.getEmployee(), leaveRequest.getLeaveType())
                     .orElseThrow(() -> new ResourceNotFoundException("Leave balance not found"));
 
             balance.setAvailable(balance.getAvailable() + (int) requestedDays);

@@ -1,0 +1,23 @@
+databaseChangeLog:
+  - changeSet:
+      id: 013-add-version-columns
+      author: system
+      changes:
+        - addColumn:
+            tableName: leave_requests
+            columns:
+              - column:
+                  name: version
+                  type: bigint
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+        - addColumn:
+            tableName: leave_balances
+            columns:
+              - column:
+                  name: version
+                  type: bigint
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
