@@ -158,6 +158,12 @@ public class LeaveRequestService {
                 .collect(Collectors.toList());
     }
 
+    public List<LeaveResponseDTO> getTeamLeaveRequests(Long managerId) {
+        return leaveRequestRepository.findByEmployee_Manager_Id(managerId).stream()
+                .map(LeaveResponseDTO::fromEntity)
+                .collect(Collectors.toList());
+    }
+
     @Transactional
     @PreAuthorize("@securityService.canManageLeaveRequest(authentication, #id)")
     public LeaveResponseDTO approveLeaveRequest(Long id) {

@@ -1,9 +1,11 @@
 package com.leave_management_system.leave_management_system.controller;
 
 import com.leave_management_system.leave_management_system.dto.EmployeeResponseDTO;
+import com.leave_management_system.leave_management_system.dto.LeaveResponseDTO;
 import com.leave_management_system.leave_management_system.entity.Employee;
 import com.leave_management_system.leave_management_system.security.SecurityAuthorizationService;
 import com.leave_management_system.leave_management_system.service.EmployeeService;
+import com.leave_management_system.leave_management_system.service.LeaveRequestService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -22,10 +24,12 @@ import java.util.List;
 public class ManagerController {
 
     private final EmployeeService employeeService;
+    private final LeaveRequestService leaveRequestService;
     private final SecurityAuthorizationService securityService;
 
-    public ManagerController(EmployeeService employeeService, SecurityAuthorizationService securityService) {
+    public ManagerController(EmployeeService employeeService, LeaveRequestService leaveRequestService, SecurityAuthorizationService securityService) {
         this.employeeService = employeeService;
+        this.leaveRequestService = leaveRequestService;
         this.securityService = securityService;
     }
 
@@ -39,5 +43,17 @@ public class ManagerController {
         Employee manager = securityService.getAuthenticatedEmployee(authentication)
                 .orElseThrow(() -> new IllegalStateException("Authenticated user is not linked to an employee record"));
         return employeeService.getManagerTeam(manager.getId());
+    }
+
+    @PreAuthorize("hasAnyRole('MANAGER', 'HR', 'ADMIN')")
+    @GetMapping("/me/leave-requests")
+    @Operation(summary = "Get manager's team leave requests", description = "Returns a list of all leave requests from employees in the authenticated manager's team.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successfully retrieved list")
+    })
+    public List<LeaveResponseDTO> getMyTeamLeaveRequests(Authentication authentication) {
+        Employee manager = securityService.getAuthenticatedEmployee(authentication)
+                .orElseThrow(() -> new IllegalStateException("Authenticated user is not linked to an employee record"));
+        return leaveRequestService.getTeamLeaveRequests(manager.getId());
     }
 }

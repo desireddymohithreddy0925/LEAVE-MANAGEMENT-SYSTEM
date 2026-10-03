@@ -13,6 +13,7 @@ import com.leave_management_system.leave_management_system.entity.LeaveStatus;
 public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long>, JpaSpecificationExecutor<LeaveRequest> {
     List<LeaveRequest> findByEmployee(Employee employee);
     List<LeaveRequest> findByStatus(LeaveStatus status);
+    List<LeaveRequest> findByEmployee_Manager_Id(Long managerId);
 
     @Query("SELECT COUNT(lr) > 0 FROM LeaveRequest lr WHERE lr.employee = :employee " +
            "AND lr.status IN (:statuses) " +
