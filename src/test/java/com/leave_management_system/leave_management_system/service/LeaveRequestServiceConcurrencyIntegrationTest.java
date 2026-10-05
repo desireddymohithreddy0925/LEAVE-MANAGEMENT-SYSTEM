@@ -96,8 +96,9 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
         LeaveRequest lr = new LeaveRequest();
         lr.setEmployee(testEmployee);
         lr.setLeaveType(testLeaveType);
-        lr.setStartDate(LocalDate.now().plusDays(1));
-        lr.setEndDate(LocalDate.now().plusDays(3)); // 3 working days (if not weekend)
+        LocalDate baseDate = LocalDate.of(2026, 10, 5); // Monday
+        lr.setStartDate(baseDate.plusDays(1)); // Tuesday
+        lr.setEndDate(baseDate.plusDays(3)); // Thursday
         lr.setStatus(LeaveStatus.PENDING);
         pendingLeaveRequest = leaveRequestRepository.save(lr);
     }
@@ -161,12 +162,14 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
                     LeaveRequestDTO dto = new LeaveRequestDTO();
                     dto.setEmployeeId(testEmployee.getId());
                     dto.setLeaveTypeId(testLeaveType.getId());
-                    dto.setStartDate(LocalDate.now().plusDays(5));
-                    dto.setEndDate(LocalDate.now().plusDays(5));
+                    LocalDate baseDate = LocalDate.of(2026, 10, 12); // Next Monday
+                    dto.setStartDate(baseDate.plusDays(1)); // Tuesday
+                    dto.setEndDate(baseDate.plusDays(3)); // Thursday
                     dto.setReason("Concurrent request");
                     leaveRequestService.createLeaveRequest(dto);
                     successCount.incrementAndGet();
                 } catch (Exception e) {
+                    e.printStackTrace();
                     failureCount.incrementAndGet();
                 } finally {
                     doneLatch.countDown();

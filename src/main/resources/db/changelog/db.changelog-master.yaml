@@ -135,3 +135,7 @@ databaseChangeLog:
   - include:
       file: changes/013-add-version-columns.yaml
       relativeToChangelogFile: true
+
+  - include:
+      file: changes/014-add-permissions.yaml
+      relativeToChangelogFile: true

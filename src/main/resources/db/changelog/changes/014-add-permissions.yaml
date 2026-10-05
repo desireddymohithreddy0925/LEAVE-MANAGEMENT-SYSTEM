@@ -1,0 +1,194 @@
+databaseChangeLog:
+  - changeSet:
+      id: 014-add-permissions
+      author: system
+      changes:
+        - createTable:
+            tableName: permissions
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: varchar(100)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: description
+                  type: varchar(255)
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+
+        - createTable:
+            tableName: role_permissions
+            columns:
+              - column:
+                  name: role_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_role_permissions_role
+                    references: roles(id)
+              - column:
+                  name: permission_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_role_permissions_permission
+                    references: permissions(id)
+
+        - addPrimaryKey:
+            tableName: role_permissions
+            columnNames: role_id, permission_id
+            constraintName: pk_role_permissions
+
+        # Seed Permissions
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'EMPLOYEE_VIEW'}
+              - column: {name: description, value: 'View employee profiles'}
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'EMPLOYEE_CREATE'}
+              - column: {name: description, value: 'Create new employees'}
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'EMPLOYEE_UPDATE'}
+              - column: {name: description, value: 'Update employee profiles'}
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'EMPLOYEE_DEACTIVATE'}
+              - column: {name: description, value: 'Deactivate employees'}
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'DEPARTMENT_VIEW'}
+              - column: {name: description, value: 'View departments'}
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'DEPARTMENT_MANAGE'}
+              - column: {name: description, value: 'Manage departments'}
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'LEAVE_VIEW_SELF'}
+              - column: {name: description, value: 'View own leave requests'}
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'LEAVE_VIEW_TEAM'}
+              - column: {name: description, value: 'View team leave requests'}
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'LEAVE_VIEW_ALL'}
+              - column: {name: description, value: 'View all leave requests'}
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'LEAVE_CREATE'}
+              - column: {name: description, value: 'Create leave request'}
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'LEAVE_APPROVE'}
+              - column: {name: description, value: 'Approve leave request'}
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'LEAVE_REJECT'}
+              - column: {name: description, value: 'Reject leave request'}
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'LEAVE_CANCEL'}
+              - column: {name: description, value: 'Cancel leave request'}
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'LEAVE_BALANCE_VIEW'}
+              - column: {name: description, value: 'View leave balances'}
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'LEAVE_BALANCE_MANAGE'}
+              - column: {name: description, value: 'Manage leave balances'}
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'LEAVE_TYPE_MANAGE'}
+              - column: {name: description, value: 'Manage leave types'}
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'ROLE_PERMISSION_MANAGE'}
+              - column: {name: description, value: 'Manage role permissions'}
+
+        # Seed Role-Permission Mappings
+        # Roles: 1=ADMIN, 2=HR, 3=MANAGER, 4=EMPLOYEE
+        
+        # ADMIN (All permissions 1-17)
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 1}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 2}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 3}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 4}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 5}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 6}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 7}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 8}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 9}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 10}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 11}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 12}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 13}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 14}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 15}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 16}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 1}}, {column: {name: permission_id, valueNumeric: 17}}]}
+
+        # HR
+        # 1-6 (employee/dept), 9-16 (leave related, except 7, 8)
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 2}}, {column: {name: permission_id, valueNumeric: 1}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 2}}, {column: {name: permission_id, valueNumeric: 2}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 2}}, {column: {name: permission_id, valueNumeric: 3}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 2}}, {column: {name: permission_id, valueNumeric: 4}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 2}}, {column: {name: permission_id, valueNumeric: 5}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 2}}, {column: {name: permission_id, valueNumeric: 6}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 2}}, {column: {name: permission_id, valueNumeric: 9}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 2}}, {column: {name: permission_id, valueNumeric: 10}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 2}}, {column: {name: permission_id, valueNumeric: 11}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 2}}, {column: {name: permission_id, valueNumeric: 12}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 2}}, {column: {name: permission_id, valueNumeric: 13}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 2}}, {column: {name: permission_id, valueNumeric: 14}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 2}}, {column: {name: permission_id, valueNumeric: 15}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 2}}, {column: {name: permission_id, valueNumeric: 16}}]}
+
+        # MANAGER
+        # 1(EMPLOYEE_VIEW), 5(DEPARTMENT_VIEW), 8(LEAVE_VIEW_TEAM), 11(LEAVE_APPROVE), 12(LEAVE_REJECT)
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 3}}, {column: {name: permission_id, valueNumeric: 1}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 3}}, {column: {name: permission_id, valueNumeric: 5}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 3}}, {column: {name: permission_id, valueNumeric: 8}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 3}}, {column: {name: permission_id, valueNumeric: 11}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 3}}, {column: {name: permission_id, valueNumeric: 12}}]}
+
+        # EMPLOYEE
+        # 7(LEAVE_VIEW_SELF), 10(LEAVE_CREATE), 13(LEAVE_CANCEL), 14(LEAVE_BALANCE_VIEW)
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 4}}, {column: {name: permission_id, valueNumeric: 7}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 4}}, {column: {name: permission_id, valueNumeric: 10}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 4}}, {column: {name: permission_id, valueNumeric: 13}}]}
+        - insert: {tableName: role_permissions, columns: [{column: {name: role_id, valueNumeric: 4}}, {column: {name: permission_id, valueNumeric: 14}}]}
