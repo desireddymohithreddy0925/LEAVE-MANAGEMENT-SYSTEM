@@ -70,7 +70,7 @@ public class AuthControllerIntegrationTest {
     }
 
     @Test
-    @org.springframework.security.test.context.support.WithMockUser(username="testuser", roles="EMPLOYEE")
+    @org.springframework.security.test.context.support.WithMockUser(username = "testuser", roles = "EMPLOYEE")
     void testLogoutWithInvalidRefreshToken() throws Exception {
         TokenRefreshRequestDTO logoutReq = new TokenRefreshRequestDTO();
         logoutReq.setRefreshToken("invalid-token-123");
@@ -78,12 +78,14 @@ public class AuthControllerIntegrationTest {
         mockMvc.perform(post("/api/auth/logout")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(logoutReq)))
-                .andExpect(status().isOk()); // We don't throw error if token not found on logout, it's idempotent. Wait, does our implementation throw? Let's check.
-                // Our implementation is findByToken(token).ifPresent(delete) which does not throw.
+                .andExpect(status().isOk()); // We don't throw error if token not found on logout, it's idempotent.
+                                             // Wait, does our implementation throw? Let's check.
+        // Our implementation is findByToken(token).ifPresent(delete) which does not
+        // throw.
     }
 
     @Test
-    @org.springframework.security.test.context.support.WithMockUser(username="testuser", roles="EMPLOYEE")
+    @org.springframework.security.test.context.support.WithMockUser(username = "testuser", roles = "EMPLOYEE")
     void testLogoutWithBlankRefreshToken() throws Exception {
         TokenRefreshRequestDTO logoutReq = new TokenRefreshRequestDTO();
         logoutReq.setRefreshToken("");
@@ -112,7 +114,7 @@ public class AuthControllerIntegrationTest {
         mockMvc.perform(post("/api/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isUnauthorized()); 
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -129,8 +131,9 @@ public class AuthControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        AuthResponseDTO newAuth = objectMapper.readValue(refreshResult.getResponse().getContentAsString(), AuthResponseDTO.class);
-        
+        AuthResponseDTO newAuth = objectMapper.readValue(refreshResult.getResponse().getContentAsString(),
+                AuthResponseDTO.class);
+
         assert !newAuth.getRefreshToken().equals(auth.getRefreshToken()) : "Refresh token must be rotated";
 
         // Old token should not be reusable
@@ -145,9 +148,12 @@ public class AuthControllerIntegrationTest {
         AuthResponseDTO auth = registerAndLogin("expired@test.com", "password123");
 
         // Manually update the token to be expired in the DB
-        com.leave_management_system.leave_management_system.service.RefreshTokenService refreshTokenService = context.getBean(com.leave_management_system.leave_management_system.service.RefreshTokenService.class);
-        com.leave_management_system.leave_management_system.repository.RefreshTokenRepository refreshTokenRepository = context.getBean(com.leave_management_system.leave_management_system.repository.RefreshTokenRepository.class);
-        com.leave_management_system.leave_management_system.entity.RefreshToken rt = refreshTokenService.findByToken(auth.getRefreshToken()).orElseThrow();
+        com.leave_management_system.leave_management_system.service.RefreshTokenService refreshTokenService = context
+                .getBean(com.leave_management_system.leave_management_system.service.RefreshTokenService.class);
+        com.leave_management_system.leave_management_system.repository.RefreshTokenRepository refreshTokenRepository = context
+                .getBean(com.leave_management_system.leave_management_system.repository.RefreshTokenRepository.class);
+        com.leave_management_system.leave_management_system.entity.RefreshToken rt = refreshTokenService
+                .findByToken(auth.getRefreshToken()).orElseThrow();
         rt.setExpiresAt(java.time.LocalDateTime.now().minusDays(1));
         refreshTokenRepository.save(rt);
 
@@ -157,17 +163,20 @@ public class AuthControllerIntegrationTest {
         mockMvc.perform(post("/api/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isUnauthorized()); 
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
     void testRevokedRefreshToken() throws Exception {
-        AuthResponseDTO auth = registerAndLogin("revoked@test.com", "password123");
+        AuthResponseDTO auth = registerAndLogin("mohith09250217@gmail.com", "MRD@0217");
 
         // Manually update the token to be revoked in the DB
-        com.leave_management_system.leave_management_system.service.RefreshTokenService refreshTokenService = context.getBean(com.leave_management_system.leave_management_system.service.RefreshTokenService.class);
-        com.leave_management_system.leave_management_system.repository.RefreshTokenRepository refreshTokenRepository = context.getBean(com.leave_management_system.leave_management_system.repository.RefreshTokenRepository.class);
-        com.leave_management_system.leave_management_system.entity.RefreshToken rt = refreshTokenService.findByToken(auth.getRefreshToken()).orElseThrow();
+        com.leave_management_system.leave_management_system.service.RefreshTokenService refreshTokenService = context
+                .getBean(com.leave_management_system.leave_management_system.service.RefreshTokenService.class);
+        com.leave_management_system.leave_management_system.repository.RefreshTokenRepository refreshTokenRepository = context
+                .getBean(com.leave_management_system.leave_management_system.repository.RefreshTokenRepository.class);
+        com.leave_management_system.leave_management_system.entity.RefreshToken rt = refreshTokenService
+                .findByToken(auth.getRefreshToken()).orElseThrow();
         rt.setRevoked(true);
         refreshTokenRepository.save(rt);
 
@@ -177,6 +186,6 @@ public class AuthControllerIntegrationTest {
         mockMvc.perform(post("/api/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isUnauthorized()); 
+                .andExpect(status().isUnauthorized());
     }
 }

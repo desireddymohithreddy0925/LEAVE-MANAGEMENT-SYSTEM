@@ -27,7 +27,7 @@ public class LeaveBalanceController {
         this.leaveBalanceService = leaveBalanceService;
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PreAuthorize("hasAuthority('LEAVE_BALANCE_MANAGE')")
     @PostMapping
     @Operation(summary = "Create or add leave balance", description = "Adds a leave balance for an employee.")
     @ApiResponses({
@@ -45,7 +45,7 @@ public class LeaveBalanceController {
         );
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PreAuthorize("hasAuthority('LEAVE_BALANCE_MANAGE')")
     @GetMapping
     @Operation(summary = "Get all leave balances", description = "Returns a list of all leave balances across all employees.")
     @ApiResponses({
@@ -58,7 +58,7 @@ public class LeaveBalanceController {
         );
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PreAuthorize("hasAuthority('LEAVE_BALANCE_MANAGE')")
     @GetMapping("/{id}")
     @Operation(summary = "Get leave balance by ID", description = "Returns the details of a specific leave balance.")
     @ApiResponses({
@@ -88,7 +88,7 @@ public class LeaveBalanceController {
         );
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PreAuthorize("hasAuthority('LEAVE_BALANCE_MANAGE')")
     @PutMapping("/{id}")
     @Operation(summary = "Update a leave balance", description = "Updates the available days for a leave balance.")
     @ApiResponses({
@@ -105,7 +105,7 @@ public class LeaveBalanceController {
         );
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PreAuthorize("hasAuthority('LEAVE_BALANCE_MANAGE')")
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete a leave balance", description = "Deletes a leave balance record.")
     @ApiResponses({

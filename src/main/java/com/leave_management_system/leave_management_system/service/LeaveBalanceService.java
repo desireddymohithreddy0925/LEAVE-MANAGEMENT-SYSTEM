@@ -18,7 +18,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.List;
 
 @Service
-@PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+@PreAuthorize("hasAuthority('LEAVE_BALANCE_MANAGE')")
 public class LeaveBalanceService {
 
         private final LeaveBalanceRepository leaveBalanceRepository;

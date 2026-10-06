@@ -33,7 +33,7 @@ public class ManagerController {
         this.securityService = securityService;
     }
 
-    @PreAuthorize("hasAnyRole('MANAGER', 'HR', 'ADMIN')")
+    @PreAuthorize("hasAuthority('LEAVE_VIEW_TEAM')")
     @GetMapping("/me/team")
     @Operation(summary = "Get manager's team", description = "Returns a list of all employees in the authenticated manager's team.")
     @ApiResponses({
@@ -45,7 +45,7 @@ public class ManagerController {
         return employeeService.getManagerTeam(manager.getId());
     }
 
-    @PreAuthorize("hasAnyRole('MANAGER', 'HR', 'ADMIN')")
+    @PreAuthorize("hasAuthority('LEAVE_VIEW_TEAM')")
     @GetMapping("/me/leave-requests")
     @Operation(summary = "Get manager's team leave requests", description = "Returns a list of all leave requests from employees in the authenticated manager's team.")
     @ApiResponses({

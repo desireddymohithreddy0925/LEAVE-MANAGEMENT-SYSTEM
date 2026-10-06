@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+@PreAuthorize("hasAuthority('DEPARTMENT_MANAGE')")
 public class DepartmentService {
 
     private final DepartmentRepository departmentRepository;
@@ -37,14 +37,14 @@ public class DepartmentService {
         return DepartmentResponseDTO.fromEntity(departmentRepository.save(department));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
+    @PreAuthorize("hasAuthority('DEPARTMENT_VIEW')")
     public List<DepartmentResponseDTO> getAllDepartments() {
         return departmentRepository.findAll().stream()
                 .map(DepartmentResponseDTO::fromEntity)
                 .collect(Collectors.toList());
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
+    @PreAuthorize("hasAuthority('DEPARTMENT_VIEW')")
     public DepartmentResponseDTO getDepartmentById(Long id) {
         Department department = departmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + id));

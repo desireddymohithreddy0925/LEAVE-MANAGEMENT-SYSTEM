@@ -39,7 +39,7 @@ public class LeaveRequestController {
         this.securityService = securityService;
     }
 
-    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN', 'HR')")
+    @PreAuthorize("hasAuthority('LEAVE_CREATE')")
     @PostMapping
     @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     @Operation(summary = "Apply for leave", description = "Creates a new leave request for an employee.")
@@ -67,7 +67,7 @@ public class LeaveRequestController {
         return leaveRequestService.createLeaveRequest(dto);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PreAuthorize("hasAuthority('LEAVE_VIEW_ALL')")
     @GetMapping
     @Operation(summary = "Search leave requests", description = "Search leave requests with filtering and pagination.")
     @ApiResponses({
@@ -106,7 +106,7 @@ public class LeaveRequestController {
         return leaveRequestService.getLeaveRequestsByEmployee(employeeId);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PreAuthorize("hasAuthority('LEAVE_VIEW_ALL')")
     @GetMapping("/status/{status}")
     @Operation(summary = "Get leave requests by status", description = "Returns all leave requests with a specific status.")
     @ApiResponses({

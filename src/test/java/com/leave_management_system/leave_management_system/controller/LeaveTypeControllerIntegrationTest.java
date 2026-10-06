@@ -23,7 +23,7 @@ import com.jayway.jsonpath.JsonPath;
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
-@org.springframework.security.test.context.support.WithMockUser(roles = "ADMIN")
+@org.springframework.security.test.context.support.WithMockUser(authorities = {"ROLE_ADMIN", "DEPARTMENT_MANAGE", "DEPARTMENT_VIEW", "EMPLOYEE_CREATE", "EMPLOYEE_VIEW", "EMPLOYEE_UPDATE", "EMPLOYEE_DEACTIVATE", "LEAVE_BALANCE_MANAGE", "LEAVE_BALANCE_VIEW", "LEAVE_CREATE", "LEAVE_VIEW_ALL", "LEAVE_TYPE_MANAGE", "ROLE_PERMISSION_MANAGE"})
 public class LeaveTypeControllerIntegrationTest {
 
     @Autowired

@@ -116,7 +116,7 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
         for (int i = 0; i < threads; i++) {
             executorService.submit(() -> {
                 SecurityContext context = SecurityContextHolder.createEmptyContext();
-                context.setAuthentication(new UsernamePasswordAuthenticationToken("concurrency@test.com", "password", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+                context.setAuthentication(new UsernamePasswordAuthenticationToken("concurrency@test.com", "password", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("LEAVE_APPROVE"))));
                 SecurityContextHolder.setContext(context);
                 try {
                     latch.await();
@@ -155,14 +155,14 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
         for (int i = 0; i < threads; i++) {
             executorService.submit(() -> {
                 SecurityContext context = SecurityContextHolder.createEmptyContext();
-                context.setAuthentication(new UsernamePasswordAuthenticationToken("concurrency@test.com", "password", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+                context.setAuthentication(new UsernamePasswordAuthenticationToken("concurrency@test.com", "password", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("LEAVE_CREATE"))));
                 SecurityContextHolder.setContext(context);
                 try {
                     latch.await();
                     LeaveRequestDTO dto = new LeaveRequestDTO();
                     dto.setEmployeeId(testEmployee.getId());
                     dto.setLeaveTypeId(testLeaveType.getId());
-                    LocalDate baseDate = LocalDate.of(2026, 10, 12); // Next Monday
+                    LocalDate baseDate = LocalDate.of(2030, 10, 14); // Monday in 2030
                     dto.setStartDate(baseDate.plusDays(1)); // Tuesday
                     dto.setEndDate(baseDate.plusDays(3)); // Thursday
                     dto.setReason("Concurrent request");

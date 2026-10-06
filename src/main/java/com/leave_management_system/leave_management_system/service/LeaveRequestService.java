@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+@PreAuthorize("hasAuthority('LEAVE_VIEW_ALL')")
 public class LeaveRequestService {
 
     private final LeaveRequestRepository leaveRequestRepository;
@@ -46,7 +46,7 @@ public class LeaveRequestService {
     }
 
     @Transactional
-    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN', 'HR')")
+    @PreAuthorize("hasAuthority('LEAVE_CREATE')")
     public LeaveResponseDTO createLeaveRequest(LeaveRequestDTO dto) {
         if (dto.getEndDate().isBefore(dto.getStartDate())) {
             throw new IllegalArgumentException("End date cannot be before start date");
@@ -158,6 +158,7 @@ public class LeaveRequestService {
                 .collect(Collectors.toList());
     }
 
+    @PreAuthorize("hasAuthority('LEAVE_VIEW_TEAM')")
     public List<LeaveResponseDTO> getTeamLeaveRequests(Long managerId) {
         return leaveRequestRepository.findByEmployee_Manager_Id(managerId).stream()
                 .map(LeaveResponseDTO::fromEntity)

@@ -44,7 +44,7 @@ public class EmployeeControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = {"ROLE_ADMIN", "DEPARTMENT_MANAGE", "DEPARTMENT_VIEW", "EMPLOYEE_CREATE", "EMPLOYEE_VIEW", "EMPLOYEE_UPDATE", "EMPLOYEE_DEACTIVATE", "LEAVE_BALANCE_MANAGE", "LEAVE_BALANCE_VIEW", "LEAVE_CREATE", "LEAVE_VIEW_ALL", "LEAVE_TYPE_MANAGE", "ROLE_PERMISSION_MANAGE"})
     void createEmployee_Success() throws Exception {
         Long deptId = createDepartment();
         EmployeeRequestDTO dto = new EmployeeRequestDTO();
@@ -65,7 +65,7 @@ public class EmployeeControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = {"ROLE_ADMIN", "DEPARTMENT_MANAGE", "DEPARTMENT_VIEW", "EMPLOYEE_CREATE", "EMPLOYEE_VIEW", "EMPLOYEE_UPDATE", "EMPLOYEE_DEACTIVATE", "LEAVE_BALANCE_MANAGE", "LEAVE_BALANCE_VIEW", "LEAVE_CREATE", "LEAVE_VIEW_ALL", "LEAVE_TYPE_MANAGE", "ROLE_PERMISSION_MANAGE"})
     void createEmployee_ValidationFails() throws Exception {
         EmployeeRequestDTO dto = new EmployeeRequestDTO();
         // Missing required fields
@@ -77,14 +77,14 @@ public class EmployeeControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = {"ROLE_ADMIN", "DEPARTMENT_MANAGE", "DEPARTMENT_VIEW", "EMPLOYEE_CREATE", "EMPLOYEE_VIEW", "EMPLOYEE_UPDATE", "EMPLOYEE_DEACTIVATE", "LEAVE_BALANCE_MANAGE", "LEAVE_BALANCE_VIEW", "LEAVE_CREATE", "LEAVE_VIEW_ALL", "LEAVE_TYPE_MANAGE", "ROLE_PERMISSION_MANAGE"})
     void searchEmployees_Success() throws Exception {
         mockMvc.perform(get("/api/employees").param("search", "admin"))
                 .andExpect(status().isOk());
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = {"ROLE_ADMIN", "DEPARTMENT_MANAGE", "DEPARTMENT_VIEW", "EMPLOYEE_CREATE", "EMPLOYEE_VIEW", "EMPLOYEE_UPDATE", "EMPLOYEE_DEACTIVATE", "LEAVE_BALANCE_MANAGE", "LEAVE_BALANCE_VIEW", "LEAVE_CREATE", "LEAVE_VIEW_ALL", "LEAVE_TYPE_MANAGE", "ROLE_PERMISSION_MANAGE"})
     void createEmployee_DuplicateEmail() throws Exception {
         Long deptId = createDepartment();
         EmployeeRequestDTO dto = new EmployeeRequestDTO();

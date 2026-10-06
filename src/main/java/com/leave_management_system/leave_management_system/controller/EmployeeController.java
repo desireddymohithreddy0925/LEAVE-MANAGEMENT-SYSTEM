@@ -28,7 +28,7 @@ public class EmployeeController {
         this.employeeService = employeeService;
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_CREATE')")
     @PostMapping
     @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     @Operation(summary = "Create a new employee", description = "Creates a new employee and assigns them to a department.")
@@ -42,7 +42,7 @@ public class EmployeeController {
         return employeeService.createEmployee(dto);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_VIEW')")
     @GetMapping
     @Operation(summary = "Get all employees or search by keyword", description = "Returns a paginated list of employees, optionally filtered by a search keyword.")
     @ApiResponses({
@@ -68,7 +68,7 @@ public class EmployeeController {
         return employeeService.getEmployeeById(id);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_UPDATE')")
     @PutMapping("/{id}")
     @Operation(summary = "Update an employee", description = "Updates the details of an existing employee.")
     @ApiResponses({
@@ -81,7 +81,7 @@ public class EmployeeController {
         return employeeService.updateEmployee(id, dto);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_UPDATE')")
     @PatchMapping("/{id}/status")
     @Operation(summary = "Change employee status", description = "Activates or deactivates an employee.")
     @ApiResponses({
@@ -95,7 +95,7 @@ public class EmployeeController {
         return ResponseEntity.ok(employeeService.changeEmployeeStatus(id, status));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_UPDATE')")
     @PutMapping("/{id}/department")
     @Operation(summary = "Transfer employee to department", description = "Moves an employee to a different department.")
     @ApiResponses({
@@ -106,7 +106,7 @@ public class EmployeeController {
         return employeeService.transferEmployee(id, departmentId);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_DEACTIVATE')")
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete an employee", description = "Permanently deletes an employee from the system.")
     @ApiResponses({
@@ -131,7 +131,7 @@ public class EmployeeController {
         return employeeService.updateProfile(id, dto);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_UPDATE')")
     @PatchMapping("/{id}/manager")
     @Operation(summary = "Assign manager to employee", description = "Assigns or removes a manager for an employee.")
     @ApiResponses({
@@ -144,7 +144,7 @@ public class EmployeeController {
         return employeeService.assignManager(id, managerId);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @PreAuthorize("hasAuthority('ROLE_PERMISSION_MANAGE')")
     @PatchMapping("/{id}/role")
     @Operation(summary = "Change employee role", description = "Changes the system role of an employee.")
     @ApiResponses({

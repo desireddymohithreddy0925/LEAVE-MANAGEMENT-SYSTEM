@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+@PreAuthorize("hasAuthority('LEAVE_TYPE_MANAGE')")
 public class LeaveTypeService {
 
     private final LeaveTypeRepository leaveTypeRepository;

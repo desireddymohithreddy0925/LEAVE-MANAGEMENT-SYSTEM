@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+@PreAuthorize("hasAuthority('EMPLOYEE_UPDATE')")
 public class EmployeeService {
 
     private final EmployeeRepository employeeRepository;
@@ -43,6 +43,7 @@ public class EmployeeService {
         this.roleRepository = roleRepository;
     }
 
+    @PreAuthorize("hasAuthority('EMPLOYEE_CREATE')")
     public EmployeeResponseDTO createEmployee(EmployeeRequestDTO dto) {
         if (userRepository.existsByEmail(dto.getEmail())) {
             throw new DuplicateResourceException("Email already exists");
@@ -80,7 +81,7 @@ public class EmployeeService {
         return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_VIEW')")
     public Page<EmployeeResponseDTO> getAllEmployees(Pageable pageable) {
         return employeeRepository.findAll(pageable)
                 .map(EmployeeResponseDTO::fromEntity);
@@ -135,13 +136,13 @@ public class EmployeeService {
         return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_VIEW')")
     public Page<EmployeeResponseDTO> searchEmployees(String keyword, Pageable pageable) {
         return employeeRepository.searchByKeyword(keyword, pageable)
                 .map(EmployeeResponseDTO::fromEntity);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_VIEW')")
     public List<EmployeeResponseDTO> getEmployeesByDepartmentId(Long departmentId) {
         return employeeRepository.findByDepartmentId(departmentId).stream()
                 .map(EmployeeResponseDTO::fromEntity)
@@ -159,6 +160,7 @@ public class EmployeeService {
         return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
     }
 
+    @PreAuthorize("hasAuthority('EMPLOYEE_DEACTIVATE')")
     public void deleteEmployee(Long id) {
         if (!employeeRepository.existsById(id)) {
             throw new ResourceNotFoundException("Employee not found with id: " + id);
@@ -213,7 +215,7 @@ public class EmployeeService {
         return EmployeeResponseDTO.fromEntity(employee);
     }
 
-    @PreAuthorize("hasAnyRole('MANAGER', 'HR', 'ADMIN')")
+    @PreAuthorize("hasAuthority('EMPLOYEE_VIEW')")
     public List<EmployeeResponseDTO> getManagerTeam(Long managerId) {
         return employeeRepository.findTeamByManagerId(managerId).stream()
                 .map(EmployeeResponseDTO::fromEntity)
