@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: leave-management-system
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+# Common JWT configuration defaults (can be overridden in environments)
+jwt:
+  secret: ${JWT_SECRET:defaultSecretKeyThatIsAtLeast32CharactersLongAndSecure!}
+  expirationMs: ${JWT_EXPIRATION:86400000}
+  refreshExpirationMs: ${JWT_REFRESH_EXPIRATION:604800000}
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+  info:
+    app:
+      name: Leave Management System
+      description: API for managing employee leaves
+      version: 1.0.0

@@ -35,6 +35,7 @@ public class LeaveBalanceService {
                 this.leaveTypeRepository = leaveTypeRepository;
         }
 
+        @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "BALANCE_CREATED", entityType = "LeaveBalance")
         public LeaveBalanceResponseDTO createLeaveBalance(LeaveBalanceRequestDTO dto) {
 
                 Employee employee = employeeRepository.findById(dto.getEmployeeId())
@@ -96,6 +97,7 @@ public class LeaveBalanceService {
                                 .collect(Collectors.toList());
         }
 
+        @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "BALANCE_UPDATED", entityType = "LeaveBalance")
         public LeaveBalanceResponseDTO updateLeaveBalance(
                         Long id,
                         LeaveBalanceRequestDTO dto) {
@@ -110,6 +112,7 @@ public class LeaveBalanceService {
                 return LeaveBalanceResponseDTO.fromEntity(leaveBalanceRepository.save(leaveBalance));
         }
 
+        @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "BALANCE_DELETED", entityType = "LeaveBalance")
         public void deleteLeaveBalance(Long id) {
 
                 LeaveBalance leaveBalance = getLeaveBalanceEntityById(id);

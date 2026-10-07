@@ -44,6 +44,7 @@ public class EmployeeService {
     }
 
     @PreAuthorize("hasAuthority('EMPLOYEE_CREATE')")
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "EMPLOYEE_CREATED", entityType = "Employee")
     public EmployeeResponseDTO createEmployee(EmployeeRequestDTO dto) {
         if (userRepository.existsByEmail(dto.getEmail())) {
             throw new DuplicateResourceException("Email already exists");
@@ -94,6 +95,7 @@ public class EmployeeService {
         return EmployeeResponseDTO.fromEntity(employee);
     }
 
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "EMPLOYEE_UPDATED", entityType = "Employee")
     public EmployeeResponseDTO updateEmployee(Long id, EmployeeRequestDTO dto) {
         Employee employee = employeeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
@@ -126,6 +128,7 @@ public class EmployeeService {
         return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
     }
 
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "EMPLOYEE_DEACTIVATED", entityType = "Employee")
     public EmployeeResponseDTO changeEmployeeStatus(Long id, String status) {
         Employee employee = employeeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
@@ -149,6 +152,7 @@ public class EmployeeService {
                 .collect(Collectors.toList());
     }
 
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "EMPLOYEE_UPDATED", entityType = "Employee")
     public EmployeeResponseDTO transferEmployee(Long employeeId, Long departmentId) {
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + employeeId));
@@ -161,6 +165,7 @@ public class EmployeeService {
     }
 
     @PreAuthorize("hasAuthority('EMPLOYEE_DEACTIVATE')")
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "EMPLOYEE_DEACTIVATED", entityType = "Employee")
     public void deleteEmployee(Long id) {
         if (!employeeRepository.existsById(id)) {
             throw new ResourceNotFoundException("Employee not found with id: " + id);
@@ -169,6 +174,7 @@ public class EmployeeService {
     }
 
     @PreAuthorize("@securityService.isSelf(authentication, #id)")
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "EMPLOYEE_UPDATED", entityType = "Employee")
     public EmployeeResponseDTO updateProfile(Long id, EmployeeProfileUpdateDTO dto) {
         Employee employee = employeeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
@@ -179,6 +185,7 @@ public class EmployeeService {
         return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
     }
 
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "EMPLOYEE_UPDATED", entityType = "Employee")
     public EmployeeResponseDTO assignManager(Long employeeId, Long managerId) {
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + employeeId));
@@ -197,6 +204,7 @@ public class EmployeeService {
         return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
     }
 
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "ROLE_CHANGED", entityType = "Employee")
     public EmployeeResponseDTO changeRole(Long id, String roleName) {
         Employee employee = employeeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));

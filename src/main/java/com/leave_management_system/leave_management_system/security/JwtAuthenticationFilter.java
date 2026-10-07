@@ -25,11 +25,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
     private final CustomUserDetailsService userDetailsService;
+    private final com.leave_management_system.leave_management_system.service.AuditService auditService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public JwtAuthenticationFilter(JwtUtils jwtUtils, CustomUserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtUtils jwtUtils, CustomUserDetailsService userDetailsService, com.leave_management_system.leave_management_system.service.AuditService auditService) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = userDetailsService;
+        this.auditService = auditService;
     }
 
     @Override
@@ -50,9 +52,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (ExpiredJwtException e) {
+            String ip = request.getHeader("X-Forwarded-For");
+            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                ip = request.getRemoteAddr();
+            }
+            auditService.logSecurityEvent("EXPIRED_TOKEN", ip, null);
             sendErrorResponse(response, "JWT token is expired", e.getMessage());
             return;
         } catch (JwtException | IllegalArgumentException e) {
+            String ip = request.getHeader("X-Forwarded-For");
+            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                ip = request.getRemoteAddr();
+            }
+            auditService.logSecurityEvent("INVALID_TOKEN", ip, null);
             sendErrorResponse(response, "Invalid JWT token", e.getMessage());
             return;
         }

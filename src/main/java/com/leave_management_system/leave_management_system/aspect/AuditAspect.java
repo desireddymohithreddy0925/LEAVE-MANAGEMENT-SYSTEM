@@ -48,7 +48,7 @@ public class AuditAspect {
                 auditAction.entityType(),
                 entityId,
                 null,
-                result != null ? result.toString() : null
+                result
             );
         } catch (Exception e) {
             System.err.println("Failed to log audit activity: " + e.getMessage());

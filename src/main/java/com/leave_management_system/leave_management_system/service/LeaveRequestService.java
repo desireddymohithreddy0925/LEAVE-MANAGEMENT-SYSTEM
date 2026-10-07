@@ -47,6 +47,7 @@ public class LeaveRequestService {
 
     @Transactional
     @PreAuthorize("hasAuthority('LEAVE_CREATE')")
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "LEAVE_APPLIED", entityType = "LeaveRequest")
     public LeaveResponseDTO createLeaveRequest(LeaveRequestDTO dto) {
         if (dto.getEndDate().isBefore(dto.getStartDate())) {
             throw new IllegalArgumentException("End date cannot be before start date");
@@ -167,6 +168,7 @@ public class LeaveRequestService {
 
     @Transactional
     @PreAuthorize("@securityService.canManageLeaveRequest(authentication, #id)")
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "LEAVE_APPROVED", entityType = "LeaveRequest")
     public LeaveResponseDTO approveLeaveRequest(Long id) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
@@ -196,6 +198,7 @@ public class LeaveRequestService {
 
     @Transactional
     @PreAuthorize("@securityService.canManageLeaveRequest(authentication, #id)")
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "LEAVE_REJECTED", entityType = "LeaveRequest")
     public LeaveResponseDTO rejectLeaveRequest(Long id, String rejectionReason) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
@@ -211,6 +214,7 @@ public class LeaveRequestService {
 
     @Transactional
     @PreAuthorize("@securityService.canViewLeaveRequest(authentication, #id)")
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "LEAVE_CANCELLED", entityType = "LeaveRequest")
     public LeaveResponseDTO cancelLeaveRequest(Long id) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));

@@ -4,17 +4,25 @@ This is a complete, enterprise-ready Leave Management System backend built with 
 
 ## Tech Stack
 - **Java 17+**
-- **Spring Boot 3.3+** (Web, Data JPA, Validation)
-- **MySQL 9.7.1**
+- **Spring Boot 3.3+** (Web, Data JPA, Validation, Actuator)
+- **PostgreSQL 15**
+- **Docker & Docker Compose**
 - **Liquibase** (Database Migrations)
 - **Maven** (Build Tool)
 - **Springdoc OpenAPI** (Swagger API Documentation)
 
 ## Setup & Run Instructions
 
-### 1. Database Setup
-Start a local MySQL container on port `3306` with the database `leave_management_db`.
-Configure the `src/main/resources/application.properties` to point to your database credentials.
+### 1. Docker Setup (Recommended)
+You can run the entire stack (PostgreSQL + Spring Boot Application) using Docker Compose:
+```bash
+docker-compose up --build
+```
+This will start the database and application using `application-prod.yml` configuration. The application will be available on `http://localhost:8080`.
+
+### 2. Local Database Setup (Development)
+If you prefer running locally, start a local PostgreSQL container on port `5432` with the database `leave_management_db`.
+Configure your environment variables (`DB_USERNAME`, `DB_PASSWORD`) or edit `src/main/resources/application-dev.yml`.
 
 ### 2. Build & Test
 Run the complete automated test suite (58 tests covering all business logic) from the root directory:
@@ -22,10 +30,10 @@ Run the complete automated test suite (58 tests covering all business logic) fro
 ./mvnw clean test
 ```
 
-### 3. Run Application
-Start the Spring Boot server:
+### 4. Run Application
+Start the Spring Boot server in dev mode:
 ```bash
-./mvnw spring-boot:run
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 The application will run on `http://localhost:8080`. Liquibase will automatically create all tables and schema constraints on startup.
 

@@ -33,11 +33,12 @@ public class AuthService {
     private final EmployeeRepository employeeRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final com.leave_management_system.leave_management_system.service.AuditService auditService;
 
     public AuthService(AuthenticationManager authenticationManager, JwtUtils jwtUtils,
                        RefreshTokenService refreshTokenService, UserRepository userRepository,
                        EmployeeRepository employeeRepository, RoleRepository roleRepository,
-                       PasswordEncoder passwordEncoder) {
+                       PasswordEncoder passwordEncoder, com.leave_management_system.leave_management_system.service.AuditService auditService) {
         this.authenticationManager = authenticationManager;
         this.jwtUtils = jwtUtils;
         this.refreshTokenService = refreshTokenService;
@@ -45,6 +46,7 @@ public class AuthService {
         this.employeeRepository = employeeRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.auditService = auditService;
     }
 
     public AuthResponseDTO login(AuthRequestDTO loginRequest) {
@@ -94,6 +96,9 @@ public class AuthService {
         String rawRefreshToken = UUID.randomUUID().toString();
         refreshTokenService.createRefreshToken(user.getId(), rawRefreshToken);
 
+        auditService.logAction("EMPLOYEE_CREATED", "Employee", employee.getId(), null, "Registered through API");
+        auditService.logSecurityEvent("SUCCESSFUL_LOGIN", null, registerRequest.getEmail());
+
         return new AuthResponseDTO(jwt, rawRefreshToken, UserResponseDTO.fromEntity(user));
     }
 
@@ -120,5 +125,6 @@ public class AuthService {
     @PreAuthorize("isAuthenticated()")
     public void logout(String refreshToken) {
         refreshTokenService.deleteByToken(refreshToken);
+        auditService.logSecurityEvent("USER_LOGOUT", null, null); // Email will be auto-extracted by context
     }
 }
