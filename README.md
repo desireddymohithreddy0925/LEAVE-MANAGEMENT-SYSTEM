@@ -51,8 +51,19 @@ You can import this directly into Postman to test the full lifecycle of a leave 
 
 The platform enforces robust, server-side security using **Spring Security** and **JWT (JSON Web Tokens)** to ensure a production-ready environment.
 
-- **Authentication:** Stateless authentication utilizing JWT access tokens alongside refresh tokens. Dedicated endpoints for Register, Login, Refresh, and Logout. Passwords are securely hashed using BCrypt.
-- **Role-Based Access Control (RBAC):** Strict server-side authorization classifying users into specific roles: `ADMIN`, `HR`, `MANAGER`, and `EMPLOYEE`. Endpoints enforce access dynamically based on role.
+### Authorization Flow
+
+**Authentication** ➔ **User** ➔ **Roles** ➔ **Permissions** ➔ **Business/Data Scope** ➔ **Authorization Decision**
+
+- **Role**: A grouping of permissions (e.g., `ADMIN`, `HR`, `MANAGER`, `EMPLOYEE`).
+- **Permission**: A specific action the user is allowed to do (e.g., `LEAVE_APPROVE`, `EMPLOYEE_VIEW`).
+- **Scope**: The specific data the user is allowed to operate on (e.g., A manager can only approve leave for *their own* team members).
+
+A user is only granted access if they possess the required **Permission** AND satisfy the **Business/Data Scope** requirements.
+
+### Key Security Features
+- **Stateless Authentication:** JWT access tokens alongside refresh tokens. Dedicated endpoints for Register, Login, Refresh, and Logout. Passwords are securely hashed using BCrypt.
+- **Database-Driven Permissions:** Strict server-side authorization classifying users into specific roles and fine-grained permissions. Endpoints enforce access dynamically using Spring Security `@PreAuthorize("hasAuthority('...')")`.
 - **Identity Context Context:** The API utilizes the authenticated `SecurityContextHolder` to reliably identify the active user rather than trusting client-provided payloads, mitigating ID manipulation.
 - **Exception Handling:** Correctly responds with `401 Unauthorized` for unauthenticated requests and `403 Forbidden` for unauthorized attempts.
 - **Security Audit Logging:** Comprehensive tracking of security events including login success/failure, logout, token issues, and unauthorized access via Spring Application Events.

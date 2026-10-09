@@ -31,7 +31,7 @@ import com.leave_management_system.leave_management_system.dto.LeaveBalanceReque
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
-@WithMockUser(username = "req.test@example.com", authorities = {"ROLE_ADMIN", "DEPARTMENT_MANAGE", "DEPARTMENT_VIEW", "EMPLOYEE_CREATE", "EMPLOYEE_VIEW", "EMPLOYEE_UPDATE", "EMPLOYEE_DEACTIVATE", "LEAVE_BALANCE_MANAGE", "LEAVE_BALANCE_VIEW", "LEAVE_CREATE", "LEAVE_VIEW_ALL", "LEAVE_TYPE_MANAGE", "ROLE_PERMISSION_MANAGE"})
+@WithMockUser(username = "req.test@example.com", authorities = {"ROLE_ADMIN", "DEPARTMENT_MANAGE", "DEPARTMENT_VIEW", "EMPLOYEE_CREATE", "EMPLOYEE_VIEW", "EMPLOYEE_UPDATE", "EMPLOYEE_DEACTIVATE", "LEAVE_BALANCE_MANAGE", "LEAVE_BALANCE_VIEW", "LEAVE_CREATE", "LEAVE_VIEW_ALL", "LEAVE_TYPE_MANAGE", "ROLE_PERMISSION_MANAGE", "LEAVE_APPROVE", "LEAVE_REJECT"})
 public class LeaveRequestControllerIntegrationTest {
 
     @Autowired
