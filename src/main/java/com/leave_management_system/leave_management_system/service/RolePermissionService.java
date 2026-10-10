@@ -53,6 +53,13 @@ public class RolePermissionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Role not found"));
         
         List<Permission> newPermissions = permissionRepository.findAllById(permissionIds);
+        
+        Set<Long> foundIds = newPermissions.stream().map(Permission::getId).collect(Collectors.toSet());
+        List<Long> missingIds = permissionIds.stream().filter(id -> !foundIds.contains(id)).collect(Collectors.toList());
+        if (!missingIds.isEmpty()) {
+            throw new ResourceNotFoundException("Permissions not found with IDs: " + missingIds);
+        }
+
         role.getPermissions().clear();
         role.getPermissions().addAll(newPermissions);
         

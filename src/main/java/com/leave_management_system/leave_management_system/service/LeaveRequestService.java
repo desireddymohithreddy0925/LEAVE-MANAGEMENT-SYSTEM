@@ -167,7 +167,7 @@ public class LeaveRequestService {
     }
 
     @Transactional
-    @PreAuthorize("@securityService.canManageLeaveRequest(authentication, #id)")
+    @PreAuthorize("@securityService.canApproveLeaveRequest(authentication, #id)")
     @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "LEAVE_APPROVED", entityType = "LeaveRequest")
     public LeaveResponseDTO approveLeaveRequest(Long id) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
@@ -197,7 +197,7 @@ public class LeaveRequestService {
     }
 
     @Transactional
-    @PreAuthorize("@securityService.canManageLeaveRequest(authentication, #id)")
+    @PreAuthorize("@securityService.canRejectLeaveRequest(authentication, #id)")
     @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "LEAVE_REJECTED", entityType = "LeaveRequest")
     public LeaveResponseDTO rejectLeaveRequest(Long id, String rejectionReason) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)

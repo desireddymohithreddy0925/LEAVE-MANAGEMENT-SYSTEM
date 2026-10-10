@@ -116,7 +116,7 @@ public class LeaveRequestController {
         return leaveRequestService.getLeaveRequestsByStatus(status);
     }
 
-    @PreAuthorize("@securityService.canManageLeaveRequest(authentication, #id)")
+    @PreAuthorize("@securityService.canApproveLeaveRequest(authentication, #id)")
     @PutMapping("/{id}/approve")
     @Operation(summary = "Approve a leave request", description = "Approves a pending leave request.")
     @ApiResponses({
@@ -128,7 +128,7 @@ public class LeaveRequestController {
         return leaveRequestService.approveLeaveRequest(id);
     }
 
-    @PreAuthorize("@securityService.canManageLeaveRequest(authentication, #id)")
+    @PreAuthorize("@securityService.canRejectLeaveRequest(authentication, #id)")
     @PutMapping("/{id}/reject")
     @Operation(summary = "Reject a leave request", description = "Rejects a pending leave request with a mandatory reason.")
     @ApiResponses({

@@ -64,10 +64,32 @@ public class SecurityAuthorizationService {
         return isManagerOfEmployee(authentication, targetEmployeeId);
     }
 
-    public boolean canManageLeaveRequest(Authentication authentication, Long leaveRequestId) {
-        boolean hasGlobalManage = authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("LEAVE_APPROVE") || a.getAuthority().equals("LEAVE_REJECT"));
-        if (hasGlobalManage) return true;
+    public boolean canApproveLeaveRequest(Authentication authentication, Long leaveRequestId) {
+        boolean hasPermission = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("LEAVE_APPROVE"));
+        if (!hasPermission) return false;
+
+        boolean isGlobalScope = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_HR"));
+        if (isGlobalScope) return true;
+
+        Optional<LeaveRequest> leaveRequest = leaveRequestRepository.findById(leaveRequestId);
+        if (leaveRequest.isEmpty()) {
+            return false;
+        }
+        
+        Long targetEmployeeId = leaveRequest.get().getEmployee().getId();
+        return isManagerOfEmployee(authentication, targetEmployeeId);
+    }
+
+    public boolean canRejectLeaveRequest(Authentication authentication, Long leaveRequestId) {
+        boolean hasPermission = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("LEAVE_REJECT"));
+        if (!hasPermission) return false;
+
+        boolean isGlobalScope = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_HR"));
+        if (isGlobalScope) return true;
 
         Optional<LeaveRequest> leaveRequest = leaveRequestRepository.findById(leaveRequestId);
         if (leaveRequest.isEmpty()) {

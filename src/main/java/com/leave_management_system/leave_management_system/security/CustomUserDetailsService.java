@@ -30,9 +30,11 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .collect(Collectors.toList());
 
         user.getRoles().forEach(role -> {
-            role.getPermissions().forEach(permission -> {
-                authorities.add(new SimpleGrantedAuthority(permission.getName()));
-            });
+            role.getPermissions().stream()
+                .filter(com.leave_management_system.leave_management_system.entity.Permission::isActive)
+                .forEach(permission -> {
+                    authorities.add(new SimpleGrantedAuthority(permission.getName()));
+                });
         });
 
         return new org.springframework.security.core.userdetails.User(
