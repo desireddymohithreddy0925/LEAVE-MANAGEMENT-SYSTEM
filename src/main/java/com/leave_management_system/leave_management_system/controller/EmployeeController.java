@@ -3,6 +3,8 @@ package com.leave_management_system.leave_management_system.controller;
 import com.leave_management_system.leave_management_system.dto.EmployeeProfileUpdateDTO;
 import com.leave_management_system.leave_management_system.dto.EmployeeRequestDTO;
 import com.leave_management_system.leave_management_system.dto.EmployeeResponseDTO;
+import com.leave_management_system.leave_management_system.dto.PasswordChangeRequestDTO;
+import com.leave_management_system.leave_management_system.service.AuthService;
 import com.leave_management_system.leave_management_system.service.EmployeeService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -23,9 +26,11 @@ import java.util.List;
 public class EmployeeController {
 
     private final EmployeeService employeeService;
+    private final AuthService authService;
 
-    public EmployeeController(EmployeeService employeeService) {
+    public EmployeeController(EmployeeService employeeService, AuthService authService) {
         this.employeeService = employeeService;
+        this.authService = authService;
     }
 
     @PreAuthorize("hasAuthority('EMPLOYEE_CREATE')")
@@ -55,6 +60,76 @@ public class EmployeeController {
             return employeeService.searchEmployees(search, pageable);
         }
         return employeeService.getAllEmployees(pageable);
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/me")
+    @Operation(summary = "Get current employee profile", description = "Returns the employee profile of the currently authenticated user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successfully retrieved profile"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Employee profile not found")
+    })
+    public EmployeeResponseDTO getMyProfile(Authentication authentication) {
+        return employeeService.getMyProfile(authentication);
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @PutMapping("/me/profile")
+    @Operation(summary = "Update current employee profile", description = "Allows the authenticated user to update their permitted profile fields (firstName, lastName, phone).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Profile updated successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid request data"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "409", description = "Employee is inactive")
+    })
+    public EmployeeResponseDTO updateMyProfile(
+            Authentication authentication,
+            @Valid @RequestBody EmployeeProfileUpdateDTO dto) {
+        return employeeService.updateMyProfile(authentication, dto);
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @PostMapping("/me/change-password")
+    @Operation(summary = "Change password for current user", description = "Changes password for the currently authenticated user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Password changed successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid password data or current password incorrect"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    public ResponseEntity<String> changePasswordPost(
+            Authentication authentication,
+            @Valid @RequestBody PasswordChangeRequestDTO request) {
+        authService.changePassword(authentication.getName(), request);
+        return ResponseEntity.ok("Password changed successfully");
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @PutMapping("/me/password")
+    @Operation(summary = "Update password for current user", description = "Updates password for the currently authenticated user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Password updated successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid password data or current password incorrect"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    public ResponseEntity<String> changePasswordPut(
+            Authentication authentication,
+            @Valid @RequestBody PasswordChangeRequestDTO request) {
+        authService.changePassword(authentication.getName(), request);
+        return ResponseEntity.ok("Password changed successfully");
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/me/hierarchy")
+    @Operation(summary = "Get current employee reporting hierarchy", description = "Returns the reporting chain upwards and direct reports downwards for the logged-in user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successfully retrieved reporting hierarchy"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Employee not found")
+    })
+    public com.leave_management_system.leave_management_system.dto.EmployeeHierarchyDTO getMyHierarchy(
+            Authentication authentication) {
+        return employeeService.getMyHierarchy(authentication);
     }
 
     @PreAuthorize("@securityService.canViewEmployee(authentication, #id)")
@@ -155,5 +230,16 @@ public class EmployeeController {
             @PathVariable Long id,
             @RequestParam String roleName) {
         return employeeService.changeRole(id, roleName);
+    }
+
+    @PreAuthorize("@securityService.canViewEmployee(authentication, #id)")
+    @GetMapping("/{id}/hierarchy")
+    @Operation(summary = "Get employee reporting hierarchy", description = "Returns the reporting chain upwards and direct reports downwards for the specified employee.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successfully retrieved employee hierarchy"),
+            @ApiResponse(responseCode = "404", description = "Employee not found")
+    })
+    public com.leave_management_system.leave_management_system.dto.EmployeeHierarchyDTO getEmployeeHierarchy(@PathVariable Long id) {
+        return employeeService.getEmployeeHierarchy(id);
     }
 }

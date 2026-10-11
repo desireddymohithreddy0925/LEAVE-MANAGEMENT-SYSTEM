@@ -1,5 +1,6 @@
 package com.leave_management_system.leave_management_system.controller;
 
+import com.leave_management_system.leave_management_system.dto.DepartmentHierarchyDTO;
 import com.leave_management_system.leave_management_system.dto.DepartmentRequestDTO;
 import com.leave_management_system.leave_management_system.dto.DepartmentResponseDTO;
 import com.leave_management_system.leave_management_system.dto.EmployeeResponseDTO;
@@ -114,5 +115,26 @@ public class DepartmentController {
             @PathVariable Long id,
             @RequestParam(required = false) Long managerId) {
         return departmentService.assignManager(id, managerId);
+    }
+
+    @PreAuthorize("hasAuthority('DEPARTMENT_VIEW')")
+    @GetMapping("/{id}/hierarchy")
+    @Operation(summary = "Get department hierarchy", description = "Returns the hierarchy of a specific department including manager, employees, and team tree.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successfully retrieved department hierarchy"),
+            @ApiResponse(responseCode = "404", description = "Department not found")
+    })
+    public DepartmentHierarchyDTO getDepartmentHierarchy(@PathVariable Long id) {
+        return departmentService.getDepartmentHierarchy(id);
+    }
+
+    @PreAuthorize("hasAuthority('DEPARTMENT_VIEW')")
+    @GetMapping("/hierarchy")
+    @Operation(summary = "Get all department hierarchies", description = "Returns the hierarchy of all departments.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successfully retrieved all department hierarchies")
+    })
+    public List<DepartmentHierarchyDTO> getAllDepartmentHierarchies() {
+        return departmentService.getAllDepartmentHierarchies();
     }
 }

@@ -29,6 +29,9 @@ public class DepartmentServiceTest {
     @Mock
     private EmployeeRepository employeeRepository;
 
+    @Mock
+    private EmployeeService employeeService;
+
     @InjectMocks
     private DepartmentService departmentService;
 

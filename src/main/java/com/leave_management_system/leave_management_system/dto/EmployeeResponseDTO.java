@@ -12,6 +12,8 @@ public class EmployeeResponseDTO {
     private String status;
     private java.math.BigDecimal salary;
     private DepartmentResponseDTO department;
+    private Long managerId;
+    private String managerName;
 
     public static EmployeeResponseDTO fromEntity(Employee employee) {
         if (employee == null) return null;
@@ -28,6 +30,10 @@ public class EmployeeResponseDTO {
         dto.setSalary(employee.getSalary());
         if (employee.getDepartment() != null) {
             dto.setDepartment(DepartmentResponseDTO.fromEntity(employee.getDepartment()));
+        }
+        if (employee.getManager() != null) {
+            dto.setManagerId(employee.getManager().getId());
+            dto.setManagerName(employee.getManager().getFirstName() + " " + employee.getManager().getLastName());
         }
         return dto;
     }
@@ -51,4 +57,8 @@ public class EmployeeResponseDTO {
     public void setSalary(java.math.BigDecimal salary) { this.salary = salary; }
     public DepartmentResponseDTO getDepartment() { return department; }
     public void setDepartment(DepartmentResponseDTO department) { this.department = department; }
+    public Long getManagerId() { return managerId; }
+    public void setManagerId(Long managerId) { this.managerId = managerId; }
+    public String getManagerName() { return managerName; }
+    public void setManagerName(String managerName) { this.managerName = managerName; }
 }

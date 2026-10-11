@@ -161,7 +161,7 @@ public class LeaveRequestService {
 
     @PreAuthorize("hasAuthority('LEAVE_VIEW_TEAM')")
     public List<LeaveResponseDTO> getTeamLeaveRequests(Long managerId) {
-        return leaveRequestRepository.findByEmployee_Manager_Id(managerId).stream()
+        return leaveRequestRepository.findTeamLeaveRequestsByManagerId(managerId).stream()
                 .map(LeaveResponseDTO::fromEntity)
                 .collect(Collectors.toList());
     }

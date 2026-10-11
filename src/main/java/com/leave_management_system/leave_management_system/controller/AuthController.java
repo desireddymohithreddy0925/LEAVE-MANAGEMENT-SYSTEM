@@ -3,8 +3,11 @@ package com.leave_management_system.leave_management_system.controller;
 import com.leave_management_system.leave_management_system.dto.AuthRequestDTO;
 import com.leave_management_system.leave_management_system.dto.AuthResponseDTO;
 import com.leave_management_system.leave_management_system.dto.RegisterRequestDTO;
+import com.leave_management_system.leave_management_system.dto.PasswordChangeRequestDTO;
 import com.leave_management_system.leave_management_system.dto.TokenRefreshRequestDTO;
 import com.leave_management_system.leave_management_system.service.AuthService;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -48,5 +51,15 @@ public class AuthController {
     public ResponseEntity<String> logoutUser(@Valid @RequestBody TokenRefreshRequestDTO request) {
         authService.logout(request.getRefreshToken());
         return ResponseEntity.ok("User logged out successfully");
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @PostMapping("/change-password")
+    @Operation(summary = "Change password", description = "Allows an authenticated user to change their password")
+    public ResponseEntity<String> changePassword(
+            Authentication authentication,
+            @Valid @RequestBody PasswordChangeRequestDTO request) {
+        authService.changePassword(authentication.getName(), request);
+        return ResponseEntity.ok("Password changed successfully");
     }
 }

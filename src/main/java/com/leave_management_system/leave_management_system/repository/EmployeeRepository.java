@@ -26,6 +26,10 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     boolean existsByDepartmentId(Long departmentId);
 
+    List<Employee> findByManagerId(Long managerId);
+
+    List<Employee> findByDepartmentIdAndManagerIsNull(Long departmentId);
+
     @Query("SELECT e FROM Employee e WHERE (e.manager.id = :managerId OR e.department.manager.id = :managerId) AND e.id != :managerId")
     List<Employee> findTeamByManagerId(@Param("managerId") Long managerId);
 }

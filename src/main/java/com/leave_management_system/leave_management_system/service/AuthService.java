@@ -6,6 +6,7 @@ import com.leave_management_system.leave_management_system.entity.RefreshToken;
 import com.leave_management_system.leave_management_system.entity.Role;
 import com.leave_management_system.leave_management_system.entity.User;
 import com.leave_management_system.leave_management_system.exception.DuplicateResourceException;
+import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
 import com.leave_management_system.leave_management_system.repository.EmployeeRepository;
 import com.leave_management_system.leave_management_system.repository.RoleRepository;
 import com.leave_management_system.leave_management_system.repository.UserRepository;
@@ -126,5 +127,26 @@ public class AuthService {
     public void logout(String refreshToken) {
         refreshTokenService.deleteByToken(refreshToken);
         auditService.logSecurityEvent("USER_LOGOUT", null, null); // Email will be auto-extracted by context
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @Transactional
+    public void changePassword(String email, PasswordChangeRequestDTO request) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Current password is incorrect");
+        }
+
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("New password cannot be the same as current password");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        auditService.logAction("PASSWORD_CHANGED", "User", user.getId(), null, "Password changed successfully");
+        auditService.logSecurityEvent("PASSWORD_CHANGED", null, email);
     }
 }

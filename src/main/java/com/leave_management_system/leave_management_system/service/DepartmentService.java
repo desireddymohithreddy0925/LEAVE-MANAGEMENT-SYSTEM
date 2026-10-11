@@ -11,7 +11,13 @@ import org.springframework.stereotype.Service;
 import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
 import com.leave_management_system.leave_management_system.exception.DuplicateResourceException;
 
+import com.leave_management_system.leave_management_system.dto.DepartmentHierarchyDTO;
+import com.leave_management_system.leave_management_system.dto.EmployeeResponseDTO;
+import com.leave_management_system.leave_management_system.dto.TeamHierarchyDTO;
+import org.springframework.context.annotation.Lazy;
+
 import org.springframework.security.access.prepost.PreAuthorize;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -21,10 +27,14 @@ public class DepartmentService {
 
     private final DepartmentRepository departmentRepository;
     private final EmployeeRepository employeeRepository;
+    private final EmployeeService employeeService;
 
-    public DepartmentService(DepartmentRepository departmentRepository, EmployeeRepository employeeRepository) {
+    public DepartmentService(DepartmentRepository departmentRepository,
+                             EmployeeRepository employeeRepository,
+                             @Lazy EmployeeService employeeService) {
         this.departmentRepository = departmentRepository;
         this.employeeRepository = employeeRepository;
+        this.employeeService = employeeService;
     }
 
     public DepartmentResponseDTO createDepartment(DepartmentRequestDTO dto) {
@@ -92,5 +102,37 @@ public class DepartmentService {
         }
 
         return DepartmentResponseDTO.fromEntity(departmentRepository.save(department));
+    }
+
+    @PreAuthorize("hasAuthority('DEPARTMENT_VIEW')")
+    public DepartmentHierarchyDTO getDepartmentHierarchy(Long id) {
+        Department department = departmentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + id));
+
+        List<Employee> allEmployees = employeeRepository.findByDepartmentId(id);
+        List<EmployeeResponseDTO> employeeDTOs = allEmployees.stream()
+                .map(EmployeeResponseDTO::fromEntity)
+                .collect(Collectors.toList());
+
+        List<TeamHierarchyDTO> teams = new ArrayList<>();
+        if (department.getManager() != null) {
+            teams.add(employeeService.getTeamHierarchy(department.getManager().getId()));
+        }
+
+        return new DepartmentHierarchyDTO(
+                department.getId(),
+                department.getName(),
+                department.getManager() != null ? EmployeeResponseDTO.fromEntity(department.getManager()) : null,
+                employeeDTOs,
+                teams,
+                allEmployees.size()
+        );
+    }
+
+    @PreAuthorize("hasAuthority('DEPARTMENT_VIEW')")
+    public List<DepartmentHierarchyDTO> getAllDepartmentHierarchies() {
+        return departmentRepository.findAll().stream()
+                .map(dept -> getDepartmentHierarchy(dept.getId()))
+                .collect(Collectors.toList());
     }
 }

@@ -3,6 +3,8 @@ package com.leave_management_system.leave_management_system.service;
 import com.leave_management_system.leave_management_system.dto.EmployeeProfileUpdateDTO;
 import com.leave_management_system.leave_management_system.dto.EmployeeRequestDTO;
 import com.leave_management_system.leave_management_system.dto.EmployeeResponseDTO;
+import com.leave_management_system.leave_management_system.dto.TeamHierarchyDTO;
+import com.leave_management_system.leave_management_system.dto.EmployeeHierarchyDTO;
 import com.leave_management_system.leave_management_system.entity.Department;
 import com.leave_management_system.leave_management_system.entity.Employee;
 import com.leave_management_system.leave_management_system.repository.DepartmentRepository;
@@ -17,9 +19,13 @@ import com.leave_management_system.leave_management_system.entity.User;
 import com.leave_management_system.leave_management_system.entity.Role;
 
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -79,6 +85,15 @@ public class EmployeeService {
             employee.setDepartment(department);
         }
 
+        if (dto.getManagerId() != null) {
+            Employee manager = employeeRepository.findById(dto.getManagerId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Manager not found with id: " + dto.getManagerId()));
+            if (!"ACTIVE".equals(manager.getStatus())) {
+                throw new IllegalStateException("Cannot assign an inactive employee as manager");
+            }
+            employee.setManager(manager);
+        }
+
         return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
     }
 
@@ -125,6 +140,19 @@ public class EmployeeService {
             employee.setDepartment(null);
         }
 
+        if (dto.getManagerId() != null) {
+            if (id.equals(dto.getManagerId())) {
+                throw new IllegalArgumentException("An employee cannot be their own manager");
+            }
+            Employee manager = employeeRepository.findById(dto.getManagerId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Manager not found with id: " + dto.getManagerId()));
+            if (!"ACTIVE".equals(manager.getStatus())) {
+                throw new IllegalStateException("Cannot assign an inactive employee as manager");
+            }
+            validateNoCircularReporting(employee, manager);
+            employee.setManager(manager);
+        }
+
         return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
     }
 
@@ -160,6 +188,13 @@ public class EmployeeService {
         Department department = departmentRepository.findById(departmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + departmentId));
 
+        // If the employee was the manager of their old department, disassociate old department manager
+        Department oldDept = employee.getDepartment();
+        if (oldDept != null && oldDept.getManager() != null && oldDept.getManager().getId().equals(employee.getId())) {
+            oldDept.setManager(null);
+            departmentRepository.save(oldDept);
+        }
+
         employee.setDepartment(department);
         return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
     }
@@ -179,10 +214,47 @@ public class EmployeeService {
         Employee employee = employeeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
 
+        if (!"ACTIVE".equals(employee.getStatus())) {
+            throw new IllegalStateException("Cannot update profile of an inactive employee");
+        }
+
         employee.setFirstName(dto.getFirstName());
         employee.setLastName(dto.getLastName());
         employee.setPhone(dto.getPhone());
         return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    public EmployeeResponseDTO getMyProfile(Authentication authentication) {
+        String email = authentication.getName();
+        Employee employee = employeeRepository.findByUserEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee profile not found for authenticated user"));
+        return EmployeeResponseDTO.fromEntity(employee);
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "EMPLOYEE_UPDATED", entityType = "Employee")
+    public EmployeeResponseDTO updateMyProfile(Authentication authentication, EmployeeProfileUpdateDTO dto) {
+        String email = authentication.getName();
+        Employee employee = employeeRepository.findByUserEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee profile not found for authenticated user"));
+
+        if (!"ACTIVE".equals(employee.getStatus())) {
+            throw new IllegalStateException("Cannot update profile of an inactive employee");
+        }
+
+        employee.setFirstName(dto.getFirstName());
+        employee.setLastName(dto.getLastName());
+        employee.setPhone(dto.getPhone());
+        return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    public EmployeeHierarchyDTO getMyHierarchy(Authentication authentication) {
+        String email = authentication.getName();
+        Employee employee = employeeRepository.findByUserEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee profile not found for authenticated user"));
+        return getEmployeeHierarchy(employee.getId());
     }
 
     @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "EMPLOYEE_UPDATED", entityType = "Employee")
@@ -190,18 +262,40 @@ public class EmployeeService {
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + employeeId));
 
+        if (!"ACTIVE".equals(employee.getStatus())) {
+            throw new IllegalStateException("Cannot assign a manager to an inactive employee");
+        }
+
         if (managerId != null) {
-            Employee manager = employeeRepository.findById(managerId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Manager not found with id: " + managerId));
             if (employeeId.equals(managerId)) {
                 throw new IllegalArgumentException("An employee cannot be their own manager");
             }
+            Employee manager = employeeRepository.findById(managerId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Manager not found with id: " + managerId));
+            if (!"ACTIVE".equals(manager.getStatus())) {
+                throw new IllegalStateException("Cannot assign an inactive employee as manager");
+            }
+            validateNoCircularReporting(employee, manager);
             employee.setManager(manager);
         } else {
             employee.setManager(null);
         }
 
         return EmployeeResponseDTO.fromEntity(employeeRepository.save(employee));
+    }
+
+    private void validateNoCircularReporting(Employee employee, Employee prospectiveManager) {
+        Employee current = prospectiveManager;
+        Set<Long> visited = new HashSet<>();
+        while (current != null) {
+            if (employee.getId() != null && employee.getId().equals(current.getId())) {
+                throw new IllegalArgumentException("Circular manager assignment is not allowed: employee is an ancestor of the proposed manager");
+            }
+            if (!visited.add(current.getId())) {
+                break;
+            }
+            current = current.getManager();
+        }
     }
 
     @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "ROLE_CHANGED", entityType = "Employee")
@@ -228,5 +322,77 @@ public class EmployeeService {
         return employeeRepository.findTeamByManagerId(managerId).stream()
                 .map(EmployeeResponseDTO::fromEntity)
                 .collect(Collectors.toList());
+    }
+
+    @PreAuthorize("hasAuthority('EMPLOYEE_VIEW') or hasAuthority('LEAVE_VIEW_TEAM')")
+    public TeamHierarchyDTO getTeamHierarchy(Long managerId) {
+        Employee manager = employeeRepository.findById(managerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Manager not found with id: " + managerId));
+        return buildTeamHierarchy(manager, new HashSet<>());
+    }
+
+    private TeamHierarchyDTO buildTeamHierarchy(Employee manager, Set<Long> visitedManagers) {
+        if (!visitedManagers.add(manager.getId())) {
+            return new TeamHierarchyDTO(manager.getId(),
+                    manager.getFirstName() + " " + manager.getLastName(),
+                    manager.getUser() != null ? manager.getUser().getEmail() : null,
+                    manager.getDepartment() != null ? manager.getDepartment().getName() : null,
+                    new ArrayList<>(), new ArrayList<>(), 0);
+        }
+
+        List<Employee> directReportsList = employeeRepository.findTeamByManagerId(manager.getId());
+        List<EmployeeResponseDTO> directReportDTOs = directReportsList.stream()
+                .map(EmployeeResponseDTO::fromEntity)
+                .collect(Collectors.toList());
+
+        List<TeamHierarchyDTO> subTeams = new ArrayList<>();
+        for (Employee report : directReportsList) {
+            List<Employee> subReports = employeeRepository.findByManagerId(report.getId());
+            if (!subReports.isEmpty() && !visitedManagers.contains(report.getId())) {
+                subTeams.add(buildTeamHierarchy(report, new HashSet<>(visitedManagers)));
+            }
+        }
+
+        Set<Long> allSubordinateIds = new HashSet<>();
+        collectAllSubordinateIds(manager.getId(), allSubordinateIds);
+
+        return new TeamHierarchyDTO(
+                manager.getId(),
+                manager.getFirstName() + " " + manager.getLastName(),
+                manager.getUser() != null ? manager.getUser().getEmail() : null,
+                manager.getDepartment() != null ? manager.getDepartment().getName() : null,
+                directReportDTOs,
+                subTeams,
+                allSubordinateIds.size()
+        );
+    }
+
+    private void collectAllSubordinateIds(Long managerId, Set<Long> collected) {
+        List<Employee> reports = employeeRepository.findTeamByManagerId(managerId);
+        for (Employee emp : reports) {
+            if (collected.add(emp.getId())) {
+                collectAllSubordinateIds(emp.getId(), collected);
+            }
+        }
+    }
+
+    @PreAuthorize("@securityService.canViewEmployee(authentication, #employeeId)")
+    public EmployeeHierarchyDTO getEmployeeHierarchy(Long employeeId) {
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + employeeId));
+
+        List<EmployeeResponseDTO> reportingChain = new ArrayList<>();
+        Employee current = employee.getManager();
+        Set<Long> visited = new HashSet<>();
+        while (current != null && visited.add(current.getId())) {
+            reportingChain.add(EmployeeResponseDTO.fromEntity(current));
+            current = current.getManager();
+        }
+
+        List<EmployeeResponseDTO> directReports = employeeRepository.findByManagerId(employeeId).stream()
+                .map(EmployeeResponseDTO::fromEntity)
+                .collect(Collectors.toList());
+
+        return new EmployeeHierarchyDTO(EmployeeResponseDTO.fromEntity(employee), reportingChain, directReports);
     }
 }

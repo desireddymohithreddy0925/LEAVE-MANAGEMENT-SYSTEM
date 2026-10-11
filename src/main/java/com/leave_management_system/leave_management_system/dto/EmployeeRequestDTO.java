@@ -34,6 +34,7 @@ public class EmployeeRequestDTO {
     private java.math.BigDecimal salary;
     @NotNull(message = "Department ID is required")
     private Long departmentId;
+    private Long managerId;
 
     // Getters and Setters
     public String getFirstName() { return firstName; }
@@ -52,4 +53,6 @@ public class EmployeeRequestDTO {
     public void setSalary(java.math.BigDecimal salary) { this.salary = salary; }
     public Long getDepartmentId() { return departmentId; }
     public void setDepartmentId(Long departmentId) { this.departmentId = departmentId; }
+    public Long getManagerId() { return managerId; }
+    public void setManagerId(Long managerId) { this.managerId = managerId; }
 }

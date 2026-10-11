@@ -15,6 +15,11 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
     List<LeaveRequest> findByStatus(LeaveStatus status);
     List<LeaveRequest> findByEmployee_Manager_Id(Long managerId);
 
+    @Query("SELECT lr FROM LeaveRequest lr WHERE " +
+           "(lr.employee.manager.id = :managerId OR lr.employee.department.manager.id = :managerId) " +
+           "AND lr.employee.id != :managerId")
+    List<LeaveRequest> findTeamLeaveRequestsByManagerId(@Param("managerId") Long managerId);
+
     @Query("SELECT COUNT(lr) > 0 FROM LeaveRequest lr WHERE lr.employee = :employee " +
            "AND lr.status IN (:statuses) " +
            "AND lr.startDate <= :endDate " +
