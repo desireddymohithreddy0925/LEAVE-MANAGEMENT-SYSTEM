@@ -50,12 +50,14 @@ public class ProfileSecurityIntegrationTest {
         String email;
         String password;
         String token;
+        String refreshToken;
         Long employeeId;
 
-        AuthAccount(String email, String password, String token, Long employeeId) {
+        AuthAccount(String email, String password, String token, String refreshToken, Long employeeId) {
             this.email = email;
             this.password = password;
             this.token = token;
+            this.refreshToken = refreshToken;
             this.employeeId = employeeId;
         }
     }
@@ -80,7 +82,7 @@ public class ProfileSecurityIntegrationTest {
                 result.getResponse().getContentAsString(), AuthResponseDTO.class);
 
         Employee emp = employeeRepository.findByUserEmail(email).orElseThrow();
-        return new AuthAccount(email, password, authResponse.getAccessToken(), emp.getId());
+        return new AuthAccount(email, password, authResponse.getAccessToken(), authResponse.getRefreshToken(), emp.getId());
     }
 
     @Test
@@ -291,6 +293,14 @@ public class ProfileSecurityIntegrationTest {
                         .content(objectMapper.writeValueAsString(newLogin)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty());
+
+        // Refresh token from before password change must be revoked
+        TokenRefreshRequestDTO refreshReq = new TokenRefreshRequestDTO();
+        refreshReq.setRefreshToken(emp.refreshToken);
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshReq)))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

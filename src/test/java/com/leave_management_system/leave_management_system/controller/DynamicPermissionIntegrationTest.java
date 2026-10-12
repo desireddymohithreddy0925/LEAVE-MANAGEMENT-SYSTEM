@@ -202,12 +202,14 @@ public class DynamicPermissionIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(balDto)));
                 
-        // Employee creates two leave requests
+        // Employee creates leave requests on guaranteed weekdays
+        java.time.LocalDate baseMonday = java.time.LocalDate.now().plusWeeks(1).with(java.time.DayOfWeek.MONDAY);
+
         com.leave_management_system.leave_management_system.dto.LeaveRequestDTO lr1 = new com.leave_management_system.leave_management_system.dto.LeaveRequestDTO();
         lr1.setEmployeeId(subEmpId);
         lr1.setLeaveTypeId(leaveTypeId);
-        lr1.setStartDate(java.time.LocalDate.now().plusDays(2));
-        lr1.setEndDate(java.time.LocalDate.now().plusDays(3));
+        lr1.setStartDate(baseMonday);
+        lr1.setEndDate(baseMonday.plusDays(1));
         lr1.setReason("Test 1");
         MvcResult lr1Result = mockMvc.perform(post("/api/leave-requests")
                 .header("Authorization", "Bearer " + empToken)
@@ -220,8 +222,8 @@ public class DynamicPermissionIntegrationTest {
         com.leave_management_system.leave_management_system.dto.LeaveRequestDTO lr2 = new com.leave_management_system.leave_management_system.dto.LeaveRequestDTO();
         lr2.setEmployeeId(subEmpId);
         lr2.setLeaveTypeId(leaveTypeId);
-        lr2.setStartDate(java.time.LocalDate.now().plusDays(5));
-        lr2.setEndDate(java.time.LocalDate.now().plusDays(6));
+        lr2.setStartDate(baseMonday.plusDays(2));
+        lr2.setEndDate(baseMonday.plusDays(3));
         lr2.setReason("Test 2");
         MvcResult lr2Result = mockMvc.perform(post("/api/leave-requests")
                 .header("Authorization", "Bearer " + empToken)
@@ -290,5 +292,43 @@ public class DynamicPermissionIntegrationTest {
         // Cleanup
         rejectPermToDeactivate.setActive(true);
         permissionRepository.save(rejectPermToDeactivate);
+
+        // 8. Test removing LEAVE_REJECT while keeping LEAVE_APPROVE (Bidirectional separation)
+        com.leave_management_system.leave_management_system.dto.LeaveRequestDTO lr3 = new com.leave_management_system.leave_management_system.dto.LeaveRequestDTO();
+        lr3.setEmployeeId(subEmpId);
+        lr3.setLeaveTypeId(leaveTypeId);
+        lr3.setStartDate(baseMonday.plusDays(7));
+        lr3.setEndDate(baseMonday.plusDays(8));
+        lr3.setReason("Test 3");
+        MvcResult lr3Result = mockMvc.perform(post("/api/leave-requests")
+                .header("Authorization", "Bearer " + empToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(lr3)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long leaveReq3 = JsonPath.parse(lr3Result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        // Admin removes LEAVE_REJECT from MANAGER role via DELETE
+        mockMvc.perform(delete("/api/roles/" + managerRole.getId() + "/permissions/" + rejectPermission.getId())
+                .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
+
+        String managerNoRejectToken = getAuthToken("dyn.manager@test.com", "password123");
+
+        // Rejection must be forbidden
+        mockMvc.perform(put("/api/leave-requests/" + leaveReq3 + "/reject")
+                .header("Authorization", "Bearer " + managerNoRejectToken)
+                .param("reason", "Should fail due to missing LEAVE_REJECT"))
+                .andExpect(status().isForbidden());
+
+        // Approval must remain permitted (LEAVE_APPROVE is still present)
+        mockMvc.perform(put("/api/leave-requests/" + leaveReq3 + "/approve")
+                .header("Authorization", "Bearer " + managerNoRejectToken))
+                .andExpect(status().isOk());
+
+        // Restore LEAVE_REJECT to MANAGER role
+        mockMvc.perform(post("/api/roles/" + managerRole.getId() + "/permissions/" + rejectPermission.getId())
+                .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
     }
 }

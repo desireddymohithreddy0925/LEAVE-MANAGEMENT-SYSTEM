@@ -146,6 +146,9 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
 
+        // Revoke all existing refresh tokens for the user upon password change
+        refreshTokenService.deleteByUserId(user.getId());
+
         auditService.logAction("PASSWORD_CHANGED", "User", user.getId(), null, "Password changed successfully");
         auditService.logSecurityEvent("PASSWORD_CHANGED", null, email);
     }

@@ -89,9 +89,10 @@ public class EmployeeController {
         return employeeService.updateMyProfile(authentication, dto);
     }
 
+    @Deprecated
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/me/change-password")
-    @Operation(summary = "Change password for current user", description = "Changes password for the currently authenticated user.")
+    @Operation(summary = "Change password for current user (Deprecated)", description = "Deprecated in favor of PUT /api/employees/me/password or POST /api/auth/change-password. Kept for backward compatibility.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Password changed successfully"),
             @ApiResponse(responseCode = "400", description = "Invalid password data or current password incorrect"),

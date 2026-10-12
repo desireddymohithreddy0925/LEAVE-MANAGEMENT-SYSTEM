@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -205,5 +206,28 @@ public class RolePermissionControllerIntegrationTest {
         assertThat(permissions).hasSize(2);
         assertThat(permissions).extracting(PermissionResponseDTO::getName)
             .containsExactlyInAnyOrder(viewPermission.getName(), testPermission.getName());
+    }
+
+    @Test
+    void testReplaceRolePermissions_withInvalidPermissionId_failsWithoutModifyingExistingPermissions() throws Exception {
+        Role initialRole = roleRepository.findById(managerRole.getId()).orElseThrow();
+        List<String> originalPermNames = initialRole.getPermissions().stream()
+                .map(Permission::getName)
+                .collect(Collectors.toList());
+
+        List<Long> invalidPermIds = List.of(viewPermission.getId(), 999999L);
+
+        mockMvc.perform(put("/api/roles/" + managerRole.getId() + "/permissions")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(invalidPermIds)))
+                .andExpect(status().isNotFound());
+
+        Role roleAfter = roleRepository.findById(managerRole.getId()).orElseThrow();
+        List<String> permNamesAfter = roleAfter.getPermissions().stream()
+                .map(Permission::getName)
+                .collect(Collectors.toList());
+
+        assertThat(permNamesAfter).containsExactlyInAnyOrderElementsOf(originalPermNames);
     }
 }
