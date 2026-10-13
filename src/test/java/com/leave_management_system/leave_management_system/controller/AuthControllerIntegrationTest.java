@@ -4,6 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leave_management_system.leave_management_system.dto.RegisterRequestDTO;
 import com.leave_management_system.leave_management_system.dto.TokenRefreshRequestDTO;
 import com.leave_management_system.leave_management_system.dto.AuthResponseDTO;
+import com.leave_management_system.leave_management_system.dto.AuthRequestDTO;
+import com.leave_management_system.leave_management_system.dto.PasswordChangeRequestDTO;
+import com.leave_management_system.leave_management_system.entity.User;
+import com.leave_management_system.leave_management_system.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +20,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -28,13 +34,18 @@ public class AuthControllerIntegrationTest {
     @Autowired
     private WebApplicationContext context;
 
+    @Autowired
+    private UserRepository userRepository;
+
     private MockMvc mockMvc;
 
-    private ObjectMapper objectMapper = new ObjectMapper();
+    private ObjectMapper objectMapper = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
 
     @BeforeEach
     public void setup() {
-        this.mockMvc = MockMvcBuilders.webAppContextSetup(this.context).build();
+        this.mockMvc = MockMvcBuilders.webAppContextSetup(this.context)
+                .apply(springSecurity())
+                .build();
     }
 
     private AuthResponseDTO registerAndLogin(String email, String password) throws Exception {
@@ -187,5 +198,79 @@ public class AuthControllerIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void testRefreshTokenRevokedAfterPasswordChangeCannotObtainNewAccessToken() throws Exception {
+        String email = "pw.change.refresh@test.com";
+        AuthResponseDTO auth = registerAndLogin(email, "OldPassword123!");
+        String oldRefreshToken = auth.getRefreshToken();
+        String oldAccessToken = auth.getAccessToken();
+
+        // Change password using authenticated endpoint
+        PasswordChangeRequestDTO changeReq = new PasswordChangeRequestDTO();
+        changeReq.setCurrentPassword("OldPassword123!");
+        changeReq.setNewPassword("NewSecurePassword123!");
+
+        mockMvc.perform(post("/api/auth/change-password")
+                .header("Authorization", "Bearer " + oldAccessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(changeReq)))
+                .andExpect(status().isOk());
+
+        // Attempting to refresh token using old refresh token must be rejected
+        TokenRefreshRequestDTO refreshReq = new TokenRefreshRequestDTO();
+        refreshReq.setRefreshToken(oldRefreshToken);
+
+        mockMvc.perform(post("/api/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(refreshReq)))
+                .andExpect(status().isUnauthorized());
+
+        // Login with new password succeeds and produces a functional refresh token
+        AuthRequestDTO loginReq = new AuthRequestDTO();
+        loginReq.setEmail(email);
+        loginReq.setPassword("NewSecurePassword123!");
+
+        MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(loginReq)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        AuthResponseDTO newAuth = objectMapper.readValue(loginResult.getResponse().getContentAsString(), AuthResponseDTO.class);
+
+        TokenRefreshRequestDTO newRefreshReq = new TokenRefreshRequestDTO();
+        newRefreshReq.setRefreshToken(newAuth.getRefreshToken());
+
+        mockMvc.perform(post("/api/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(newRefreshReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty());
+    }
+
+    @Test
+    void testDeactivatedAccountCannotAccessProtectedEndpointsWithExistingJwtToken() throws Exception {
+        String email = "deactivated.jwt@test.com";
+        AuthResponseDTO auth = registerAndLogin(email, "password123");
+        String existingToken = auth.getAccessToken();
+
+        // 1. Verify token works while account is active
+        mockMvc.perform(get("/api/employees/me")
+                .header("Authorization", "Bearer " + existingToken))
+                .andExpect(status().isOk());
+
+        // 2. Deactivate the user account
+        User user = userRepository.findByEmail(email).orElseThrow();
+        user.setActive(false);
+        userRepository.save(user);
+
+        // 3. Previously issued token must now be rejected immediately by JwtAuthenticationFilter
+        mockMvc.perform(get("/api/employees/me")
+                .header("Authorization", "Bearer " + existingToken))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("inactive")));
     }
 }

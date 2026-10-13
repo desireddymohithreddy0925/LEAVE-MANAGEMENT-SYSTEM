@@ -3,7 +3,11 @@ package com.leave_management_system.leave_management_system.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leave_management_system.leave_management_system.dto.*;
 import com.leave_management_system.leave_management_system.entity.Employee;
+import com.leave_management_system.leave_management_system.entity.Role;
+import com.leave_management_system.leave_management_system.entity.User;
 import com.leave_management_system.leave_management_system.repository.EmployeeRepository;
+import com.leave_management_system.leave_management_system.repository.RoleRepository;
+import com.leave_management_system.leave_management_system.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +37,12 @@ public class ProfileSecurityIntegrationTest {
 
     @Autowired
     private EmployeeRepository employeeRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private RoleRepository roleRepository;
 
     private ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
@@ -83,6 +93,29 @@ public class ProfileSecurityIntegrationTest {
 
         Employee emp = employeeRepository.findByUserEmail(email).orElseThrow();
         return new AuthAccount(email, password, authResponse.getAccessToken(), authResponse.getRefreshToken(), emp.getId());
+    }
+
+    private AuthAccount registerAdmin(String prefix) throws Exception {
+        AuthAccount account = registerEmployee(prefix, "AdminPass123!");
+        User user = userRepository.findByEmail(account.email).orElseThrow();
+        Role adminRole = roleRepository.findByName("ADMIN").orElseThrow();
+        user.getRoles().add(adminRole);
+        userRepository.save(user);
+
+        // Re-login to get token with ADMIN authority
+        AuthRequestDTO loginReq = new AuthRequestDTO();
+        loginReq.setEmail(account.email);
+        loginReq.setPassword(account.password);
+        MvcResult result = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginReq)))
+                .andExpect(status().isOk())
+                .andReturn();
+        AuthResponseDTO authResponse = objectMapper.readValue(
+                result.getResponse().getContentAsString(), AuthResponseDTO.class);
+        account.token = authResponse.getAccessToken();
+        account.refreshToken = authResponse.getRefreshToken();
+        return account;
     }
 
     @Test
@@ -389,6 +422,36 @@ public class ProfileSecurityIntegrationTest {
         mockMvc.perform(post("/api/auth/change-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(changeDTO)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void testDeactivatedAccount_ExistingTokenRejectedImmediatelyByJwtFilter() throws Exception {
+        AuthAccount admin = registerAdmin("status.admin");
+        AuthAccount emp = registerEmployee("active.to.inactive", "Password123!");
+        String existingToken = emp.token;
+
+        // 1. Verify token works while active
+        mockMvc.perform(get("/api/employees/me")
+                        .header("Authorization", "Bearer " + existingToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(emp.email));
+
+        // 2. Admin deactivates employee via status endpoint
+        mockMvc.perform(patch("/api/employees/" + emp.employeeId + "/status")
+                        .header("Authorization", "Bearer " + admin.token)
+                        .param("status", "INACTIVE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("INACTIVE"));
+
+        // 3. Existing access token must now be rejected immediately by JwtAuthenticationFilter
+        mockMvc.perform(get("/api/employees/me")
+                        .header("Authorization", "Bearer " + existingToken))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("inactive")));
+
+        mockMvc.perform(get("/api/leave-requests/my-requests")
+                        .header("Authorization", "Bearer " + existingToken))
                 .andExpect(status().isUnauthorized());
     }
 }

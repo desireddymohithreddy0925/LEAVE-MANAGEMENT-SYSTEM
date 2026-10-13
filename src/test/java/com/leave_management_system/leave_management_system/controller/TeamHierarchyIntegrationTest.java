@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -48,6 +49,9 @@ public class TeamHierarchyIntegrationTest {
 
     @Autowired
     private RoleRepository roleRepository;
+
+    @Autowired
+    private com.leave_management_system.leave_management_system.service.EmployeeService employeeService;
 
     private MockMvc mockMvc;
     private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
@@ -253,7 +257,23 @@ public class TeamHierarchyIntegrationTest {
 
     @Test
     void testDepartmentHierarchyEndpoints() throws Exception {
-        // Admin or Manager with DEPARTMENT_VIEW gets department hierarchy
+        // 1. Unauthenticated calls must return 401 Unauthorized
+        mockMvc.perform(get("/api/departments/" + dept1Id + "/hierarchy"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/departments/hierarchy"))
+                .andExpect(status().isUnauthorized());
+
+        // 2. Employee without DEPARTMENT_VIEW must return 403 Forbidden
+        mockMvc.perform(get("/api/departments/" + dept1Id + "/hierarchy")
+                .header("Authorization", "Bearer " + empToken))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/departments/hierarchy")
+                .header("Authorization", "Bearer " + empToken))
+                .andExpect(status().isForbidden());
+
+        // 3. Admin with DEPARTMENT_VIEW gets department hierarchy -> 200 OK
         mockMvc.perform(get("/api/departments/" + dept1Id + "/hierarchy")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
@@ -262,11 +282,58 @@ public class TeamHierarchyIntegrationTest {
                 .andExpect(jsonPath("$.employees", hasSize(greaterThanOrEqualTo(2))))
                 .andExpect(jsonPath("$.totalEmployees", greaterThanOrEqualTo(2)));
 
-        // Get all department hierarchies
+        // Get all department hierarchies with admin -> 200 OK
         mockMvc.perform(get("/api/departments/hierarchy")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(2))));
+
+        // 4. Manager with DEPARTMENT_VIEW gets department hierarchy -> 200 OK
+        mockMvc.perform(get("/api/departments/" + dept1Id + "/hierarchy")
+                .header("Authorization", "Bearer " + manager1Token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.departmentId").value(dept1Id.intValue()));
+    }
+
+    @Test
+    void testSubordinateCountingCycleProtection() throws Exception {
+        try {
+            org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                    new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                            "admin.team@test.com", null,
+                            java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"),
+                                              new org.springframework.security.core.authority.SimpleGrantedAuthority("EMPLOYEE_VIEW"),
+                                              new org.springframework.security.core.authority.SimpleGrantedAuthority("LEAVE_VIEW_TEAM"))
+                    )
+            );
+
+            // 1. Under normal hierarchy: manager1 -> lead -> engineer
+            int initialCount = employeeService.countSubordinates(manager1EmpId);
+            org.junit.jupiter.api.Assertions.assertTrue(initialCount >= 2, "Manager 1 should have at least 2 subordinates");
+
+            // 2. Synthetically introduce a cycle in database (lead reports to manager1, manager1 reports to lead)
+            Employee m1 = employeeRepository.findById(manager1EmpId).orElseThrow();
+            Employee lead = employeeRepository.findById(leadEmpId).orElseThrow();
+            m1.setManager(lead);
+            employeeRepository.save(m1);
+
+            // 3. Verify subordinate counting terminates safely and does NOT count manager1 as their own subordinate
+            int countWithCycle = employeeService.countSubordinates(manager1EmpId);
+            org.junit.jupiter.api.Assertions.assertTrue(countWithCycle >= 1, "Should count subordinates without cycle failure");
+
+            // 4. Verify getTeamHierarchy handles the cycle and reports identical safe subordinate count
+            com.leave_management_system.leave_management_system.dto.TeamHierarchyDTO hierarchy = employeeService.getTeamHierarchy(manager1EmpId);
+            org.junit.jupiter.api.Assertions.assertNotNull(hierarchy);
+            org.junit.jupiter.api.Assertions.assertEquals(countWithCycle, hierarchy.getTotalTeamSize());
+
+            // 5. Verify HTTP endpoint also completes safely with 200 OK without infinite recursion
+            mockMvc.perform(get("/api/managers/" + manager1EmpId + "/team-hierarchy")
+                    .header("Authorization", "Bearer " + adminToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalTeamSize").value(countWithCycle));
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
     }
 
     @Test

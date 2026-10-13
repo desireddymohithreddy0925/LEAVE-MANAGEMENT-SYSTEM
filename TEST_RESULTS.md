@@ -4,18 +4,21 @@
 - **Status:** Complete
 - **Timestamp:** 2026-10-12
 - **Regression Suite:** `mvn clean test` executed successfully.
-- **Result:** All 104 tests passed (0 failures, 0 errors).
+- **Result:** All 108 tests passed (0 failures, 0 errors).
 - **Core Security Controls Verified:**
   - **Approval & Rejection Permission Separation:** Verified bidirectional separation (`LEAVE_APPROVE` vs `LEAVE_REJECT`). Removing `LEAVE_APPROVE` allows rejection while blocking approval with `403 Forbidden`; removing `LEAVE_REJECT` allows approval while blocking rejection with `403 Forbidden` (`DynamicPermissionIntegrationTest`).
   - **Transactional Role Permission Integrity:** Verified `PUT /api/roles/{id}/permissions` with nonexistent/invalid permission IDs fails (`404 Not Found`) and rolls back without modifying existing role permissions (`RolePermissionControllerIntegrationTest`).
   - **Dynamic & Active/Inactive Permission Enforcement:** Verified deactivating a permission immediately blocks HTTP access with `403 Forbidden`, and re-activating it immediately restores access (`DynamicPermissionIntegrationTest`).
   - **Manager & Team Scope Enforcement:** Verified strict manager isolation on `/api/managers/me/team`, `/api/managers/{id}/team`, `/api/managers/{id}/team-hierarchy`, and `/api/employees/{id}/hierarchy`. Cross-manager access attempts return `403 Forbidden` (`TeamHierarchyIntegrationTest`).
+  - **Hierarchy Subordinate Counting Cycle Protection:** Implemented cycle protection in `EmployeeService.countSubordinates` and `buildTeamHierarchy` by seeding root manager into visited tracker to prevent self-counting and infinite loops. Verified via `testSubordinateCountingCycleProtection` in `TeamHierarchyIntegrationTest`.
+  - **Department Hierarchy Authorization Boundaries:** Tested and verified that `/api/departments/{id}/hierarchy` and `/api/departments/hierarchy` reject unauthenticated callers (`401 Unauthorized`), forbid standard employees lacking `DEPARTMENT_VIEW` (`403 Forbidden`), and permit authorized managers and admins (`200 OK`).
   - **Employee Profile Restriction:** Confirmed employees can update only permitted profile fields (`firstName`, `lastName`, `phone`). Administrative attributes (`roles`, `salary`, `status`, `department`, `manager`) cannot be modified by employees and return `403 Forbidden` (`ProfileSecurityIntegrationTest`).
   - **Password Change Security & Refresh Token Revocation:**
     - Current-password validation enforced (`400 Bad Request` on incorrect password).
     - BCrypt secure hashing for new credentials.
-    - Refresh token revocation: All active refresh tokens for the user are immediately revoked upon password change (`refreshTokenService.deleteByUserId(user.getId())`), preventing session extension.
-    - Access token lifecycle: Existing stateless JWT access tokens expire naturally within their configured short TTL (15m) without extending session capability.
+    - Refresh token revocation: All active refresh tokens for the user are immediately revoked upon password change (`refreshTokenService.deleteByUserId(user.getId())`), preventing session extension. Verified via regression tests in `AuthControllerIntegrationTest` and `ProfileSecurityIntegrationTest`.
+    - Access token lifecycle: Existing stateless JWT access tokens expire naturally within their configured short TTL of 15 minutes (`app.jwt.expirationMs=900000`).
+  - **Inactive Account JWT Rejection:** Updated `JwtAuthenticationFilter` to reject inactive accounts immediately with `401 Unauthorized`, even when presenting a previously issued, unexpired access JWT. Verified via integration test `testDeactivatedAccountCannotAccessProtectedEndpointsWithExistingJwtToken`.
   - **Duplicate Endpoint Deprecation:** Deprecated redundant `POST /api/employees/me/change-password` while keeping canonical `PUT /api/employees/me/password` and `POST /api/auth/change-password` to preserve backward compatibility.
 
 ## Team Hierarchy Implementation

@@ -353,8 +353,7 @@ public class EmployeeService {
             }
         }
 
-        Set<Long> allSubordinateIds = new HashSet<>();
-        collectAllSubordinateIds(manager.getId(), allSubordinateIds);
+        int totalSubordinates = countSubordinates(manager);
 
         return new TeamHierarchyDTO(
                 manager.getId(),
@@ -363,15 +362,38 @@ public class EmployeeService {
                 manager.getDepartment() != null ? manager.getDepartment().getName() : null,
                 directReportDTOs,
                 subTeams,
-                allSubordinateIds.size()
+                totalSubordinates
         );
     }
 
-    private void collectAllSubordinateIds(Long managerId, Set<Long> collected) {
+    @PreAuthorize("hasAuthority('EMPLOYEE_VIEW') or hasAuthority('LEAVE_VIEW_TEAM')")
+    public int countSubordinates(Long managerId) {
+        if (managerId == null) {
+            return 0;
+        }
+        Employee manager = employeeRepository.findById(managerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Manager not found with id: " + managerId));
+        return countSubordinates(manager);
+    }
+
+    public int countSubordinates(Employee manager) {
+        if (manager == null || manager.getId() == null) {
+            return 0;
+        }
+        Set<Long> visited = new HashSet<>();
+        visited.add(manager.getId()); // Cycle protection: seed root manager so they cannot be counted as subordinate
+        collectAllSubordinateIds(manager.getId(), visited);
+        return Math.max(0, visited.size() - 1);
+    }
+
+    private void collectAllSubordinateIds(Long managerId, Set<Long> visited) {
+        if (managerId == null) {
+            return;
+        }
         List<Employee> reports = employeeRepository.findTeamByManagerId(managerId);
         for (Employee emp : reports) {
-            if (collected.add(emp.getId())) {
-                collectAllSubordinateIds(emp.getId(), collected);
+            if (emp.getId() != null && visited.add(emp.getId())) {
+                collectAllSubordinateIds(emp.getId(), visited);
             }
         }
     }

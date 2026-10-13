@@ -37,10 +37,12 @@ public class CustomUserDetailsService implements UserDetailsService {
                 });
         });
 
+        boolean isEnabled = user.isActive() && (user.getEmployee() == null || "ACTIVE".equalsIgnoreCase(user.getEmployee().getStatus()));
+
         return new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
                 user.getPassword(),
-                user.isActive(),
+                isEnabled,
                 true, // accountNonExpired
                 true, // credentialsNonExpired
                 true, // accountNonLocked

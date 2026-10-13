@@ -26,7 +26,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtils jwtUtils;
     private final CustomUserDetailsService userDetailsService;
     private final com.leave_management_system.leave_management_system.service.AuditService auditService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
 
     public JwtAuthenticationFilter(JwtUtils jwtUtils, CustomUserDetailsService userDetailsService, com.leave_management_system.leave_management_system.service.AuditService auditService) {
         this.jwtUtils = jwtUtils;
@@ -45,6 +45,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String username = jwtUtils.getUserNameFromJwtToken(jwt);
 
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                if (!userDetails.isEnabled()) {
+                    String ip = request.getHeader("X-Forwarded-For");
+                    if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                        ip = request.getRemoteAddr();
+                    }
+                    auditService.logSecurityEvent("INACTIVE_USER_TOKEN", ip, username);
+                    sendErrorResponse(response, "User account is inactive", "Account has been deactivated");
+                    return;
+                }
+
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         userDetails, null, userDetails.getAuthorities());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -58,6 +68,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
             auditService.logSecurityEvent("EXPIRED_TOKEN", ip, null);
             sendErrorResponse(response, "JWT token is expired", e.getMessage());
+            return;
+        } catch (org.springframework.security.core.userdetails.UsernameNotFoundException e) {
+            String ip = request.getHeader("X-Forwarded-For");
+            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                ip = request.getRemoteAddr();
+            }
+            auditService.logSecurityEvent("UNKNOWN_USER_TOKEN", ip, null);
+            sendErrorResponse(response, "User not found", e.getMessage());
             return;
         } catch (JwtException | IllegalArgumentException e) {
             String ip = request.getHeader("X-Forwarded-For");
