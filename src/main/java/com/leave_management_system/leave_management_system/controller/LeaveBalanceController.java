@@ -13,6 +13,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import com.leave_management_system.leave_management_system.entity.Employee;
+import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
+import com.leave_management_system.leave_management_system.security.SecurityAuthorizationService;
+import org.springframework.security.core.Authentication;
+
 import java.util.List;
 
 @RestController
@@ -21,10 +26,33 @@ import java.util.List;
 public class LeaveBalanceController {
 
     private final LeaveBalanceService leaveBalanceService;
+    private final SecurityAuthorizationService securityService;
 
     public LeaveBalanceController(
-            LeaveBalanceService leaveBalanceService) {
+            LeaveBalanceService leaveBalanceService,
+            SecurityAuthorizationService securityService) {
         this.leaveBalanceService = leaveBalanceService;
+        this.securityService = securityService;
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/me")
+    @Operation(summary = "Get current employee leave balances", description = "Returns all leave balances for the currently authenticated employee.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successfully retrieved balances"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Employee profile not found")
+    })
+    public ResponseEntity<List<LeaveBalanceResponseDTO>> getMyBalances(
+            Authentication authentication,
+            @RequestParam(required = false) Integer year) {
+
+        Employee employee = securityService.getAuthenticatedEmployee(authentication)
+                .orElseThrow(() -> new ResourceNotFoundException("Authenticated employee not found"));
+
+        return ResponseEntity.ok(
+                leaveBalanceService.getBalancesByEmployee(employee.getId(), year)
+        );
     }
 
     @PreAuthorize("hasAuthority('LEAVE_BALANCE_MANAGE')")
@@ -75,16 +103,33 @@ public class LeaveBalanceController {
 
     @PreAuthorize("@securityService.canViewEmployee(authentication, #employeeId)")
     @GetMapping("/employee/{employeeId}")
-    @Operation(summary = "Get employee balances", description = "Returns all leave balances for a specific employee.")
+    @Operation(summary = "Get employee balances", description = "Returns all leave balances for a specific employee, optionally filtered by year.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successfully retrieved balances"),
             @ApiResponse(responseCode = "404", description = "Employee not found")
     })
     public ResponseEntity<List<LeaveBalanceResponseDTO>> getBalancesByEmployee(
-            @PathVariable Long employeeId) {
+            @PathVariable Long employeeId,
+            @RequestParam(required = false) Integer year) {
 
         return ResponseEntity.ok(
-                leaveBalanceService.getBalancesByEmployee(employeeId)
+                leaveBalanceService.getBalancesByEmployee(employeeId, year)
+        );
+    }
+
+    @PreAuthorize("hasAuthority('LEAVE_BALANCE_MANAGE')")
+    @PostMapping("/employee/{employeeId}/initialize")
+    @Operation(summary = "Initialize balances for employee", description = "Initializes default leave balances for all active leave types for an employee.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Leave balances initialized successfully"),
+            @ApiResponse(responseCode = "404", description = "Employee not found")
+    })
+    public ResponseEntity<List<LeaveBalanceResponseDTO>> initializeBalances(
+            @PathVariable Long employeeId,
+            @RequestParam(required = false) Integer year) {
+
+        return ResponseEntity.ok(
+                leaveBalanceService.initializeBalancesForEmployee(employeeId, year)
         );
     }
 

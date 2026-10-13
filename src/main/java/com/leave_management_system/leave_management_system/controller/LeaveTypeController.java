@@ -44,8 +44,8 @@ public class LeaveTypeController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successfully retrieved list")
     })
-    public ResponseEntity<List<LeaveTypeResponseDTO>> getAllLeaveTypes() {
-        return ResponseEntity.ok(leaveTypeService.getAllLeaveTypes());
+    public ResponseEntity<List<LeaveTypeResponseDTO>> getAllLeaveTypes(@RequestParam(required = false) Boolean active) {
+        return ResponseEntity.ok(leaveTypeService.getAllLeaveTypes(active));
     }
 
     @PreAuthorize("isAuthenticated()")

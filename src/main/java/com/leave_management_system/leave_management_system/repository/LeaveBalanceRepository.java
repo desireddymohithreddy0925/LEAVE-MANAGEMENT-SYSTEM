@@ -22,15 +22,39 @@ public interface LeaveBalanceRepository
 
     List<LeaveBalance> findByEmployee(Employee employee);
 
+    List<LeaveBalance> findByEmployeeAndYear(Employee employee, Integer year);
+
+    Optional<LeaveBalance> findByEmployeeAndLeaveTypeAndYear(
+            Employee employee,
+            LeaveType leaveType,
+            Integer year
+    );
+
     boolean existsByEmployeeAndLeaveType(
             Employee employee,
             LeaveType leaveType
     );
+
+    boolean existsByEmployeeAndLeaveTypeAndYear(
+            Employee employee,
+            LeaveType leaveType,
+            Integer year
+    );
+
+    boolean existsByLeaveType(LeaveType leaveType);
 
     @Lock(LockModeType.OPTIMISTIC_FORCE_INCREMENT)
     @Query("SELECT lb FROM LeaveBalance lb WHERE lb.employee = :employee AND lb.leaveType = :leaveType")
     Optional<LeaveBalance> findByEmployeeAndLeaveTypeWithLock(
             @Param("employee") Employee employee,
             @Param("leaveType") LeaveType leaveType
+    );
+
+    @Lock(LockModeType.OPTIMISTIC_FORCE_INCREMENT)
+    @Query("SELECT lb FROM LeaveBalance lb WHERE lb.employee = :employee AND lb.leaveType = :leaveType AND lb.year = :year")
+    Optional<LeaveBalance> findByEmployeeAndLeaveTypeAndYearWithLock(
+            @Param("employee") Employee employee,
+            @Param("leaveType") LeaveType leaveType,
+            @Param("year") Integer year
     );
 }

@@ -1,5 +1,35 @@
 # Test Results
 
+## Leave Balances Implementation
+- **Status:** Complete
+- **Timestamp:** 2026-10-13
+- **Regression Suite:** `mvn clean test` executed successfully.
+- **Result:** All 174 tests passed (0 failures, 0 errors, 0 skipped), including 44 tests dedicated to Balances across `LeaveBalanceServiceTest` (24 tests) and `LeaveBalanceControllerIntegrationTest` (20 tests).
+- **Features Verified:**
+  - **Self-Service Balance Retrieval (`GET /api/leave-balances/me`):** Authenticated employees securely fetch their own balances directly from the security context without exposing identifier manipulation.
+  - **Annual Balance Tracking & Filtering:** Full support for `year` attribute across repository, DTO, entity, and controller layers (`GET /api/leave-balances/employee/{employeeId}?year=YYYY` and `GET /api/leave-balances/me?year=YYYY`).
+  - **Default Balance Initialization (`POST /api/leave-balances/employee/{employeeId}/initialize`):** Idempotently populates default balances for all active leave types for an employee for the target or current year with audit logging (`BALANCE_INITIALIZED`).
+  - **Active Leave Type Enforcement:** Balance creation strictly validates that the associated leave type is active (`active = true`); inactive types reject creation with `400 Bad Request`.
+  - **Deletion Protection:** Deletion of balances is prevented when `PENDING` or `APPROVED` leave requests exist for that employee and leave type (`400 Bad Request` with `"Cannot delete leave balance with pending or approved leave requests"`), safeguarding audit and request history.
+  - **Synchronized Usage & Balances:** During request approvals, `available` decrements and `used` increments; during cancellations of approved requests, `available` increments and `used` decrements, maintaining accurate audit records.
+  - **Optimistic Concurrency & Double-Refund Protection:** Concurrency tests verify that simultaneous approvals and cancellations correctly enforce `@Version` and `OPTIMISTIC_FORCE_INCREMENT`, preventing double refunds or race conditions.
+  - **Role-Based Access Control (RBAC):** Balance management endpoints (`POST`, `PUT`, `DELETE`, `initialize`) require `LEAVE_BALANCE_MANAGE` authority (`ADMIN`/`HR`). Viewing employee balances requires `canViewEmployee` (self, manager hierarchy, or admin/HR). Unauthorized or cross-employee access attempts return `401 Unauthorized` or `403 Forbidden`.
+  - **Audit Logging:** Mutations generate structured audit logs with `@AuditAction` (`BALANCE_CREATED`, `BALANCE_UPDATED`, `BALANCE_DELETED`, `BALANCE_INITIALIZED`).
+
+## Leave Types Implementation
+- **Status:** Complete
+- **Timestamp:** 2026-10-13
+- **Regression Suite:** `mvn clean test` executed successfully.
+- **Result:** All 133 tests passed (0 failures, 0 errors, 0 skipped), including 33 tests across `LeaveTypeServiceTest` (17 tests) and `LeaveTypeControllerIntegrationTest` (16 tests).
+- **Features Verified:**
+  - **Full Leave Type Lifecycle:** Create (`POST /api/leave-types`), Read all (`GET /api/leave-types`), Read by ID (`GET /api/leave-types/{id}`), Update (`PUT /api/leave-types/{id}`), and Delete (`DELETE /api/leave-types/{id}`).
+  - **Status Management:** Toggle active/inactive states via dedicated endpoints (`PUT /api/leave-types/{id}/activate` and `PUT /api/leave-types/{id}/deactivate`).
+  - **Active Leave Type Filtering:** Employees and clients can query active leave types via `GET /api/leave-types?active=true` to populate leave application forms without exposing inactive types.
+  - **Validation & Constraint Integrity:** Enforces `@NotBlank` and unique leave type names (`409 Conflict` on duplicates during creation or update), and positive default days (`@NotNull`, `@Min(1)`).
+  - **Deletion Protection:** Prevents deletion of leave types that are referenced by existing employee leave balances or leave requests (`400 Bad Request` with `"Cannot delete leave type with existing balances or requests"`), eliminating database integrity violations.
+  - **Role-Based Access Control (RBAC):** Mutation endpoints (`POST`, `PUT`, `DELETE`, `activate`, `deactivate`) require `LEAVE_TYPE_MANAGE` authority (granted to `ADMIN` and `HR` roles). Standard employees attempting mutation are blocked with `403 Forbidden`. Authenticated employees can read leave types (`isAuthenticated()`). Unauthenticated requests are rejected with `401 Unauthorized`.
+  - **Audit Logging:** Every leave type mutation is logged with `@AuditAction` (`LEAVE_TYPE_CREATED`, `LEAVE_TYPE_UPDATED`, `LEAVE_TYPE_DELETED`, `LEAVE_TYPE_ACTIVATED`, `LEAVE_TYPE_DEACTIVATED`).
+
 ## Phase 1 Security and API Review
 - **Status:** Complete
 - **Timestamp:** 2026-10-12

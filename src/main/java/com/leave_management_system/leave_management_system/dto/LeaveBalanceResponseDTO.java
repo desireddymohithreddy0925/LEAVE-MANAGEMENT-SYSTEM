@@ -11,6 +11,20 @@ public class LeaveBalanceResponseDTO {
     private Integer used;
     private Integer available;
 
+    public LeaveBalanceResponseDTO() {
+    }
+
+    public LeaveBalanceResponseDTO(Long id, EmployeeResponseDTO employee, LeaveTypeResponseDTO leaveType,
+                                   Integer year, Integer total, Integer used, Integer available) {
+        this.id = id;
+        this.employee = employee;
+        this.leaveType = leaveType;
+        this.year = year;
+        this.total = total;
+        this.used = used;
+        this.available = available;
+    }
+
     public static LeaveBalanceResponseDTO fromEntity(LeaveBalance balance) {
         if (balance == null) return null;
         LeaveBalanceResponseDTO dto = new LeaveBalanceResponseDTO();

@@ -176,6 +176,7 @@ public class LeaveRequestServiceTest {
 
         assertEquals(LeaveStatus.APPROVED, approved.getStatus());
         assertEquals(7, leaveBalance.getAvailable());
+        assertEquals(3, leaveBalance.getUsed());
         verify(leaveBalanceRepository, times(1)).save(leaveBalance);
     }
 
@@ -214,6 +215,7 @@ public class LeaveRequestServiceTest {
     @Test
     void cancelLeaveRequest_Approved_Success() {
         leaveRequest.setStatus(LeaveStatus.APPROVED);
+        leaveBalance.setUsed(3);
         when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
         when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
@@ -222,6 +224,7 @@ public class LeaveRequestServiceTest {
 
         assertEquals(LeaveStatus.CANCELLED, cancelled.getStatus());
         assertEquals(13, leaveBalance.getAvailable());
+        assertEquals(0, leaveBalance.getUsed());
         verify(leaveBalanceRepository, times(1)).save(leaveBalance);
     }
 

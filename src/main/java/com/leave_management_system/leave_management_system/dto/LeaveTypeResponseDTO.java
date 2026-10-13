@@ -9,6 +9,17 @@ public class LeaveTypeResponseDTO {
     private Integer defaultDays;
     private boolean active;
 
+    public LeaveTypeResponseDTO() {
+    }
+
+    public LeaveTypeResponseDTO(Long id, String name, String description, Integer defaultDays, boolean active) {
+        this.id = id;
+        this.name = name;
+        this.description = description;
+        this.defaultDays = defaultDays;
+        this.active = active;
+    }
+
     public static LeaveTypeResponseDTO fromEntity(LeaveType leaveType) {
         if (leaveType == null) return null;
         LeaveTypeResponseDTO dto = new LeaveTypeResponseDTO();

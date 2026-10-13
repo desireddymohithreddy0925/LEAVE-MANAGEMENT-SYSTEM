@@ -25,11 +25,11 @@ This document maps the mandatory internship requirements to their specific imple
 - **Test:** `LeaveRequestServiceTest.createLeaveRequest_InactiveEmployee_ThrowsException`
 - **Status:** **DONE**
 
-### 4. Active Leave Types
-- **Requirement:** Employees can only apply for active leave types.
-- **Implementation:** `LeaveRequestService.createLeaveRequest()` (`!leaveType.isActive()` check)
-- **API:** `POST /api/leave-requests`
-- **Test:** `LeaveRequestServiceTest.createLeaveRequest_InactiveLeaveType_ThrowsException`
+### 4. Active Leave Types & Management
+- **Requirement:** Employees can only apply for active leave types; leave types can be filtered by active status and are protected against deletion if in use.
+- **Implementation:** `LeaveRequestService.createLeaveRequest()` (`!leaveType.isActive()` check), `LeaveTypeService.getAllLeaveTypes(Boolean active)`, and `LeaveTypeService.deleteLeaveType()` (reference validation with `leaveBalanceRepository` and `leaveRequestRepository`).
+- **API:** `POST /api/leave-requests`, `GET /api/leave-types?active=true`, `DELETE /api/leave-types/{id}`
+- **Test:** `LeaveRequestServiceTest.createLeaveRequest_InactiveLeaveType_ThrowsException`, `LeaveTypeServiceTest.deleteLeaveType_HasLeaveBalances_ThrowsException`, `LeaveTypeControllerIntegrationTest.getAllLeaveTypes_Authenticated_And_FilterActive`, `LeaveTypeControllerIntegrationTest.deleteLeaveType_WithExistingBalance_Fails`
 - **Status:** **DONE**
 
 ### 5. State Machine Handling
@@ -39,11 +39,11 @@ This document maps the mandatory internship requirements to their specific imple
 - **Test:** `LeaveRequestServiceTest.approveLeaveRequest_NotPending_ThrowsException`, `cancelLeaveRequest_Rejected_ThrowsException`
 - **Status:** **DONE**
 
-### 6. Balance Deduction & Restoration
-- **Requirement:** Leave days are automatically deducted upon approval and restored upon cancellation.
-- **Implementation:** `LeaveRequestService.approveLeaveRequest()` and `LeaveRequestService.cancelLeaveRequest()`
-- **API:** `PUT /api/leave-requests/{id}/approve` and `PUT /api/leave-requests/{id}/cancel`
-- **Test:** `LeaveRequestServiceTest.approveLeaveRequest_Success`, `cancelLeaveRequest_Approved_Success`
+### 6. Leave Balance Management & Deduction
+- **Requirement:** Track employee balances annually with self-service retrieval, automatic default initialization for active leave types, deletion protection with pending/approved requests, and synchronized deduction/restoration on approval and cancellation.
+- **Implementation:** `LeaveBalanceService` (`createLeaveBalance`, `getBalancesByEmployee`, `initializeBalancesForEmployee`, `updateLeaveBalance`, `deleteLeaveBalance`), `LeaveBalanceController` (`GET /api/leave-balances/me`, `POST /api/leave-balances/employee/{id}/initialize`), and `LeaveRequestService` (`approveLeaveRequest`, `cancelLeaveRequest`).
+- **API:** `GET /api/leave-balances/me?year=YYYY`, `GET /api/leave-balances/employee/{employeeId}?year=YYYY`, `POST /api/leave-balances/employee/{employeeId}/initialize`, `POST /api/leave-balances`, `PUT /api/leave-balances/{id}`, `DELETE /api/leave-balances/{id}`
+- **Test:** `LeaveBalanceServiceTest` (24 unit tests), `LeaveBalanceControllerIntegrationTest` (20 integration tests), `LeaveRequestServiceConcurrencyIntegrationTest.testConcurrentLeaveCancellationsDoesNotDoubleRefund`
 - **Status:** **DONE**
 
 ### 7. Rejection Reasons

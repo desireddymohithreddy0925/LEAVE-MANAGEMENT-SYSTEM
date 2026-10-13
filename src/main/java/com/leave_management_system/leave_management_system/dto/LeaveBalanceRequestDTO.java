@@ -7,11 +7,9 @@ import jakarta.validation.constraints.Positive;
 
 public class LeaveBalanceRequestDTO {
 
-    @NotNull(message = "Employee ID is required")
     @Positive(message = "Employee ID must be positive")
     private Long employeeId;
 
-    @NotNull(message = "Leave Type ID is required")
     @Positive(message = "Leave Type ID must be positive")
     private Long leaveTypeId;
 
@@ -19,6 +17,31 @@ public class LeaveBalanceRequestDTO {
     @Min(value = 0, message = "Available days cannot be negative")
     @Max(value = 365, message = "Available days cannot exceed 365")
     private Integer available;
+
+    @Min(value = 1900, message = "Year must be valid")
+    @Max(value = 2100, message = "Year must be valid")
+    private Integer year;
+
+    @Min(value = 0, message = "Total days cannot be negative")
+    @Max(value = 365, message = "Total days cannot exceed 365")
+    private Integer total;
+
+    public LeaveBalanceRequestDTO() {
+    }
+
+    public LeaveBalanceRequestDTO(Long employeeId, Long leaveTypeId, Integer available) {
+        this.employeeId = employeeId;
+        this.leaveTypeId = leaveTypeId;
+        this.available = available;
+    }
+
+    public LeaveBalanceRequestDTO(Long employeeId, Long leaveTypeId, Integer available, Integer year, Integer total) {
+        this.employeeId = employeeId;
+        this.leaveTypeId = leaveTypeId;
+        this.available = available;
+        this.year = year;
+        this.total = total;
+    }
 
     public Long getEmployeeId() { return employeeId; }
     public void setEmployeeId(Long employeeId) { this.employeeId = employeeId; }
@@ -28,4 +51,10 @@ public class LeaveBalanceRequestDTO {
 
     public Integer getAvailable() { return available; }
     public void setAvailable(Integer available) { this.available = available; }
+
+    public Integer getYear() { return year; }
+    public void setYear(Integer year) { this.year = year; }
+
+    public Integer getTotal() { return total; }
+    public void setTotal(Integer total) { this.total = total; }
 }

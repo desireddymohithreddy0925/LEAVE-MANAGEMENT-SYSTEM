@@ -187,4 +187,53 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
         assertEquals(1, successCount.get(), "Only one request should succeed due to overlap detection");
         assertEquals(1, failureCount.get(), "The other request should fail due to overlap exception");
     }
+
+    @Test
+    public void testConcurrentLeaveCancellationsDoesNotDoubleRefund() throws InterruptedException {
+        // Approve request first
+        SecurityContext adminCtx = SecurityContextHolder.createEmptyContext();
+        adminCtx.setAuthentication(new UsernamePasswordAuthenticationToken("concurrency@test.com", "password", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("LEAVE_APPROVE"))));
+        SecurityContextHolder.setContext(adminCtx);
+        leaveRequestService.approveLeaveRequest(pendingLeaveRequest.getId());
+
+        LeaveBalance balAfterApproval = leaveBalanceRepository.findByEmployeeAndLeaveType(testEmployee, testLeaveType).get();
+        int availableAfterApproval = balAfterApproval.getAvailable();
+
+        int threads = 2;
+        ExecutorService executorService = Executors.newFixedThreadPool(threads);
+        CountDownLatch latch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(threads);
+
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger failureCount = new AtomicInteger(0);
+
+        for (int i = 0; i < threads; i++) {
+            executorService.submit(() -> {
+                SecurityContext context = SecurityContextHolder.createEmptyContext();
+                context.setAuthentication(new UsernamePasswordAuthenticationToken("concurrency@test.com", "password", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("LEAVE_VIEW_ALL"))));
+                SecurityContextHolder.setContext(context);
+                try {
+                    latch.await();
+                    leaveRequestService.cancelLeaveRequest(pendingLeaveRequest.getId());
+                    successCount.incrementAndGet();
+                } catch (ObjectOptimisticLockingFailureException | IllegalArgumentException e) {
+                    failureCount.incrementAndGet();
+                } catch (Exception e) {
+                    failureCount.incrementAndGet();
+                } finally {
+                    doneLatch.countDown();
+                }
+            });
+        }
+
+        latch.countDown();
+        doneLatch.await();
+
+        assertEquals(1, successCount.get(), "Only one cancellation should succeed");
+        assertEquals(1, failureCount.get(), "The other cancellation should fail");
+
+        LeaveBalance finalBalance = leaveBalanceRepository.findByEmployeeAndLeaveType(testEmployee, testLeaveType).get();
+        assertEquals(availableAfterApproval + 3, finalBalance.getAvailable(), "Leave days should only be refunded once");
+        assertEquals(0, finalBalance.getUsed(), "Used days should be 0 after single refund");
+    }
 }

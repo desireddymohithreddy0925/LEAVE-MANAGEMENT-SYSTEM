@@ -81,8 +81,10 @@ public class LeaveRequestService {
             throw new IllegalArgumentException("Requested leave duration contains only weekends");
         }
 
+        int leaveYear = dto.getStartDate().getYear();
         LeaveBalance balance = leaveBalanceRepository
-                .findByEmployeeAndLeaveTypeWithLock(employee, leaveType)
+                .findByEmployeeAndLeaveTypeAndYearWithLock(employee, leaveType, leaveYear)
+                .or(() -> leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType))
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Leave balance not found for this employee and leave type"));
 
@@ -181,8 +183,10 @@ public class LeaveRequestService {
 
         long requestedDays = calculateWorkingDays(leaveRequest.getStartDate(), leaveRequest.getEndDate());
 
+        int leaveYear = leaveRequest.getStartDate().getYear();
         LeaveBalance balance = leaveBalanceRepository
-                .findByEmployeeAndLeaveTypeWithLock(leaveRequest.getEmployee(), leaveRequest.getLeaveType())
+                .findByEmployeeAndLeaveTypeAndYearWithLock(leaveRequest.getEmployee(), leaveRequest.getLeaveType(), leaveYear)
+                .or(() -> leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(leaveRequest.getEmployee(), leaveRequest.getLeaveType()))
                 .orElseThrow(() -> new ResourceNotFoundException("Leave balance not found"));
 
         if (balance.getAvailable() < requestedDays) {
@@ -190,6 +194,8 @@ public class LeaveRequestService {
         }
 
         balance.setAvailable(balance.getAvailable() - (int) requestedDays);
+        int currentUsed = balance.getUsed() != null ? balance.getUsed() : 0;
+        balance.setUsed(currentUsed + (int) requestedDays);
         leaveBalanceRepository.save(balance);
 
         leaveRequest.setStatus(LeaveStatus.APPROVED);
@@ -230,11 +236,15 @@ public class LeaveRequestService {
 
         if (leaveRequest.getStatus() == LeaveStatus.APPROVED) {
             long requestedDays = calculateWorkingDays(leaveRequest.getStartDate(), leaveRequest.getEndDate());
+            int leaveYear = leaveRequest.getStartDate().getYear();
             LeaveBalance balance = leaveBalanceRepository
-                    .findByEmployeeAndLeaveTypeWithLock(leaveRequest.getEmployee(), leaveRequest.getLeaveType())
+                    .findByEmployeeAndLeaveTypeAndYearWithLock(leaveRequest.getEmployee(), leaveRequest.getLeaveType(), leaveYear)
+                    .or(() -> leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(leaveRequest.getEmployee(), leaveRequest.getLeaveType()))
                     .orElseThrow(() -> new ResourceNotFoundException("Leave balance not found"));
 
             balance.setAvailable(balance.getAvailable() + (int) requestedDays);
+            int currentUsed = balance.getUsed() != null ? balance.getUsed() : 0;
+            balance.setUsed(Math.max(0, currentUsed - (int) requestedDays));
             leaveBalanceRepository.save(balance);
         }
 

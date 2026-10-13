@@ -25,7 +25,7 @@ If you prefer running locally, start a local PostgreSQL container on port `5432`
 Configure your environment variables (`DB_USERNAME`, `DB_PASSWORD`) or edit `src/main/resources/application-dev.yml`.
 
 ### 3. Build & Test
-Run the complete automated test suite (108 tests covering all business logic, security reviews, hierarchy cycle protection, and RBAC) from the root directory:
+Run the complete automated test suite (174 tests covering all business logic, security reviews, hierarchy cycle protection, leave types, balances, and RBAC) from the root directory:
 ```bash
 ./mvnw clean test
 ```
@@ -75,8 +75,10 @@ A user is only granted access if they possess the required **Permission** AND sa
 - **Organization & Team Hierarchy:** Multi-level team tree traversal (`GET /api/managers/{id}/team-hierarchy`, `GET /api/employees/{id}/hierarchy`) with cycle protection during subordinate counting and hierarchy construction.
 - **Department Hierarchy:** Complete department structure with manager mapping, member lists, and team subtrees (`GET /api/departments/{id}/hierarchy`, `GET /api/departments/hierarchy`).
 - **Leave Requests & Balances:** Automated balance deduction and restoration with optimistic locking (`@Version`) preventing race conditions during concurrent approvals.
+- **Leave Balances Management & Self-Service:** Complete balances CRUD and self-service retrieval (`GET /api/leave-balances/me`), yearly filtering (`?year=YYYY`), default balance initialization for all active leave types (`POST /api/leave-balances/employee/{employeeId}/initialize`), active leave type enforcement on creation, deletion protection preventing balance removal when pending or approved requests exist (`400 Bad Request`), and synchronized `used`/`available` balance updates during approval and cancellation with optimistic concurrency (`@Version`, `OPTIMISTIC_FORCE_INCREMENT`).
 - **State Machine Transitions:** Strict lifecycle transitions (`PENDING` -> `APPROVED` / `REJECTED` / `CANCELLED`) with rejection reason requirements.
 - **Intelligent Date Calculations:** Automatically excludes weekends when calculating requested leave duration.
+- **Leave Types Management & Protection:** Complete lifecycle management (`POST`, `GET`, `PUT`, `DELETE`, `activate`, `deactivate`) with active-status filtering (`GET /api/leave-types?active=true`), foreign key deletion protection preventing removal of leave types in active use by balances or requests (`400 Bad Request`), and strict RBAC enforcement (`LEAVE_TYPE_MANAGE`).
 - **Centralized Exception Handling:** Standardized `ErrorResponseDTO` structure delivering appropriate HTTP 400, 401, 403, 404, and 409 responses.
 ## ER Diagrams
 

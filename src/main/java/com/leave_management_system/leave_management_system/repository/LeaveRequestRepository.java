@@ -9,11 +9,14 @@ import com.leave_management_system.leave_management_system.entity.Employee;
 import java.util.List;
 import java.time.LocalDate;
 import com.leave_management_system.leave_management_system.entity.LeaveStatus;
+import com.leave_management_system.leave_management_system.entity.LeaveType;
 
 public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long>, JpaSpecificationExecutor<LeaveRequest> {
     List<LeaveRequest> findByEmployee(Employee employee);
     List<LeaveRequest> findByStatus(LeaveStatus status);
     List<LeaveRequest> findByEmployee_Manager_Id(Long managerId);
+    boolean existsByLeaveType(LeaveType leaveType);
+    boolean existsByEmployeeAndLeaveTypeAndStatusIn(Employee employee, LeaveType leaveType, List<LeaveStatus> statuses);
 
     @Query("SELECT lr FROM LeaveRequest lr WHERE " +
            "(lr.employee.manager.id = :managerId OR lr.employee.department.manager.id = :managerId) " +
