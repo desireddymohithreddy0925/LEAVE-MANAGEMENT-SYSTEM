@@ -40,10 +40,10 @@ This document maps the mandatory internship requirements to their specific imple
 - **Status:** **DONE**
 
 ### 6. Leave Balance Management & Deduction
-- **Requirement:** Track employee balances annually with self-service retrieval, automatic default initialization for active leave types, deletion protection with pending/approved requests, and synchronized deduction/restoration on approval and cancellation.
-- **Implementation:** `LeaveBalanceService` (`createLeaveBalance`, `getBalancesByEmployee`, `initializeBalancesForEmployee`, `updateLeaveBalance`, `deleteLeaveBalance`), `LeaveBalanceController` (`GET /api/leave-balances/me`, `POST /api/leave-balances/employee/{id}/initialize`), and `LeaveRequestService` (`approveLeaveRequest`, `cancelLeaveRequest`).
+- **Requirement:** Track employee balances annually with self-service retrieval, automatic default initialization for active leave types, balance consistency enforcement on creation and updates (`total >= used + available`), deletion protection with pending/approved requests, and synchronized deduction/restoration on approval and cancellation.
+- **Implementation:** `LeaveBalanceService` (`createLeaveBalance`, `getBalancesByEmployee`, `initializeBalancesForEmployee`, `updateLeaveBalance`, `deleteLeaveBalance`), `LeaveBalanceController` (`GET /api/leave-balances/me`, `POST /api/leave-balances/employee/{id}/initialize`, `POST /api/leave-balances`, `PUT /api/leave-balances/{id}`), and `LeaveRequestService` (`approveLeaveRequest`, `cancelLeaveRequest`).
 - **API:** `GET /api/leave-balances/me?year=YYYY`, `GET /api/leave-balances/employee/{employeeId}?year=YYYY`, `POST /api/leave-balances/employee/{employeeId}/initialize`, `POST /api/leave-balances`, `PUT /api/leave-balances/{id}`, `DELETE /api/leave-balances/{id}`
-- **Test:** `LeaveBalanceServiceTest` (24 unit tests), `LeaveBalanceControllerIntegrationTest` (20 integration tests), `LeaveRequestServiceConcurrencyIntegrationTest.testConcurrentLeaveCancellationsDoesNotDoubleRefund`
+- **Test:** `LeaveBalanceServiceTest` (35 unit tests), `LeaveBalanceControllerIntegrationTest` (26 integration tests), `LeaveRequestServiceConcurrencyIntegrationTest.testConcurrentLeaveCancellationsDoesNotDoubleRefund`
 - **Status:** **DONE**
 
 ### 7. Rejection Reasons

@@ -173,7 +173,6 @@ public class LeaveBalanceControllerIntegrationTest {
         LeaveBalanceRequestDTO dto = new LeaveBalanceRequestDTO();
         dto.setEmployeeId(testEmployee.getId());
         dto.setLeaveTypeId(testLeaveType.getId());
-        dto.setAvailable(20);
 
         mockMvc.perform(post("/api/leave-balances")
                         .header("Authorization", "Bearer " + adminToken)
@@ -190,11 +189,57 @@ public class LeaveBalanceControllerIntegrationTest {
     }
 
     @Test
+    void createLeaveBalance_WithExplicitTotal_Success() throws Exception {
+        LeaveBalanceRequestDTO dto = new LeaveBalanceRequestDTO();
+        dto.setEmployeeId(testEmployee.getId());
+        dto.setLeaveTypeId(testLeaveType.getId());
+        dto.setTotal(25);
+
+        mockMvc.perform(post("/api/leave-balances")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.total").value(25))
+                .andExpect(jsonPath("$.available").value(25))
+                .andExpect(jsonPath("$.used").value(0));
+    }
+
+    @Test
+    void createLeaveBalance_Regression_InconsistentTotalAndAvailable_Returns400() throws Exception {
+        LeaveBalanceRequestDTO dto = new LeaveBalanceRequestDTO();
+        dto.setEmployeeId(testEmployee.getId());
+        dto.setLeaveTypeId(testLeaveType.getId());
+        dto.setTotal(25);
+        dto.setAvailable(20);
+
+        mockMvc.perform(post("/api/leave-balances")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createLeaveBalance_Regression_AvailableExceedsTotal_Returns400() throws Exception {
+        LeaveBalanceRequestDTO dto = new LeaveBalanceRequestDTO();
+        dto.setEmployeeId(testEmployee.getId());
+        dto.setLeaveTypeId(testLeaveType.getId());
+        dto.setTotal(20);
+        dto.setAvailable(25);
+
+        mockMvc.perform(post("/api/leave-balances")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void createLeaveBalance_Duplicate() throws Exception {
         LeaveBalanceRequestDTO dto = new LeaveBalanceRequestDTO();
         dto.setEmployeeId(testEmployee.getId());
         dto.setLeaveTypeId(testLeaveType.getId());
-        dto.setAvailable(20);
 
         mockMvc.perform(post("/api/leave-balances")
                         .header("Authorization", "Bearer " + adminToken)
@@ -374,6 +419,53 @@ public class LeaveBalanceControllerIntegrationTest {
 
         LeaveBalanceRequestDTO updateDTO = new LeaveBalanceRequestDTO();
         updateDTO.setAvailable(-1);
+
+        mockMvc.perform(put("/api/leave-balances/" + balance.getId())
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateDTO)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateLeaveBalance_Regression_UsedPlusAvailableExceedsTotal_Returns400() throws Exception {
+        LeaveBalance balance = new LeaveBalance(testEmployee, testLeaveType, 2026, 20, 5, 15);
+        balance = leaveBalanceRepository.save(balance);
+
+        LeaveBalanceRequestDTO updateDTO = new LeaveBalanceRequestDTO();
+        updateDTO.setAvailable(18); // 18 available + 5 used = 23 > 20 total
+
+        mockMvc.perform(put("/api/leave-balances/" + balance.getId())
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateDTO)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateLeaveBalance_Regression_UsedPlusAvailableExceedsTotal_WithTotal_Returns400() throws Exception {
+        LeaveBalance balance = new LeaveBalance(testEmployee, testLeaveType, 2026, 20, 5, 15);
+        balance = leaveBalanceRepository.save(balance);
+
+        LeaveBalanceRequestDTO updateDTO = new LeaveBalanceRequestDTO();
+        updateDTO.setAvailable(18);
+        updateDTO.setTotal(20); // 18 available + 5 used = 23 > 20 total
+
+        mockMvc.perform(put("/api/leave-balances/" + balance.getId())
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateDTO)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateLeaveBalance_TotalLessThanAvailable_Returns400() throws Exception {
+        LeaveBalance balance = new LeaveBalance(testEmployee, testLeaveType, 2026, 20, 0, 20);
+        balance = leaveBalanceRepository.save(balance);
+
+        LeaveBalanceRequestDTO updateDTO = new LeaveBalanceRequestDTO();
+        updateDTO.setAvailable(15);
+        updateDTO.setTotal(10);
 
         mockMvc.perform(put("/api/leave-balances/" + balance.getId())
                         .header("Authorization", "Bearer " + adminToken)

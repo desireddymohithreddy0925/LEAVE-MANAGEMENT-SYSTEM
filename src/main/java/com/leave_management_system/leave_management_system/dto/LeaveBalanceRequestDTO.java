@@ -2,7 +2,6 @@ package com.leave_management_system.leave_management_system.dto;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 public class LeaveBalanceRequestDTO {
@@ -13,7 +12,11 @@ public class LeaveBalanceRequestDTO {
     @Positive(message = "Leave Type ID must be positive")
     private Long leaveTypeId;
 
-    @NotNull(message = "Available days is required")
+    /**
+     * Available leave days.
+     * On balance creation, this must match total days if both are provided.
+     * On update, used + available cannot exceed total days.
+     */
     @Min(value = 0, message = "Available days cannot be negative")
     @Max(value = 365, message = "Available days cannot exceed 365")
     private Integer available;
@@ -22,6 +25,10 @@ public class LeaveBalanceRequestDTO {
     @Max(value = 2100, message = "Year must be valid")
     private Integer year;
 
+    /**
+     * Total leave quota for the year.
+     * If omitted on creation, defaults to the leave type's default days.
+     */
     @Min(value = 0, message = "Total days cannot be negative")
     @Max(value = 365, message = "Total days cannot exceed 365")
     private Integer total;

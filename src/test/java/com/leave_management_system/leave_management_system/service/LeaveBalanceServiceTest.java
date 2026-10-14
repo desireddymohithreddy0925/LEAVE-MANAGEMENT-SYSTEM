@@ -94,7 +94,7 @@ public class LeaveBalanceServiceTest {
 
     @Test
     void createLeaveBalance_Success_WithExplicitYearAndTotal() {
-        LeaveBalance customBalance = new LeaveBalance(employee, leaveType, 2027, 25, 0, 20);
+        LeaveBalance customBalance = new LeaveBalance(employee, leaveType, 2027, 25, 0, 25);
         customBalance.setId(2L);
 
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
@@ -102,14 +102,109 @@ public class LeaveBalanceServiceTest {
         when(leaveBalanceRepository.existsByEmployeeAndLeaveTypeAndYear(employee, leaveType, 2027)).thenReturn(false);
         when(leaveBalanceRepository.save(any(LeaveBalance.class))).thenReturn(customBalance);
 
-        LeaveBalanceRequestDTO req = new LeaveBalanceRequestDTO(1L, 1L, 20, 2027, 25);
+        LeaveBalanceRequestDTO req = new LeaveBalanceRequestDTO(1L, 1L, null, 2027, 25);
 
         LeaveBalanceResponseDTO created = leaveBalanceService.createLeaveBalance(req);
 
         assertNotNull(created);
         assertEquals(2027, created.getYear());
         assertEquals(25, created.getTotal());
-        assertEquals(20, created.getAvailable());
+        assertEquals(25, created.getAvailable());
+        assertEquals(0, created.getUsed());
+    }
+
+    @Test
+    void createLeaveBalance_Success_WithExplicitAvailable() {
+        LeaveBalance customBalance = new LeaveBalance(employee, leaveType, 2027, 18, 0, 18);
+        customBalance.setId(2L);
+
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
+        when(leaveBalanceRepository.existsByEmployeeAndLeaveTypeAndYear(employee, leaveType, 2027)).thenReturn(false);
+        when(leaveBalanceRepository.save(any(LeaveBalance.class))).thenReturn(customBalance);
+
+        LeaveBalanceRequestDTO req = new LeaveBalanceRequestDTO(1L, 1L, 18, 2027, null);
+
+        LeaveBalanceResponseDTO created = leaveBalanceService.createLeaveBalance(req);
+
+        assertNotNull(created);
+        assertEquals(2027, created.getYear());
+        assertEquals(18, created.getTotal());
+        assertEquals(18, created.getAvailable());
+        assertEquals(0, created.getUsed());
+    }
+
+    @Test
+    void createLeaveBalance_Success_WithMatchingTotalAndAvailable() {
+        LeaveBalance customBalance = new LeaveBalance(employee, leaveType, 2027, 25, 0, 25);
+        customBalance.setId(2L);
+
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
+        when(leaveBalanceRepository.existsByEmployeeAndLeaveTypeAndYear(employee, leaveType, 2027)).thenReturn(false);
+        when(leaveBalanceRepository.save(any(LeaveBalance.class))).thenReturn(customBalance);
+
+        LeaveBalanceRequestDTO req = new LeaveBalanceRequestDTO(1L, 1L, 25, 2027, 25);
+
+        LeaveBalanceResponseDTO created = leaveBalanceService.createLeaveBalance(req);
+
+        assertNotNull(created);
+        assertEquals(2027, created.getYear());
+        assertEquals(25, created.getTotal());
+        assertEquals(25, created.getAvailable());
+        assertEquals(0, created.getUsed());
+    }
+
+    @Test
+    void createLeaveBalance_Regression_InconsistentTotalAndAvailable_ThrowsException() {
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
+        when(leaveBalanceRepository.existsByEmployeeAndLeaveTypeAndYear(employee, leaveType, 2027)).thenReturn(false);
+
+        LeaveBalanceRequestDTO req = new LeaveBalanceRequestDTO(1L, 1L, 20, 2027, 25);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> leaveBalanceService.createLeaveBalance(req));
+        assertTrue(ex.getMessage().contains("must equal total days"));
+    }
+
+    @Test
+    void createLeaveBalance_Regression_AvailableExceedsTotal_ThrowsException() {
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
+        when(leaveBalanceRepository.existsByEmployeeAndLeaveTypeAndYear(employee, leaveType, 2027)).thenReturn(false);
+
+        LeaveBalanceRequestDTO req = new LeaveBalanceRequestDTO(1L, 1L, 30, 2027, 25);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> leaveBalanceService.createLeaveBalance(req));
+        assertTrue(ex.getMessage().contains("Available days cannot exceed total days"));
+    }
+
+    @Test
+    void createLeaveBalance_NegativeTotal_ThrowsException() {
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
+        when(leaveBalanceRepository.existsByEmployeeAndLeaveTypeAndYear(employee, leaveType, 2027)).thenReturn(false);
+
+        LeaveBalanceRequestDTO req = new LeaveBalanceRequestDTO(1L, 1L, null, 2027, -5);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> leaveBalanceService.createLeaveBalance(req));
+        assertTrue(ex.getMessage().contains("Total days cannot be negative"));
+    }
+
+    @Test
+    void createLeaveBalance_NegativeAvailable_ThrowsException() {
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
+        when(leaveBalanceRepository.existsByEmployeeAndLeaveTypeAndYear(employee, leaveType, 2027)).thenReturn(false);
+
+        LeaveBalanceRequestDTO req = new LeaveBalanceRequestDTO(1L, 1L, -5, 2027, null);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> leaveBalanceService.createLeaveBalance(req));
+        assertTrue(ex.getMessage().contains("Available days cannot be negative"));
     }
 
     @Test
@@ -321,6 +416,86 @@ public class LeaveBalanceServiceTest {
         updateReq.setTotal(10);
 
         assertThrows(IllegalArgumentException.class, () -> leaveBalanceService.updateLeaveBalance(1L, updateReq));
+    }
+
+    @Test
+    void updateLeaveBalance_Success_TotalOnly() {
+        leaveBalance.setUsed(5);
+        leaveBalance.setAvailable(15);
+        leaveBalance.setTotal(20);
+
+        when(leaveBalanceRepository.findById(1L)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.save(any(LeaveBalance.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        LeaveBalanceRequestDTO updateReq = new LeaveBalanceRequestDTO();
+        updateReq.setTotal(25);
+
+        LeaveBalanceResponseDTO updated = leaveBalanceService.updateLeaveBalance(1L, updateReq);
+
+        assertNotNull(updated);
+        assertEquals(25, updated.getTotal());
+        assertEquals(15, updated.getAvailable());
+        assertEquals(5, updated.getUsed());
+    }
+
+    @Test
+    void updateLeaveBalance_Regression_UsedPlusAvailableExceedsTotal_WhenTotalOmitted_ThrowsException() {
+        leaveBalance.setUsed(5);
+        leaveBalance.setAvailable(15);
+        leaveBalance.setTotal(20);
+
+        when(leaveBalanceRepository.findById(1L)).thenReturn(Optional.of(leaveBalance));
+
+        LeaveBalanceRequestDTO updateReq = new LeaveBalanceRequestDTO();
+        updateReq.setAvailable(18); // 18 available + 5 used = 23 > 20 total
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> leaveBalanceService.updateLeaveBalance(1L, updateReq));
+        assertTrue(ex.getMessage().contains("cannot exceed total days"));
+    }
+
+    @Test
+    void updateLeaveBalance_Regression_UsedPlusAvailableExceedsTotal_WhenTotalProvided_ThrowsException() {
+        leaveBalance.setUsed(5);
+        leaveBalance.setAvailable(15);
+        leaveBalance.setTotal(20);
+
+        when(leaveBalanceRepository.findById(1L)).thenReturn(Optional.of(leaveBalance));
+
+        LeaveBalanceRequestDTO updateReq = new LeaveBalanceRequestDTO();
+        updateReq.setAvailable(18);
+        updateReq.setTotal(20); // 18 + 5 = 23 > 20
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> leaveBalanceService.updateLeaveBalance(1L, updateReq));
+        assertTrue(ex.getMessage().contains("cannot exceed total days"));
+    }
+
+    @Test
+    void updateLeaveBalance_Regression_ReducingTotalBelowUsedPlusAvailable_ThrowsException() {
+        leaveBalance.setUsed(5);
+        leaveBalance.setAvailable(15);
+        leaveBalance.setTotal(20);
+
+        when(leaveBalanceRepository.findById(1L)).thenReturn(Optional.of(leaveBalance));
+
+        LeaveBalanceRequestDTO updateReq = new LeaveBalanceRequestDTO();
+        updateReq.setTotal(18); // 15 available + 5 used = 20 > 18 total
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> leaveBalanceService.updateLeaveBalance(1L, updateReq));
+        assertTrue(ex.getMessage().contains("cannot exceed total days"));
+    }
+
+    @Test
+    void updateLeaveBalance_BothTotalAndAvailableNull_ThrowsException() {
+        when(leaveBalanceRepository.findById(1L)).thenReturn(Optional.of(leaveBalance));
+
+        LeaveBalanceRequestDTO updateReq = new LeaveBalanceRequestDTO();
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> leaveBalanceService.updateLeaveBalance(1L, updateReq));
+        assertTrue(ex.getMessage().contains("At least one of total or available"));
     }
 
     @Test

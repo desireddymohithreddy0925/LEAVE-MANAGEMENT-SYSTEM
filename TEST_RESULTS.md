@@ -1,5 +1,39 @@
 # Test Results
 
+## Balance Consistency & Update Validation Verification
+- **Status:** Complete
+- **Timestamp:** 2026-10-14
+- **Regression Suite:** `mvn clean test` executed successfully.
+- **Result:** All 191 tests passed (0 failures, 0 errors, 0 skipped), including 61 tests dedicated to Leave Balances across `LeaveBalanceServiceTest` (35 tests) and `LeaveBalanceControllerIntegrationTest` (26 tests).
+- **Features Verified:**
+  - **Balance Consistency on Creation:** Ensured `total`, `used`, and `available` remain strictly consistent upon balance creation ($\text{total} = \text{used} + \text{available} = 0 + \text{available}$). Resolved bug where `total` could be overridden while `available` defaulted to `leaveType.getDefaultDays()`.
+  - **Explicit Creation Request Contract:** `available` field is no longer silently ignored during balance creation. If `available` is provided alone, it sets the initial quota (`total = available`, `available = available`). If both `total` and `available` are provided, they must match; conflicting values or `available > total` are rejected with `400 Bad Request`.
+  - **Update Validation Invariant ($\text{used} + \text{available} \le \text{total}$):** Validates that balance updates cannot produce an invalid state where `used + available` exceeds `total` (whether `total` is explicitly provided or omitted). Prevents invalid states with clear `400 Bad Request` messages (`Used days (<used>) plus available days (<available>) cannot exceed total days (<total>)`).
+  - **Boundary & Validation Coverage:** Non-negative constraints (`available >= 0`, `total >= 0`), `total >= available`, and requiring at least one field on update.
+  - **Regression Testing:** Added extensive unit tests in `LeaveBalanceServiceTest` and full-stack integration tests in `LeaveBalanceControllerIntegrationTest`.
+
+## Summary of All Verified Test Suites (191 Total Tests)
+| Test Suite | Tests Run | Passed | Failed | Errors | Skipped |
+|---|---|---|---|---|---|
+| `AuthControllerIntegrationTest` | 9 | 9 | 0 | 0 | 0 |
+| `DepartmentControllerIntegrationTest` | 3 | 3 | 0 | 0 | 0 |
+| `DynamicPermissionIntegrationTest` | 1 | 1 | 0 | 0 | 0 |
+| `EmployeeControllerIntegrationTest` | 5 | 5 | 0 | 0 | 0 |
+| `LeaveBalanceControllerIntegrationTest` | 26 | 26 | 0 | 0 | 0 |
+| `LeaveRequestControllerIntegrationTest` | 3 | 3 | 0 | 0 | 0 |
+| `LeaveTypeControllerIntegrationTest` | 16 | 16 | 0 | 0 | 0 |
+| `ProfileSecurityIntegrationTest` | 20 | 20 | 0 | 0 | 0 |
+| `RolePermissionControllerIntegrationTest` | 7 | 7 | 0 | 0 | 0 |
+| `TeamHierarchyIntegrationTest` | 8 | 8 | 0 | 0 | 0 |
+| `LeaveRequestRepositoryTest` | 2 | 2 | 0 | 0 | 0 |
+| `DepartmentServiceTest` | 7 | 7 | 0 | 0 | 0 |
+| `EmployeeServiceTest` | 5 | 5 | 0 | 0 | 0 |
+| `LeaveBalanceServiceTest` | 35 | 35 | 0 | 0 | 0 |
+| `LeaveRequestServiceConcurrencyIntegrationTest` | 3 | 3 | 0 | 0 | 0 |
+| `LeaveRequestServiceTest` | 24 | 24 | 0 | 0 | 0 |
+| `LeaveTypeServiceTest` | 17 | 17 | 0 | 0 | 0 |
+| **Total** | **191** | **191** | **0** | **0** | **0** |
+
 ## Leave Balances Implementation
 - **Status:** Complete
 - **Timestamp:** 2026-10-13

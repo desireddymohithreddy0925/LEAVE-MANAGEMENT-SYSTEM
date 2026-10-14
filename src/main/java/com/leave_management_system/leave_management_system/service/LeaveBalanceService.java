@@ -70,14 +70,39 @@ public class LeaveBalanceService {
                     "Leave balance already exists for this employee and leave type");
         }
 
+        if (dto.getTotal() != null && dto.getTotal() < 0) {
+            throw new IllegalArgumentException("Total days cannot be negative");
+        }
+        if (dto.getAvailable() != null && dto.getAvailable() < 0) {
+            throw new IllegalArgumentException("Available days cannot be negative");
+        }
+
+        int initialDays;
+        if (dto.getTotal() != null && dto.getAvailable() != null) {
+            if (dto.getAvailable() > dto.getTotal()) {
+                throw new IllegalArgumentException("Available days cannot exceed total days");
+            }
+            if (!dto.getTotal().equals(dto.getAvailable())) {
+                throw new IllegalArgumentException(
+                        "Initial available days (" + dto.getAvailable() + ") must equal total days (" + dto.getTotal()
+                                + ") on balance creation");
+            }
+            initialDays = dto.getTotal();
+        } else if (dto.getTotal() != null) {
+            initialDays = dto.getTotal();
+        } else if (dto.getAvailable() != null) {
+            initialDays = dto.getAvailable();
+        } else {
+            initialDays = leaveType.getDefaultDays();
+        }
+
         LeaveBalance leaveBalance = new LeaveBalance();
         leaveBalance.setEmployee(employee);
         leaveBalance.setLeaveType(leaveType);
         leaveBalance.setYear(year);
-        int defaultDays = leaveType.getDefaultDays();
-        leaveBalance.setTotal(dto.getTotal() != null ? dto.getTotal() : defaultDays);
+        leaveBalance.setTotal(initialDays);
         leaveBalance.setUsed(0);
-        leaveBalance.setAvailable(defaultDays);
+        leaveBalance.setAvailable(initialDays);
 
         return LeaveBalanceResponseDTO.fromEntity(leaveBalanceRepository.save(leaveBalance));
     }
@@ -155,23 +180,31 @@ public class LeaveBalanceService {
     public LeaveBalanceResponseDTO updateLeaveBalance(Long id, LeaveBalanceRequestDTO dto) {
         LeaveBalance leaveBalance = getLeaveBalanceEntityById(id);
 
-        if (dto.getAvailable() == null || dto.getAvailable() < 0) {
-            throw new IllegalArgumentException("Available days cannot be negative");
+        if (dto.getAvailable() == null && dto.getTotal() == null) {
+            throw new IllegalArgumentException("At least one of total or available days must be provided for update");
         }
 
-        leaveBalance.setAvailable(dto.getAvailable());
-        if (dto.getTotal() != null) {
-            if (dto.getTotal() < 0) {
-                throw new IllegalArgumentException("Total days cannot be negative");
-            }
-            if (dto.getTotal() < dto.getAvailable()) {
-                throw new IllegalArgumentException("Total days cannot be less than available days");
-            }
-            leaveBalance.setTotal(dto.getTotal());
-        } else if (dto.getAvailable() > leaveBalance.getTotal()) {
-            int used = leaveBalance.getUsed() != null ? leaveBalance.getUsed() : 0;
-            leaveBalance.setTotal(dto.getAvailable() + used);
+        int currentUsed = leaveBalance.getUsed() != null ? leaveBalance.getUsed() : 0;
+        int targetAvailable = dto.getAvailable() != null ? dto.getAvailable() : leaveBalance.getAvailable();
+        int targetTotal = dto.getTotal() != null ? dto.getTotal() : leaveBalance.getTotal();
+
+        if (targetAvailable < 0) {
+            throw new IllegalArgumentException("Available days cannot be negative");
         }
+        if (targetTotal < 0) {
+            throw new IllegalArgumentException("Total days cannot be negative");
+        }
+        if (targetTotal < targetAvailable) {
+            throw new IllegalArgumentException("Total days cannot be less than available days");
+        }
+        if (currentUsed + targetAvailable > targetTotal) {
+            throw new IllegalArgumentException(
+                    "Used days (" + currentUsed + ") plus available days (" + targetAvailable
+                            + ") cannot exceed total days (" + targetTotal + ")");
+        }
+
+        leaveBalance.setAvailable(targetAvailable);
+        leaveBalance.setTotal(targetTotal);
 
         return LeaveBalanceResponseDTO.fromEntity(leaveBalanceRepository.save(leaveBalance));
     }

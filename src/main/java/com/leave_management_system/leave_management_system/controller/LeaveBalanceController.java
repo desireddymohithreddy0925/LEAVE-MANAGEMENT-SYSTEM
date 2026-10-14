@@ -57,7 +57,7 @@ public class LeaveBalanceController {
 
     @PreAuthorize("hasAuthority('LEAVE_BALANCE_MANAGE')")
     @PostMapping
-    @Operation(summary = "Create or add leave balance", description = "Adds a leave balance for an employee.")
+    @Operation(summary = "Create or add leave balance", description = "Adds a leave balance for an employee. Initial total allocation can be explicitly set or defaulted to the leave type default days. If available days are supplied, they must match total days.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Leave balance created successfully"),
             @ApiResponse(responseCode = "400", description = "Invalid request data"),
@@ -135,7 +135,7 @@ public class LeaveBalanceController {
 
     @PreAuthorize("hasAuthority('LEAVE_BALANCE_MANAGE')")
     @PutMapping("/{id}")
-    @Operation(summary = "Update a leave balance", description = "Updates the available days for a leave balance.")
+    @Operation(summary = "Update a leave balance", description = "Updates available and/or total days for a leave balance. Validates that used + available days does not exceed total days.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Leave balance updated successfully"),
             @ApiResponse(responseCode = "400", description = "Invalid request data"),
