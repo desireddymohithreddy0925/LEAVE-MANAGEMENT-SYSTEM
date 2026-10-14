@@ -19,6 +19,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.hamcrest.Matchers.containsString;
 import com.jayway.jsonpath.JsonPath;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.context.ActiveProfiles;
@@ -132,5 +133,36 @@ public class LeaveRequestControllerIntegrationTest {
         mockMvc.perform(put("/api/leave-requests/" + reqId + "/approve"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("APPROVED"));
+    }
+
+    @Test
+    void createLeaveRequest_DifferentYearBalanceExists_MissingApplicableYearBalance_Returns404() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+
+        int currentYear = LocalDate.now().getYear();
+        LeaveBalanceRequestDTO balDto = new LeaveBalanceRequestDTO();
+        balDto.setEmployeeId(empId);
+        balDto.setLeaveTypeId(typeId);
+        balDto.setYear(currentYear);
+        balDto.setTotal(20);
+        mockMvc.perform(post("/api/leave-balances")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(balDto)))
+                .andExpect(status().isCreated());
+
+        int nextYear = currentYear + 1;
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(LocalDate.of(nextYear, 6, 1));
+        reqDto.setEndDate(LocalDate.of(nextYear, 6, 4));
+        reqDto.setReason("Regression Test: Applicable year balance missing");
+
+        mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value(containsString(String.valueOf(nextYear))));
     }
 }

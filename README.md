@@ -25,7 +25,7 @@ If you prefer running locally, start a local PostgreSQL container on port `5432`
 Configure your environment variables (`DB_USERNAME`, `DB_PASSWORD`) or edit `src/main/resources/application-dev.yml`.
 
 ### 3. Build & Test
-Run the complete automated test suite (191 tests covering all business logic, security reviews, hierarchy cycle protection, leave types, balance consistency, and RBAC) from the root directory:
+Run the complete automated test suite (195 tests covering all business logic, security reviews, hierarchy cycle protection, leave types, balance consistency, annual balance isolation, and RBAC) from the root directory:
 ```bash
 ./mvnw clean test
 ```

@@ -91,7 +91,7 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
         LeaveBalance balance = new LeaveBalance();
         balance.setEmployee(testEmployee);
         balance.setLeaveType(testLeaveType);
-        balance.setYear(2023);
+        balance.setYear(2026);
         balance.setTotal(20);
         balance.setUsed(0);
         balance.setAvailable(20);
@@ -166,7 +166,7 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
                     LeaveRequestDTO dto = new LeaveRequestDTO();
                     dto.setEmployeeId(testEmployee.getId());
                     dto.setLeaveTypeId(testLeaveType.getId());
-                    LocalDate baseDate = LocalDate.of(2030, 10, 14); // Monday in 2030
+                    LocalDate baseDate = LocalDate.of(2026, 11, 2); // Monday in 2026
                     dto.setStartDate(baseDate.plusDays(1)); // Tuesday
                     dto.setEndDate(baseDate.plusDays(3)); // Thursday
                     dto.setReason("Concurrent request");

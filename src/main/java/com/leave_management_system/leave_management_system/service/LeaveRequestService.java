@@ -84,9 +84,8 @@ public class LeaveRequestService {
         int leaveYear = dto.getStartDate().getYear();
         LeaveBalance balance = leaveBalanceRepository
                 .findByEmployeeAndLeaveTypeAndYearWithLock(employee, leaveType, leaveYear)
-                .or(() -> leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType))
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Leave balance not found for this employee and leave type"));
+                        "Leave balance not found for this employee and leave type for year " + leaveYear));
 
         if (balance.getAvailable() < requestedDays) {
             throw new InsufficientLeaveException("Insufficient leave balance. Available: " + balance.getAvailable()
@@ -186,8 +185,7 @@ public class LeaveRequestService {
         int leaveYear = leaveRequest.getStartDate().getYear();
         LeaveBalance balance = leaveBalanceRepository
                 .findByEmployeeAndLeaveTypeAndYearWithLock(leaveRequest.getEmployee(), leaveRequest.getLeaveType(), leaveYear)
-                .or(() -> leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(leaveRequest.getEmployee(), leaveRequest.getLeaveType()))
-                .orElseThrow(() -> new ResourceNotFoundException("Leave balance not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Leave balance not found for year " + leaveYear));
 
         if (balance.getAvailable() < requestedDays) {
             throw new InsufficientLeaveException("Insufficient leave balance");
@@ -239,8 +237,7 @@ public class LeaveRequestService {
             int leaveYear = leaveRequest.getStartDate().getYear();
             LeaveBalance balance = leaveBalanceRepository
                     .findByEmployeeAndLeaveTypeAndYearWithLock(leaveRequest.getEmployee(), leaveRequest.getLeaveType(), leaveYear)
-                    .or(() -> leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(leaveRequest.getEmployee(), leaveRequest.getLeaveType()))
-                    .orElseThrow(() -> new ResourceNotFoundException("Leave balance not found"));
+                    .orElseThrow(() -> new ResourceNotFoundException("Leave balance not found for year " + leaveYear));
 
             balance.setAvailable(balance.getAvailable() + (int) requestedDays);
             int currentUsed = balance.getUsed() != null ? balance.getUsed() : 0;

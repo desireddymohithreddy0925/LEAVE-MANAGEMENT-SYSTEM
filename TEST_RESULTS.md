@@ -1,18 +1,22 @@
 # Test Results
 
-## Balance Consistency & Update Validation Verification
+## Annual Leave Balance Validation Verification
 - **Status:** Complete
 - **Timestamp:** 2026-10-14
 - **Regression Suite:** `mvn clean test` executed successfully.
-- **Result:** All 191 tests passed (0 failures, 0 errors, 0 skipped), including 61 tests dedicated to Leave Balances across `LeaveBalanceServiceTest` (35 tests) and `LeaveBalanceControllerIntegrationTest` (26 tests).
-- **Features Verified:**
-  - **Balance Consistency on Creation:** Ensured `total`, `used`, and `available` remain strictly consistent upon balance creation ($\text{total} = \text{used} + \text{available} = 0 + \text{available}$). Resolved bug where `total` could be overridden while `available` defaulted to `leaveType.getDefaultDays()`.
-  - **Explicit Creation Request Contract:** `available` field is no longer silently ignored during balance creation. If `available` is provided alone, it sets the initial quota (`total = available`, `available = available`). If both `total` and `available` are provided, they must match; conflicting values or `available > total` are rejected with `400 Bad Request`.
-  - **Update Validation Invariant ($\text{used} + \text{available} \le \text{total}$):** Validates that balance updates cannot produce an invalid state where `used + available` exceeds `total` (whether `total` is explicitly provided or omitted). Prevents invalid states with clear `400 Bad Request` messages (`Used days (<used>) plus available days (<available>) cannot exceed total days (<total>)`).
-  - **Boundary & Validation Coverage:** Non-negative constraints (`available >= 0`, `total >= 0`), `total >= available`, and requiring at least one field on update.
-  - **Regression Testing:** Added extensive unit tests in `LeaveBalanceServiceTest` and full-stack integration tests in `LeaveBalanceControllerIntegrationTest`.
+- **Result:** All 195 tests passed (0 failures, 0 errors, 0 skipped), including 31 tests covering leave request lifecycle and annual balance isolation across `LeaveRequestServiceTest` (27 tests) and `LeaveRequestControllerIntegrationTest` (4 tests).
+- **Features & Regressions Verified:**
+  - **Strict Annual Leave Balance Isolation:** In `LeaveRequestService`, removed legacy unconstrained fallback (`findByEmployeeAndLeaveTypeWithLock`) from `createLeaveRequest()`, `approveLeaveRequest()`, and `cancelLeaveRequest()`. All leave requests strictly resolve and mutate the balance corresponding to `startDate.getYear()` using `findByEmployeeAndLeaveTypeAndYearWithLock(employee, leaveType, leaveYear)`.
+  - **Missing Applicable Year Balance Protection:** If no balance exists for the leave request's specific year, a `ResourceNotFoundException` is thrown ("Leave balance not found for this employee and leave type for year YYYY"), preventing requests from silently consuming quotas from a prior or different year.
+  - **Regression Testing:**
+    - Unit regression tests added in `LeaveRequestServiceTest`:
+      - `createLeaveRequest_Regression_DifferentYearBalanceExists_MissingApplicableYearBalance_ThrowsException`: Proves application fails when only a different year's balance exists.
+      - `approveLeaveRequest_Regression_MissingApplicableYearBalance_ThrowsException`: Proves approval fails when applicable year balance is missing.
+      - `cancelLeaveRequest_Regression_MissingApplicableYearBalance_ThrowsException`: Proves cancellation fails when applicable year balance is missing.
+    - Integration regression test added in `LeaveRequestControllerIntegrationTest`:
+      - `createLeaveRequest_DifferentYearBalanceExists_MissingApplicableYearBalance_Returns404`: Validates over HTTP endpoint that when a balance exists for current year, a request for a subsequent year without a balance returns `404 Not Found`.
 
-## Summary of All Verified Test Suites (191 Total Tests)
+## Summary of All Verified Test Suites (195 Total Tests)
 | Test Suite | Tests Run | Passed | Failed | Errors | Skipped |
 |---|---|---|---|---|---|
 | `AuthControllerIntegrationTest` | 9 | 9 | 0 | 0 | 0 |
@@ -20,7 +24,7 @@
 | `DynamicPermissionIntegrationTest` | 1 | 1 | 0 | 0 | 0 |
 | `EmployeeControllerIntegrationTest` | 5 | 5 | 0 | 0 | 0 |
 | `LeaveBalanceControllerIntegrationTest` | 26 | 26 | 0 | 0 | 0 |
-| `LeaveRequestControllerIntegrationTest` | 3 | 3 | 0 | 0 | 0 |
+| `LeaveRequestControllerIntegrationTest` | 4 | 4 | 0 | 0 | 0 |
 | `LeaveTypeControllerIntegrationTest` | 16 | 16 | 0 | 0 | 0 |
 | `ProfileSecurityIntegrationTest` | 20 | 20 | 0 | 0 | 0 |
 | `RolePermissionControllerIntegrationTest` | 7 | 7 | 0 | 0 | 0 |
@@ -30,9 +34,9 @@
 | `EmployeeServiceTest` | 5 | 5 | 0 | 0 | 0 |
 | `LeaveBalanceServiceTest` | 35 | 35 | 0 | 0 | 0 |
 | `LeaveRequestServiceConcurrencyIntegrationTest` | 3 | 3 | 0 | 0 | 0 |
-| `LeaveRequestServiceTest` | 24 | 24 | 0 | 0 | 0 |
+| `LeaveRequestServiceTest` | 27 | 27 | 0 | 0 | 0 |
 | `LeaveTypeServiceTest` | 17 | 17 | 0 | 0 | 0 |
-| **Total** | **191** | **191** | **0** | **0** | **0** |
+| **Total** | **195** | **195** | **0** | **0** | **0** |
 
 ## Leave Balances Implementation
 - **Status:** Complete

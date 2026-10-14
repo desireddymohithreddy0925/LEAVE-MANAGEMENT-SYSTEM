@@ -8,6 +8,7 @@ import com.leave_management_system.leave_management_system.entity.LeaveRequest;
 import com.leave_management_system.leave_management_system.entity.LeaveStatus;
 import com.leave_management_system.leave_management_system.entity.LeaveType;
 import com.leave_management_system.leave_management_system.exception.InsufficientLeaveException;
+import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
 import com.leave_management_system.leave_management_system.repository.EmployeeRepository;
 import com.leave_management_system.leave_management_system.repository.LeaveBalanceRepository;
 import com.leave_management_system.leave_management_system.repository.LeaveRequestRepository;
@@ -69,6 +70,9 @@ public class LeaveRequestServiceTest {
         leaveBalance.setId(1L);
         leaveBalance.setEmployee(employee);
         leaveBalance.setLeaveType(leaveType);
+        leaveBalance.setYear(2026);
+        leaveBalance.setTotal(20);
+        leaveBalance.setUsed(0);
         leaveBalance.setAvailable(10);
 
         leaveRequest = new LeaveRequest();
@@ -93,7 +97,7 @@ public class LeaveRequestServiceTest {
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
         when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
-        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithLock(eq(employee), eq(leaveType), eq(2026))).thenReturn(Optional.of(leaveBalance));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
 
         LeaveResponseDTO created = leaveRequestService.createLeaveRequest(requestDTO);
@@ -161,7 +165,7 @@ public class LeaveRequestServiceTest {
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
         when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
-        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithLock(eq(employee), eq(leaveType), eq(2026))).thenReturn(Optional.of(leaveBalance));
 
         assertThrows(InsufficientLeaveException.class, () -> leaveRequestService.createLeaveRequest(requestDTO));
     }
@@ -169,7 +173,7 @@ public class LeaveRequestServiceTest {
     @Test
     void approveLeaveRequest_Success() {
         when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
-        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithLock(eq(employee), eq(leaveType), eq(2026))).thenReturn(Optional.of(leaveBalance));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
 
         LeaveResponseDTO approved = leaveRequestService.approveLeaveRequest(1L);
@@ -217,7 +221,7 @@ public class LeaveRequestServiceTest {
         leaveRequest.setStatus(LeaveStatus.APPROVED);
         leaveBalance.setUsed(3);
         when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
-        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithLock(eq(employee), eq(leaveType), eq(2026))).thenReturn(Optional.of(leaveBalance));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
 
         LeaveResponseDTO cancelled = leaveRequestService.cancelLeaveRequest(1L);
@@ -305,7 +309,7 @@ public class LeaveRequestServiceTest {
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
         when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
-        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithLock(eq(employee), eq(leaveType), eq(2026))).thenReturn(Optional.of(leaveBalance));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenAnswer(i -> i.getArguments()[0]);
 
         // Friday to Monday = 2 days
@@ -340,7 +344,7 @@ public class LeaveRequestServiceTest {
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
         when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
-        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithLock(eq(employee), eq(leaveType), eq(2026))).thenReturn(Optional.of(leaveBalance));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenAnswer(i -> i.getArguments()[0]);
 
         LeaveResponseDTO response = leaveRequestService.createLeaveRequest(requestDTO);
@@ -356,7 +360,7 @@ public class LeaveRequestServiceTest {
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
         when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
-        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithLock(eq(employee), eq(leaveType), eq(2026))).thenReturn(Optional.of(leaveBalance));
 
         assertThrows(InsufficientLeaveException.class, () -> leaveRequestService.createLeaveRequest(requestDTO));
     }
@@ -371,7 +375,7 @@ public class LeaveRequestServiceTest {
         
         // 2. Approve
         when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
-        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeWithLock(employee, leaveType)).thenReturn(Optional.of(leaveBalance));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithLock(eq(employee), eq(leaveType), eq(2026))).thenReturn(Optional.of(leaveBalance));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenAnswer(i -> i.getArguments()[0]);
         
         LeaveResponseDTO approved = leaveRequestService.approveLeaveRequest(1L);
@@ -386,5 +390,57 @@ public class LeaveRequestServiceTest {
         // 4. Cancel again
         assertThrows(IllegalArgumentException.class, () -> leaveRequestService.cancelLeaveRequest(1L));
         assertEquals(10, leaveBalance.getAvailable()); // Balance remains 10
+    }
+
+    @Test
+    void createLeaveRequest_Regression_DifferentYearBalanceExists_MissingApplicableYearBalance_ThrowsException() {
+        requestDTO.setStartDate(LocalDate.of(2027, 6, 1));
+        requestDTO.setEndDate(LocalDate.of(2027, 6, 5));
+
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(leaveTypeRepository.findById(1L)).thenReturn(Optional.of(leaveType));
+        when(leaveRequestRepository.hasOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithLock(eq(employee), eq(leaveType), eq(2027)))
+                .thenReturn(Optional.empty());
+
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class,
+                () -> leaveRequestService.createLeaveRequest(requestDTO));
+        assertTrue(ex.getMessage().contains("2027"));
+        verify(leaveBalanceRepository, never()).findByEmployeeAndLeaveTypeWithLock(any(), any());
+        verify(leaveRequestRepository, never()).save(any());
+    }
+
+    @Test
+    void approveLeaveRequest_Regression_MissingApplicableYearBalance_ThrowsException() {
+        leaveRequest.setStartDate(LocalDate.of(2027, 6, 1));
+        leaveRequest.setEndDate(LocalDate.of(2027, 6, 5));
+        leaveRequest.setStatus(LeaveStatus.PENDING);
+
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithLock(eq(employee), eq(leaveType), eq(2027)))
+                .thenReturn(Optional.empty());
+
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class,
+                () -> leaveRequestService.approveLeaveRequest(1L));
+        assertTrue(ex.getMessage().contains("2027"));
+        verify(leaveBalanceRepository, never()).findByEmployeeAndLeaveTypeWithLock(any(), any());
+        verify(leaveBalanceRepository, never()).save(any());
+    }
+
+    @Test
+    void cancelLeaveRequest_Regression_MissingApplicableYearBalance_ThrowsException() {
+        leaveRequest.setStartDate(LocalDate.of(2027, 6, 1));
+        leaveRequest.setEndDate(LocalDate.of(2027, 6, 5));
+        leaveRequest.setStatus(LeaveStatus.APPROVED);
+
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithLock(eq(employee), eq(leaveType), eq(2027)))
+                .thenReturn(Optional.empty());
+
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class,
+                () -> leaveRequestService.cancelLeaveRequest(1L));
+        assertTrue(ex.getMessage().contains("2027"));
+        verify(leaveBalanceRepository, never()).findByEmployeeAndLeaveTypeWithLock(any(), any());
+        verify(leaveBalanceRepository, never()).save(any());
     }
 }
