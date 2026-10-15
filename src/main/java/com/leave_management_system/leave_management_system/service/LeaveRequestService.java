@@ -53,6 +53,11 @@ public class LeaveRequestService {
             throw new IllegalArgumentException("End date cannot be before start date");
         }
 
+        if (dto.getStartDate().getYear() != dto.getEndDate().getYear()) {
+            throw new IllegalArgumentException(
+                    "Leave request cannot span across multiple calendar years. Please submit separate requests for each year.");
+        }
+
         Employee employee = employeeRepository.findById(dto.getEmployeeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
         if (!"ACTIVE".equals(employee.getStatus())) {
@@ -180,6 +185,11 @@ public class LeaveRequestService {
             throw new IllegalArgumentException("Only pending requests can be approved");
         }
 
+        if (leaveRequest.getStartDate().getYear() != leaveRequest.getEndDate().getYear()) {
+            throw new IllegalArgumentException(
+                    "Leave request cannot span across multiple calendar years. Please submit separate requests for each year.");
+        }
+
         long requestedDays = calculateWorkingDays(leaveRequest.getStartDate(), leaveRequest.getEndDate());
 
         int leaveYear = leaveRequest.getStartDate().getYear();
@@ -233,6 +243,10 @@ public class LeaveRequestService {
         }
 
         if (leaveRequest.getStatus() == LeaveStatus.APPROVED) {
+            if (leaveRequest.getStartDate().getYear() != leaveRequest.getEndDate().getYear()) {
+                throw new IllegalArgumentException(
+                        "Leave request cannot span across multiple calendar years. Please submit separate requests for each year.");
+            }
             long requestedDays = calculateWorkingDays(leaveRequest.getStartDate(), leaveRequest.getEndDate());
             int leaveYear = leaveRequest.getStartDate().getYear();
             LeaveBalance balance = leaveBalanceRepository

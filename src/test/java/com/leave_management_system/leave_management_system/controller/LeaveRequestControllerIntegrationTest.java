@@ -165,4 +165,24 @@ public class LeaveRequestControllerIntegrationTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value(containsString(String.valueOf(nextYear))));
     }
+
+    @Test
+    void createLeaveRequest_CrossCalendarYearDates_Returns400BadRequest() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+
+        int targetYear = LocalDate.now().getYear() + 1;
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(LocalDate.of(targetYear, 12, 28));
+        reqDto.setEndDate(LocalDate.of(targetYear + 1, 1, 4));
+        reqDto.setReason("Cross year leave request");
+
+        mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("multiple calendar years")));
+    }
 }

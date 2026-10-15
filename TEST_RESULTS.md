@@ -1,22 +1,23 @@
 # Test Results
 
-## Annual Leave Balance Validation Verification
+## Cross-Year Leave Request Validation Verification
 - **Status:** Complete
-- **Timestamp:** 2026-10-14
+- **Timestamp:** 2026-10-15
 - **Regression Suite:** `mvn clean test` executed successfully.
-- **Result:** All 195 tests passed (0 failures, 0 errors, 0 skipped), including 31 tests covering leave request lifecycle and annual balance isolation across `LeaveRequestServiceTest` (27 tests) and `LeaveRequestControllerIntegrationTest` (4 tests).
+- **Result:** All 199 tests passed (0 failures, 0 errors, 0 skipped), including 35 tests covering leave request lifecycle, annual balance isolation, and cross-year boundary validation across `LeaveRequestServiceTest` (30 tests) and `LeaveRequestControllerIntegrationTest` (5 tests).
 - **Features & Regressions Verified:**
-  - **Strict Annual Leave Balance Isolation:** In `LeaveRequestService`, removed legacy unconstrained fallback (`findByEmployeeAndLeaveTypeWithLock`) from `createLeaveRequest()`, `approveLeaveRequest()`, and `cancelLeaveRequest()`. All leave requests strictly resolve and mutate the balance corresponding to `startDate.getYear()` using `findByEmployeeAndLeaveTypeAndYearWithLock(employee, leaveType, leaveYear)`.
-  - **Missing Applicable Year Balance Protection:** If no balance exists for the leave request's specific year, a `ResourceNotFoundException` is thrown ("Leave balance not found for this employee and leave type for year YYYY"), preventing requests from silently consuming quotas from a prior or different year.
+  - **Cross-Year Leave Request Rejection:** Validates that `startDate` and `endDate` must belong to the exact same calendar year. Requests spanning multiple calendar years (e.g., across December and January) are rejected upfront with a clear validation error: `"Leave request cannot span across multiple calendar years. Please submit separate requests for each year."`.
+  - **Single-Year Balance Protection:** Eliminates the edge case where working days across a boundary year would be charged entirely to the starting year's balance, preserving strict annual balance accounting.
+  - **Defensive Safeguards on Approval and Cancellation:** Added defensive cross-calendar-year assertions in `approveLeaveRequest` and `cancelLeaveRequest` to ensure corrupt or cross-year requests cannot deduct or refund days.
   - **Regression Testing:**
-    - Unit regression tests added in `LeaveRequestServiceTest`:
-      - `createLeaveRequest_Regression_DifferentYearBalanceExists_MissingApplicableYearBalance_ThrowsException`: Proves application fails when only a different year's balance exists.
-      - `approveLeaveRequest_Regression_MissingApplicableYearBalance_ThrowsException`: Proves approval fails when applicable year balance is missing.
-      - `cancelLeaveRequest_Regression_MissingApplicableYearBalance_ThrowsException`: Proves cancellation fails when applicable year balance is missing.
-    - Integration regression test added in `LeaveRequestControllerIntegrationTest`:
-      - `createLeaveRequest_DifferentYearBalanceExists_MissingApplicableYearBalance_Returns404`: Validates over HTTP endpoint that when a balance exists for current year, a request for a subsequent year without a balance returns `404 Not Found`.
+    - Unit regression tests in `LeaveRequestServiceTest`:
+      - `createLeaveRequest_Regression_CrossCalendarYearDates_ThrowsException`: Proves application fails when `startDate` and `endDate` fall in different calendar years, preventing balance lookup and save operations.
+      - `approveLeaveRequest_Regression_CrossCalendarYearDates_ThrowsException`: Proves approval fails when dates span different years.
+      - `cancelLeaveRequest_Regression_CrossCalendarYearDates_ThrowsException`: Proves cancellation fails when dates span different years.
+    - Integration regression test in `LeaveRequestControllerIntegrationTest`:
+      - `createLeaveRequest_CrossCalendarYearDates_Returns400BadRequest`: Validates over HTTP endpoint that submitting a request spanning December and January returns HTTP `400 Bad Request` with structured error details.
 
-## Summary of All Verified Test Suites (195 Total Tests)
+## Summary of All Verified Test Suites (199 Total Tests)
 | Test Suite | Tests Run | Passed | Failed | Errors | Skipped |
 |---|---|---|---|---|---|
 | `AuthControllerIntegrationTest` | 9 | 9 | 0 | 0 | 0 |
@@ -24,7 +25,7 @@
 | `DynamicPermissionIntegrationTest` | 1 | 1 | 0 | 0 | 0 |
 | `EmployeeControllerIntegrationTest` | 5 | 5 | 0 | 0 | 0 |
 | `LeaveBalanceControllerIntegrationTest` | 26 | 26 | 0 | 0 | 0 |
-| `LeaveRequestControllerIntegrationTest` | 4 | 4 | 0 | 0 | 0 |
+| `LeaveRequestControllerIntegrationTest` | 5 | 5 | 0 | 0 | 0 |
 | `LeaveTypeControllerIntegrationTest` | 16 | 16 | 0 | 0 | 0 |
 | `ProfileSecurityIntegrationTest` | 20 | 20 | 0 | 0 | 0 |
 | `RolePermissionControllerIntegrationTest` | 7 | 7 | 0 | 0 | 0 |
@@ -34,9 +35,9 @@
 | `EmployeeServiceTest` | 5 | 5 | 0 | 0 | 0 |
 | `LeaveBalanceServiceTest` | 35 | 35 | 0 | 0 | 0 |
 | `LeaveRequestServiceConcurrencyIntegrationTest` | 3 | 3 | 0 | 0 | 0 |
-| `LeaveRequestServiceTest` | 27 | 27 | 0 | 0 | 0 |
+| `LeaveRequestServiceTest` | 30 | 30 | 0 | 0 | 0 |
 | `LeaveTypeServiceTest` | 17 | 17 | 0 | 0 | 0 |
-| **Total** | **195** | **195** | **0** | **0** | **0** |
+| **Total** | **199** | **199** | **0** | **0** | **0** |
 
 ## Leave Balances Implementation
 - **Status:** Complete

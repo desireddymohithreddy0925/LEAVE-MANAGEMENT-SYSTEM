@@ -443,4 +443,45 @@ public class LeaveRequestServiceTest {
         verify(leaveBalanceRepository, never()).findByEmployeeAndLeaveTypeWithLock(any(), any());
         verify(leaveBalanceRepository, never()).save(any());
     }
+
+    @Test
+    void createLeaveRequest_Regression_CrossCalendarYearDates_ThrowsException() {
+        requestDTO.setStartDate(LocalDate.of(2026, 12, 28));
+        requestDTO.setEndDate(LocalDate.of(2027, 1, 4));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> leaveRequestService.createLeaveRequest(requestDTO));
+        assertTrue(ex.getMessage().contains("multiple calendar years"));
+        verify(employeeRepository, never()).findById(any());
+        verify(leaveBalanceRepository, never()).findByEmployeeAndLeaveTypeAndYearWithLock(any(), any(), any());
+        verify(leaveRequestRepository, never()).save(any());
+    }
+
+    @Test
+    void approveLeaveRequest_Regression_CrossCalendarYearDates_ThrowsException() {
+        leaveRequest.setStartDate(LocalDate.of(2026, 12, 28));
+        leaveRequest.setEndDate(LocalDate.of(2027, 1, 4));
+        leaveRequest.setStatus(LeaveStatus.PENDING);
+
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> leaveRequestService.approveLeaveRequest(1L));
+        assertTrue(ex.getMessage().contains("multiple calendar years"));
+        verify(leaveBalanceRepository, never()).save(any());
+    }
+
+    @Test
+    void cancelLeaveRequest_Regression_CrossCalendarYearDates_ThrowsException() {
+        leaveRequest.setStartDate(LocalDate.of(2026, 12, 28));
+        leaveRequest.setEndDate(LocalDate.of(2027, 1, 4));
+        leaveRequest.setStatus(LeaveStatus.APPROVED);
+
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> leaveRequestService.cancelLeaveRequest(1L));
+        assertTrue(ex.getMessage().contains("multiple calendar years"));
+        verify(leaveBalanceRepository, never()).save(any());
+    }
 }
