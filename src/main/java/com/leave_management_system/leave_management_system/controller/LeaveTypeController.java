@@ -18,6 +18,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/leave-types")
 @Tag(name = "Leave Type API", description = "Endpoints for managing leave types")
+@org.springframework.validation.annotation.Validated
 public class LeaveTypeController {
 
     private final LeaveTypeService leaveTypeService;

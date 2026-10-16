@@ -23,6 +23,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/managers")
 @Tag(name = "Manager API", description = "Endpoints for manager specific operations")
+@org.springframework.validation.annotation.Validated
 public class ManagerController {
 
     private final EmployeeService employeeService;

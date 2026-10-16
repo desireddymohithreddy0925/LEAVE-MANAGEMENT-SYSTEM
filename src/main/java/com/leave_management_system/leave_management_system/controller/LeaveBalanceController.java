@@ -23,6 +23,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/leave-balances")
 @Tag(name = "Leave Balance API", description = "Endpoints for managing employee leave balances")
+@org.springframework.validation.annotation.Validated
 public class LeaveBalanceController {
 
     private final LeaveBalanceService leaveBalanceService;

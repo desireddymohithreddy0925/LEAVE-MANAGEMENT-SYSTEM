@@ -2,6 +2,7 @@ package com.leave_management_system.leave_management_system.controller;
 
 import com.leave_management_system.leave_management_system.dto.LeaveRequestDTO;
 import com.leave_management_system.leave_management_system.dto.LeaveResponseDTO;
+import com.leave_management_system.leave_management_system.dto.OverlapCheckResponseDTO;
 import com.leave_management_system.leave_management_system.service.LeaveRequestService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -34,7 +35,8 @@ public class LeaveRequestController {
     private final LeaveRequestService leaveRequestService;
     private final SecurityAuthorizationService securityService;
 
-    public LeaveRequestController(LeaveRequestService leaveRequestService, SecurityAuthorizationService securityService) {
+    public LeaveRequestController(LeaveRequestService leaveRequestService,
+            SecurityAuthorizationService securityService) {
         this.leaveRequestService = leaveRequestService;
         this.securityService = securityService;
     }
@@ -49,22 +51,84 @@ public class LeaveRequestController {
             @ApiResponse(responseCode = "404", description = "Employee or Leave type not found")
     })
     public LeaveResponseDTO createLeaveRequest(@Valid @RequestBody LeaveRequestDTO dto) {
-        Authentication authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        
+        Authentication authentication = org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .getAuthentication();
+
         boolean isHRorAdmin = authentication != null && authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_HR"));
 
         if (!isHRorAdmin) {
             // Force employeeId to be the authenticated user's ID
-            com.leave_management_system.leave_management_system.entity.Employee employee = 
-                securityService.getAuthenticatedEmployee(authentication)
+            com.leave_management_system.leave_management_system.entity.Employee employee = securityService
+                    .getAuthenticatedEmployee(authentication)
                     .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException("User not found"));
             dto.setEmployeeId(employee.getId());
         } else if (dto.getEmployeeId() == null) {
-            throw new IllegalArgumentException("Employee ID is required when created by HR or ADMIN");
+            securityService.getAuthenticatedEmployee(authentication)
+                    .ifPresentOrElse(
+                            emp -> dto.setEmployeeId(emp.getId()),
+                            () -> {
+                                throw new IllegalArgumentException(
+                                        "Employee ID is required when created by HR or ADMIN");
+                            });
         }
 
         return leaveRequestService.createLeaveRequest(dto);
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/check-overlap")
+    @Operation(summary = "Check for overlapping leaves", description = "Checks if prospective leave dates conflict with existing pending or approved leaves.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successfully evaluated overlap status"),
+            @ApiResponse(responseCode = "400", description = "Invalid date range"),
+            @ApiResponse(responseCode = "403", description = "Forbidden from checking overlap for target employee"),
+            @ApiResponse(responseCode = "404", description = "Employee not found")
+    })
+    public OverlapCheckResponseDTO checkOverlap(
+            Authentication authentication,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) Long employeeId) {
+
+        boolean isElevated = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_HR") || a.getAuthority().equals("ROLE_MANAGER"));
+
+        Long targetEmployeeId;
+        if (!isElevated || employeeId == null) {
+            com.leave_management_system.leave_management_system.entity.Employee employee = securityService
+                    .getAuthenticatedEmployee(authentication)
+                    .orElseThrow(() -> new com.leave_management_system.leave_management_system.exception.ResourceNotFoundException(
+                            "Authenticated employee not found"));
+            targetEmployeeId = (isElevated && employeeId != null) ? employeeId : employee.getId();
+        } else {
+            targetEmployeeId = employeeId;
+        }
+
+        return leaveRequestService.checkOverlap(targetEmployeeId, startDate, endDate);
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/me")
+    @Operation(summary = "Get current employee leave requests", description = "Returns a paginated list of leave requests for the currently authenticated employee.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successfully retrieved leave requests"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Employee record not found")
+    })
+    public Page<LeaveResponseDTO> getMyLeaveRequests(
+            Authentication authentication,
+            @RequestParam(required = false) LeaveStatus status,
+            @RequestParam(required = false) Integer year,
+            Pageable pageable) {
+
+        com.leave_management_system.leave_management_system.entity.Employee employee = securityService
+                .getAuthenticatedEmployee(authentication)
+                .orElseThrow(
+                        () -> new com.leave_management_system.leave_management_system.exception.ResourceNotFoundException(
+                                "Authenticated employee not found"));
+
+        return leaveRequestService.getMyLeaveRequests(employee.getId(), status, year, pageable);
     }
 
     @PreAuthorize("hasAuthority('LEAVE_VIEW_ALL')")
@@ -79,13 +143,15 @@ public class LeaveRequestController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) Long leaveTypeId,
+            @RequestParam(required = false) Long departmentId,
             Pageable pageable) {
 
-        return leaveRequestService.searchLeaveRequests(employeeId, status, startDate, endDate, leaveTypeId, pageable);
+        return leaveRequestService.searchLeaveRequests(employeeId, status, startDate, endDate, leaveTypeId,
+                departmentId, pageable);
     }
 
     @PreAuthorize("@securityService.canViewLeaveRequest(authentication, #id)")
-    @GetMapping("/{id}")
+    @GetMapping("/{id:\\d+}")
     @Operation(summary = "Get leave request by ID", description = "Returns the details of a specific leave request.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successfully retrieved leave request"),
@@ -117,7 +183,7 @@ public class LeaveRequestController {
     }
 
     @PreAuthorize("@securityService.canApproveLeaveRequest(authentication, #id)")
-    @PutMapping("/{id}/approve")
+    @RequestMapping(value = "/{id}/approve", method = { RequestMethod.PUT, RequestMethod.PATCH })
     @Operation(summary = "Approve a leave request", description = "Approves a pending leave request.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Leave request approved successfully"),
@@ -129,20 +195,25 @@ public class LeaveRequestController {
     }
 
     @PreAuthorize("@securityService.canRejectLeaveRequest(authentication, #id)")
-    @PutMapping("/{id}/reject")
+    @RequestMapping(value = "/{id}/reject", method = { RequestMethod.PUT, RequestMethod.PATCH })
     @Operation(summary = "Reject a leave request", description = "Rejects a pending leave request with a mandatory reason.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Leave request rejected successfully"),
             @ApiResponse(responseCode = "400", description = "Request is not in pending status or reason is missing"),
             @ApiResponse(responseCode = "404", description = "Leave request not found")
     })
-    public LeaveResponseDTO rejectLeaveRequest(@PathVariable Long id,
-            @RequestParam(required = true) @NotBlank(message = "Rejection reason is mandatory") @Size(max = 500, message = "Rejection reason must not exceed 500 characters") String reason) {
-        return leaveRequestService.rejectLeaveRequest(id, reason);
+    public LeaveResponseDTO rejectLeaveRequest(
+            @PathVariable Long id,
+            @RequestParam(required = false) String reason,
+            @RequestBody(required = false) com.leave_management_system.leave_management_system.dto.RejectRequestDTO body) {
+        String effectiveReason = (reason != null && !reason.trim().isEmpty())
+                ? reason
+                : (body != null ? body.getReason() : null);
+        return leaveRequestService.rejectLeaveRequest(id, effectiveReason);
     }
 
-    @PreAuthorize("@securityService.canViewLeaveRequest(authentication, #id)")
-    @PutMapping("/{id}/cancel")
+    @PreAuthorize("@securityService.canCancelLeaveRequest(authentication, #id)")
+    @RequestMapping(value = "/{id}/cancel", method = { RequestMethod.PUT, RequestMethod.PATCH })
     @Operation(summary = "Cancel a leave request", description = "Cancels a pending or approved leave request.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Leave request cancelled successfully"),

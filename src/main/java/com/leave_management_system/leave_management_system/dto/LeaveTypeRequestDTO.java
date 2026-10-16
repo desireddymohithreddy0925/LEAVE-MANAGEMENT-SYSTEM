@@ -15,6 +15,7 @@ public class LeaveTypeRequestDTO {
     
     @NotNull(message = "Default days is required")
     @Min(value = 1, message = "Default days must be at least 1")
+    @jakarta.validation.constraints.Max(value = 365, message = "Default days cannot exceed 365")
     private Integer defaultDays;
 
     public LeaveTypeRequestDTO() {

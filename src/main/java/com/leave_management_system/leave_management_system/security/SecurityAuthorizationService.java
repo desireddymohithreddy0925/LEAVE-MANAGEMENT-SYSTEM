@@ -163,4 +163,26 @@ public class SecurityAuthorizationService {
         Long targetEmployeeId = leaveRequest.get().getEmployee().getId();
         return isSelf(authentication, targetEmployeeId) || isManagerOfEmployee(authentication, targetEmployeeId);
     }
+
+    public boolean canCancelLeaveRequest(Authentication authentication, Long leaveRequestId) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return false;
+        }
+
+        boolean isGlobalScope = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_HR"));
+        if (isGlobalScope) return true;
+
+        boolean hasCancelPermission = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("LEAVE_CANCEL"));
+        if (!hasCancelPermission) return false;
+
+        Optional<LeaveRequest> leaveRequest = leaveRequestRepository.findById(leaveRequestId);
+        if (leaveRequest.isEmpty()) {
+            return false;
+        }
+
+        Long targetEmployeeId = leaveRequest.get().getEmployee().getId();
+        return isSelf(authentication, targetEmployeeId);
+    }
 }

@@ -112,4 +112,67 @@ public class LeaveRequestRepositoryTest {
         leaveRequestRepository.save(existing);
         assertFalse(checkOverlap(12, 14));
     }
+
+    @Test
+    void testFindOverlappingLeaves_ReturnsMatchingEntities() {
+        List<LeaveRequest> overlaps = leaveRequestRepository.findOverlappingLeaves(
+                employee,
+                LocalDate.of(2026, 9, 12),
+                LocalDate.of(2026, 9, 14),
+                List.of(LeaveStatus.PENDING, LeaveStatus.APPROVED));
+
+        assertEquals(1, overlaps.size());
+        assertEquals(LocalDate.of(2026, 9, 10), overlaps.get(0).getStartDate());
+        assertEquals(LocalDate.of(2026, 9, 15), overlaps.get(0).getEndDate());
+        assertEquals(LeaveStatus.PENDING, overlaps.get(0).getStatus());
+    }
+
+    @Test
+    void testFindOverlappingLeavesExcludingId() {
+        LeaveRequest existing = leaveRequestRepository.findByEmployee(employee).get(0);
+
+        // Exclude the existing ID -> should find 0 overlaps
+        List<LeaveRequest> excluded = leaveRequestRepository.findOverlappingLeavesExcludingId(
+                employee,
+                existing.getId(),
+                LocalDate.of(2026, 9, 12),
+                LocalDate.of(2026, 9, 14),
+                List.of(LeaveStatus.PENDING, LeaveStatus.APPROVED));
+        assertTrue(excluded.isEmpty());
+
+        boolean hasOverlapExcludingSelf = leaveRequestRepository.hasOverlappingLeaveExcludingId(
+                employee,
+                existing.getId(),
+                LocalDate.of(2026, 9, 12),
+                LocalDate.of(2026, 9, 14),
+                List.of(LeaveStatus.PENDING, LeaveStatus.APPROVED));
+        assertFalse(hasOverlapExcludingSelf);
+
+        // Exclude dummy ID (e.g. 999999L) -> should find the existing overlap
+        List<LeaveRequest> notExcluded = leaveRequestRepository.findOverlappingLeavesExcludingId(
+                employee,
+                999999L,
+                LocalDate.of(2026, 9, 12),
+                LocalDate.of(2026, 9, 14),
+                List.of(LeaveStatus.PENDING, LeaveStatus.APPROVED));
+        assertEquals(1, notExcluded.size());
+    }
+
+    @Test
+    void testOverlap_DifferentEmployees_NoOverlap() {
+        Employee otherEmployee = new Employee();
+        otherEmployee.setFirstName("Jane");
+        otherEmployee.setLastName("Smith");
+        otherEmployee.setEmployeeCode("EMP-002");
+        otherEmployee.setStatus("ACTIVE");
+        otherEmployee.setSalary(new java.math.BigDecimal("60000"));
+        otherEmployee = employeeRepository.save(otherEmployee);
+
+        boolean otherEmployeeOverlap = leaveRequestRepository.hasOverlappingLeave(
+                otherEmployee,
+                LocalDate.of(2026, 9, 10),
+                LocalDate.of(2026, 9, 15),
+                List.of(LeaveStatus.PENDING, LeaveStatus.APPROVED));
+        assertFalse(otherEmployeeOverlap);
+    }
 }

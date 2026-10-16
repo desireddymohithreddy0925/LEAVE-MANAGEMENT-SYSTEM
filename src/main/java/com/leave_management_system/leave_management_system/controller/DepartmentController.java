@@ -21,6 +21,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/departments")
 @Tag(name = "Department API", description = "Endpoints for managing departments")
+@org.springframework.validation.annotation.Validated
 public class DepartmentController {
 
     private final DepartmentService departmentService;

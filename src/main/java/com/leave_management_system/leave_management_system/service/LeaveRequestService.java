@@ -2,6 +2,7 @@ package com.leave_management_system.leave_management_system.service;
 
 import com.leave_management_system.leave_management_system.dto.LeaveRequestDTO;
 import com.leave_management_system.leave_management_system.dto.LeaveResponseDTO;
+import com.leave_management_system.leave_management_system.dto.OverlapCheckResponseDTO;
 import com.leave_management_system.leave_management_system.entity.LeaveRequest;
 import com.leave_management_system.leave_management_system.entity.LeaveStatus;
 import com.leave_management_system.leave_management_system.entity.LeaveBalance;
@@ -108,6 +109,37 @@ public class LeaveRequestService {
         return LeaveResponseDTO.fromEntity(leaveRequestRepository.save(leaveRequest));
     }
 
+    @Transactional(readOnly = true)
+    @PreAuthorize("@securityService.canViewEmployee(authentication, #employeeId)")
+    public OverlapCheckResponseDTO checkOverlap(Long employeeId, LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException("Start date and end date are required");
+        }
+        if (endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("End date cannot be before start date");
+        }
+
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+
+        List<LeaveRequest> overlappingRequests = leaveRequestRepository.findOverlappingLeaves(
+                employee,
+                startDate,
+                endDate,
+                List.of(LeaveStatus.PENDING, LeaveStatus.APPROVED));
+
+        boolean hasOverlap = !overlappingRequests.isEmpty();
+        String message = hasOverlap
+                ? "Leave request overlaps with " + overlappingRequests.size() + " existing pending or approved leave(s)"
+                : "No overlapping leave requests found";
+
+        List<LeaveResponseDTO> conflictingDtos = overlappingRequests.stream()
+                .map(LeaveResponseDTO::fromEntity)
+                .collect(Collectors.toList());
+
+        return new OverlapCheckResponseDTO(hasOverlap, message, conflictingDtos);
+    }
+
     public List<LeaveResponseDTO> getAllLeaveRequests() {
         return leaveRequestRepository.findAll().stream()
                 .map(LeaveResponseDTO::fromEntity)
@@ -116,6 +148,11 @@ public class LeaveRequestService {
 
     public Page<LeaveResponseDTO> searchLeaveRequests(Long employeeId, LeaveStatus status, LocalDate startDate,
             LocalDate endDate, Long leaveTypeId, Pageable pageable) {
+        return searchLeaveRequests(employeeId, status, startDate, endDate, leaveTypeId, null, pageable);
+    }
+
+    public Page<LeaveResponseDTO> searchLeaveRequests(Long employeeId, LeaveStatus status, LocalDate startDate,
+            LocalDate endDate, Long leaveTypeId, Long departmentId, Pageable pageable) {
         Specification<LeaveRequest> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -128,6 +165,9 @@ public class LeaveRequestService {
             if (leaveTypeId != null) {
                 predicates.add(cb.equal(root.get("leaveType").get("id"), leaveTypeId));
             }
+            if (departmentId != null) {
+                predicates.add(cb.equal(root.get("employee").get("department").get("id"), departmentId));
+            }
             if (startDate != null && endDate != null) {
                 predicates.add(cb.lessThanOrEqualTo(root.get("startDate"), endDate));
                 predicates.add(cb.greaterThanOrEqualTo(root.get("endDate"), startDate));
@@ -135,6 +175,28 @@ public class LeaveRequestService {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("startDate"), startDate));
             } else if (endDate != null) {
                 predicates.add(cb.lessThanOrEqualTo(root.get("endDate"), endDate));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        return leaveRequestRepository.findAll(spec, pageable).map(LeaveResponseDTO::fromEntity);
+    }
+
+    @PreAuthorize("@securityService.isSelf(authentication, #employeeId) or hasAuthority('ROLE_ADMIN') or hasAuthority('ROLE_HR')")
+    public Page<LeaveResponseDTO> getMyLeaveRequests(Long employeeId, LeaveStatus status, Integer year, Pageable pageable) {
+        Specification<LeaveRequest> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("employee").get("id"), employeeId));
+
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (year != null) {
+                LocalDate startOfYear = LocalDate.of(year, 1, 1);
+                LocalDate endOfYear = LocalDate.of(year, 12, 31);
+                predicates.add(cb.greaterThanOrEqualTo(root.get("startDate"), startOfYear));
+                predicates.add(cb.lessThanOrEqualTo(root.get("startDate"), endOfYear));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -214,6 +276,10 @@ public class LeaveRequestService {
     @PreAuthorize("@securityService.canRejectLeaveRequest(authentication, #id)")
     @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "LEAVE_REJECTED", entityType = "LeaveRequest")
     public LeaveResponseDTO rejectLeaveRequest(Long id, String rejectionReason) {
+        if (rejectionReason == null || rejectionReason.trim().isEmpty()) {
+            throw new IllegalArgumentException("Rejection reason is required");
+        }
+
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
 
@@ -227,7 +293,7 @@ public class LeaveRequestService {
     }
 
     @Transactional
-    @PreAuthorize("@securityService.canViewLeaveRequest(authentication, #id)")
+    @PreAuthorize("@securityService.canCancelLeaveRequest(authentication, #id)")
     @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "LEAVE_CANCELLED", entityType = "LeaveRequest")
     public LeaveResponseDTO cancelLeaveRequest(Long id) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)

@@ -28,12 +28,18 @@ public class EmployeeRequestDTO {
     private String employeeCode;
 
     @NotBlank(message = "Status is required")
+    @com.leave_management_system.leave_management_system.validation.ValidStatus(allowedValues = {"ACTIVE", "INACTIVE"}, message = "Status must be either ACTIVE or INACTIVE")
     private String status;
 
     @NotNull(message = "Salary is required")
+    @jakarta.validation.constraints.Positive(message = "Salary must be positive")
     private java.math.BigDecimal salary;
+
     @NotNull(message = "Department ID is required")
+    @jakarta.validation.constraints.Positive(message = "Department ID must be positive")
     private Long departmentId;
+
+    @jakarta.validation.constraints.Positive(message = "Manager ID must be positive")
     private Long managerId;
 
     // Getters and Setters

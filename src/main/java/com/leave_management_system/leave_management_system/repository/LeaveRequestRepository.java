@@ -31,4 +31,37 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
                                 @Param("startDate") LocalDate startDate,
                                 @Param("endDate") LocalDate endDate,
                                 @Param("statuses") List<LeaveStatus> statuses);
+
+    @Query("SELECT lr FROM LeaveRequest lr WHERE lr.employee = :employee " +
+           "AND lr.status IN (:statuses) " +
+           "AND lr.startDate <= :endDate " +
+           "AND lr.endDate >= :startDate " +
+           "ORDER BY lr.startDate ASC")
+    List<LeaveRequest> findOverlappingLeaves(@Param("employee") Employee employee,
+                                            @Param("startDate") LocalDate startDate,
+                                            @Param("endDate") LocalDate endDate,
+                                            @Param("statuses") List<LeaveStatus> statuses);
+
+    @Query("SELECT COUNT(lr) > 0 FROM LeaveRequest lr WHERE lr.employee = :employee " +
+           "AND lr.id != :excludeId " +
+           "AND lr.status IN (:statuses) " +
+           "AND lr.startDate <= :endDate " +
+           "AND lr.endDate >= :startDate")
+    boolean hasOverlappingLeaveExcludingId(@Param("employee") Employee employee,
+                                          @Param("excludeId") Long excludeId,
+                                          @Param("startDate") LocalDate startDate,
+                                          @Param("endDate") LocalDate endDate,
+                                          @Param("statuses") List<LeaveStatus> statuses);
+
+    @Query("SELECT lr FROM LeaveRequest lr WHERE lr.employee = :employee " +
+           "AND lr.id != :excludeId " +
+           "AND lr.status IN (:statuses) " +
+           "AND lr.startDate <= :endDate " +
+           "AND lr.endDate >= :startDate " +
+           "ORDER BY lr.startDate ASC")
+    List<LeaveRequest> findOverlappingLeavesExcludingId(@Param("employee") Employee employee,
+                                                       @Param("excludeId") Long excludeId,
+                                                       @Param("startDate") LocalDate startDate,
+                                                       @Param("endDate") LocalDate endDate,
+                                                       @Param("statuses") List<LeaveStatus> statuses);
 }

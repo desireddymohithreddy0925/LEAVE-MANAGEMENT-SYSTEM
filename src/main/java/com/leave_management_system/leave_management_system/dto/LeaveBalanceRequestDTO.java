@@ -1,9 +1,11 @@
 package com.leave_management_system.leave_management_system.dto;
 
+import com.leave_management_system.leave_management_system.validation.ValidLeaveBalance;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
 
+@ValidLeaveBalance
 public class LeaveBalanceRequestDTO {
 
     @Positive(message = "Employee ID must be positive")

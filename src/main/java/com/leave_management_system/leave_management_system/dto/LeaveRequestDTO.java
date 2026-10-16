@@ -1,13 +1,16 @@
 package com.leave_management_system.leave_management_system.dto;
 
+import com.leave_management_system.leave_management_system.validation.ValidDateRange;
 import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 
+@ValidDateRange
 public class LeaveRequestDTO {
     // employeeId is optional as it will be injected from the SecurityContext for regular employees
+    @Positive(message = "Employee ID must be positive")
     private Long employeeId;
 
     @NotNull(message = "Leave Type ID is required")

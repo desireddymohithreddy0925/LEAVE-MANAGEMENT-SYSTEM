@@ -2,6 +2,7 @@ package com.leave_management_system.leave_management_system.service;
 
 import com.leave_management_system.leave_management_system.dto.LeaveRequestDTO;
 import com.leave_management_system.leave_management_system.dto.LeaveResponseDTO;
+import com.leave_management_system.leave_management_system.dto.OverlapCheckResponseDTO;
 import com.leave_management_system.leave_management_system.entity.Employee;
 import com.leave_management_system.leave_management_system.entity.LeaveBalance;
 import com.leave_management_system.leave_management_system.entity.LeaveRequest;
@@ -483,5 +484,84 @@ public class LeaveRequestServiceTest {
                 () -> leaveRequestService.cancelLeaveRequest(1L));
         assertTrue(ex.getMessage().contains("multiple calendar years"));
         verify(leaveBalanceRepository, never()).save(any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void searchLeaveRequests_WithDepartmentId_Success() {
+        Page<LeaveRequest> page = new PageImpl<>(List.of(leaveRequest));
+        when(leaveRequestRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(page);
+
+        Page<LeaveResponseDTO> result = leaveRequestService.searchLeaveRequests(1L, LeaveStatus.PENDING, LocalDate.now(), LocalDate.now().plusDays(5), 1L, 2L, PageRequest.of(0, 10));
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void getMyLeaveRequests_Success() {
+        Page<LeaveRequest> page = new PageImpl<>(List.of(leaveRequest));
+        when(leaveRequestRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(page);
+
+        Page<LeaveResponseDTO> result = leaveRequestService.getMyLeaveRequests(1L, LeaveStatus.PENDING, null, PageRequest.of(0, 10));
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void getMyLeaveRequests_WithYearFilter_Success() {
+        Page<LeaveRequest> page = new PageImpl<>(List.of(leaveRequest));
+        when(leaveRequestRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(page);
+
+        Page<LeaveResponseDTO> result = leaveRequestService.getMyLeaveRequests(1L, null, 2026, PageRequest.of(0, 10));
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+    }
+
+    @Test
+    void checkOverlap_WithOverlappingLeaves_ReturnsTrueWithList() {
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(leaveRequestRepository.findOverlappingLeaves(eq(employee), any(LocalDate.class), any(LocalDate.class), any()))
+                .thenReturn(List.of(leaveRequest));
+
+        OverlapCheckResponseDTO result = leaveRequestService.checkOverlap(1L, LocalDate.of(2026, 9, 10), LocalDate.of(2026, 9, 14));
+
+        assertNotNull(result);
+        assertTrue(result.isOverlapping());
+        assertEquals(1, result.getConflictingRequests().size());
+        assertTrue(result.getMessage().contains("overlaps with 1"));
+    }
+
+    @Test
+    void checkOverlap_NoOverlappingLeaves_ReturnsFalseWithEmptyList() {
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(leaveRequestRepository.findOverlappingLeaves(eq(employee), any(LocalDate.class), any(LocalDate.class), any()))
+                .thenReturn(List.of());
+
+        OverlapCheckResponseDTO result = leaveRequestService.checkOverlap(1L, LocalDate.of(2026, 9, 10), LocalDate.of(2026, 9, 14));
+
+        assertNotNull(result);
+        assertFalse(result.isOverlapping());
+        assertTrue(result.getConflictingRequests().isEmpty());
+        assertEquals("No overlapping leave requests found", result.getMessage());
+    }
+
+    @Test
+    void checkOverlap_EndDateBeforeStartDate_ThrowsIllegalArgumentException() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                leaveRequestService.checkOverlap(1L, LocalDate.of(2026, 9, 15), LocalDate.of(2026, 9, 10)));
+        assertEquals("End date cannot be before start date", ex.getMessage());
+    }
+
+    @Test
+    void checkOverlap_EmployeeNotFound_ThrowsResourceNotFoundException() {
+        when(employeeRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () ->
+                leaveRequestService.checkOverlap(99L, LocalDate.of(2026, 9, 10), LocalDate.of(2026, 9, 14)));
     }
 }

@@ -33,7 +33,43 @@ public class GlobalExceptionHandler {
                 .getFieldErrors()
                 .forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
 
-        ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.BAD_REQUEST.value(), "Validation Failed", "Invalid request data", errors);
+        exception.getBindingResult()
+                .getGlobalErrors()
+                .forEach(error -> errors.put(error.getObjectName(), error.getDefaultMessage()));
+
+        String message = errors.isEmpty() ? "Invalid request data" : String.join(", ", errors.values());
+        ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.BAD_REQUEST.value(), "Validation Failed", message, errors);
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
+    public ResponseEntity<ErrorResponseDTO> handleConstraintViolationException(
+            jakarta.validation.ConstraintViolationException exception) {
+        Map<String, String> errors = new HashMap<>();
+        for (jakarta.validation.ConstraintViolation<?> violation : exception.getConstraintViolations()) {
+            String propertyPath = violation.getPropertyPath().toString();
+            String fieldName = propertyPath.contains(".")
+                    ? propertyPath.substring(propertyPath.lastIndexOf('.') + 1)
+                    : propertyPath;
+            errors.put(fieldName, violation.getMessage());
+        }
+        String message = errors.isEmpty() ? "Constraint violation" : String.join(", ", errors.values());
+        ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.BAD_REQUEST.value(), "Validation Failed", message, errors);
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(org.springframework.web.method.annotation.HandlerMethodValidationException.class)
+    public ResponseEntity<ErrorResponseDTO> handleHandlerMethodValidationException(
+            org.springframework.web.method.annotation.HandlerMethodValidationException exception) {
+        Map<String, String> errors = new HashMap<>();
+        exception.getParameterValidationResults().forEach(result -> {
+            String paramName = result.getMethodParameter().getParameterName();
+            for (org.springframework.context.MessageSourceResolvable resolvable : result.getResolvableErrors()) {
+                errors.put(paramName != null ? paramName : "parameter", resolvable.getDefaultMessage());
+            }
+        });
+        String message = errors.isEmpty() ? "Validation Failed" : String.join(", ", errors.values());
+        ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.BAD_REQUEST.value(), "Validation Failed", message, errors);
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
@@ -69,6 +105,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponseDTO> handleMethodArgumentTypeMismatchException(
             MethodArgumentTypeMismatchException exception) {
         ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.BAD_REQUEST.value(), "Bad Request", "Invalid parameter type provided");
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponseDTO> handleMissingServletRequestParameterException(
+            org.springframework.web.bind.MissingServletRequestParameterException exception) {
+        ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.BAD_REQUEST.value(), "Bad Request", exception.getMessage());
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 

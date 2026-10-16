@@ -1,23 +1,73 @@
 # Test Results
 
-## Cross-Year Leave Request Validation Verification
+## Leave Overlap Detection Architecture & Pre-Flight API
 - **Status:** Complete
-- **Timestamp:** 2026-10-15
+- **Timestamp:** 2026-10-16
 - **Regression Suite:** `mvn clean test` executed successfully.
-- **Result:** All 199 tests passed (0 failures, 0 errors, 0 skipped), including 35 tests covering leave request lifecycle, annual balance isolation, and cross-year boundary validation across `LeaveRequestServiceTest` (30 tests) and `LeaveRequestControllerIntegrationTest` (5 tests).
-- **Features & Regressions Verified:**
-  - **Cross-Year Leave Request Rejection:** Validates that `startDate` and `endDate` must belong to the exact same calendar year. Requests spanning multiple calendar years (e.g., across December and January) are rejected upfront with a clear validation error: `"Leave request cannot span across multiple calendar years. Please submit separate requests for each year."`.
-  - **Single-Year Balance Protection:** Eliminates the edge case where working days across a boundary year would be charged entirely to the starting year's balance, preserving strict annual balance accounting.
-  - **Defensive Safeguards on Approval and Cancellation:** Added defensive cross-calendar-year assertions in `approveLeaveRequest` and `cancelLeaveRequest` to ensure corrupt or cross-year requests cannot deduct or refund days.
-  - **Regression Testing:**
-    - Unit regression tests in `LeaveRequestServiceTest`:
-      - `createLeaveRequest_Regression_CrossCalendarYearDates_ThrowsException`: Proves application fails when `startDate` and `endDate` fall in different calendar years, preventing balance lookup and save operations.
-      - `approveLeaveRequest_Regression_CrossCalendarYearDates_ThrowsException`: Proves approval fails when dates span different years.
-      - `cancelLeaveRequest_Regression_CrossCalendarYearDates_ThrowsException`: Proves cancellation fails when dates span different years.
-    - Integration regression test in `LeaveRequestControllerIntegrationTest`:
-      - `createLeaveRequest_CrossCalendarYearDates_Returns400BadRequest`: Validates over HTTP endpoint that submitting a request spanning December and January returns HTTP `400 Bad Request` with structured error details.
+- **Result:** All 243 tests passed (0 failures, 0 errors, 0 skipped), including 12 newly added tests across `LeaveRequestRepositoryTest` (5 tests), `LeaveRequestServiceTest` (37 tests), and `LeaveRequestControllerIntegrationTest` (21 tests).
+- **Overlap Capabilities Implemented & Verified:**
+  - **Comprehensive Interval Overlap Mathematical Detection (`S1 <= E2 && E1 >= S2`):**
+    - Verifies exact match, start overlap, end overlap, interior overlap, and enclosing overlap.
+    - Verified boundary touching (single day at boundary: `E1 == S2` or `S1 == E2` detected as overlap).
+    - Verified adjacent dates (immediately prior day or subsequent day: `E1 = S2 - 1` or `S1 = E2 + 1`) properly recognized as non-overlapping.
+    - Verified cross-leave-type overlap detection: an employee cannot apply for a different leave type (e.g., Sick Leave) on dates where an existing leave (e.g., Annual Leave) is `PENDING` or `APPROVED`.
+    - Verified multi-employee isolation: distinct employees can take leave on identical dates without false-positive overlap conflicts.
+    - Verified state filtering: `REJECTED` and `CANCELLED` leave requests are excluded from overlap checks.
+  - **Exclusion Queries & ID Filtering:**
+    - Implemented `hasOverlappingLeaveExcludingId` and `findOverlappingLeavesExcludingId` to exclude specific request IDs during status updates or approval checks.
+  - **Pre-Flight Overlap API (`GET /api/leave-requests/check-overlap`):**
+    - Query parameters: `startDate`, `endDate`, and optional `employeeId`.
+    - Returns structured `OverlapCheckResponseDTO` containing `overlapping` boolean, descriptive status message, and full `conflictingRequests` list.
+    - Self-service: regular employees query their own records from authenticated context.
+    - Elevated access: Managers, HR, and Admin can query for employees under their reporting hierarchy or organization.
+    - Validates date ranges and returns HTTP `400 Bad Request` if `endDate < startDate`.
 
-## Summary of All Verified Test Suites (199 Total Tests)
+## Validation Architecture Implementation & Verification
+- **Status:** Complete
+- **Timestamp:** 2026-10-16
+- **Regression Suite:** `mvn clean test` executed successfully.
+- **Result:** All 231 baseline tests passed (0 failures, 0 errors, 0 skipped).
+- **Validation Capabilities Implemented & Verified:**
+  - **Custom Constraint Validators:**
+    - `@ValidDateRange`: Cross-field validation ensuring `endDate >= startDate` and strict calendar year match directly at the DTO layer.
+    - `@ValidLeaveBalance`: Cross-field validation enforcing `available <= total` on balance creation/update DTOs.
+    - `@ValidStatus`: Allowed enum/status string constraint checking for `ACTIVE`/`INACTIVE` statuses.
+  - **DTO-Level Bean Validation Enforcements:**
+    - `LeaveRequestDTO`: `@NotNull`, `@Positive` on IDs, `@ValidDateRange`, `@Size(max=500)` on reason.
+    - `LeaveBalanceRequestDTO`: `@NotNull`, `@Positive` on IDs, `@Min(0)` on days, `@ValidLeaveBalance`.
+    - `EmployeeRequestDTO`: `@NotBlank`, `@Email`, `@ValidStatus`, `@Positive` on salary, departmentId, and managerId.
+    - `DepartmentRequestDTO`: `@NotBlank`, `@Size(max=100)`.
+    - `LeaveTypeRequestDTO`: `@NotBlank`, `@Min(1)`, `@Max(365)`.
+    - `RejectRequestDTO`: `@NotBlank`, `@Size(max=500)` on reason.
+    - `PasswordChangeRequestDTO`: `@NotBlank`, `@Size(min=6, max=100)`.
+  - **Controller & Handler Integration:**
+    - `@Validated` applied across all controllers for query and path variable validation (`@Positive` on IDs).
+    - `GlobalExceptionHandler` captures both field errors (`fieldErrors` map) and global class-level errors, formatting clear, localized error messages with HTTP 400 Bad Request.
+    - Dedicated exception handlers for `ConstraintViolationException` and `HandlerMethodValidationException`.
+
+## Leave Apply (Leave Request Module) Implementation & Verification
+- **Status:** Complete
+- **Timestamp:** 2026-10-16
+- **Regression Suite:** `mvn clean test` executed successfully.
+- **Result:** All 213 baseline tests passed.
+- **Features & Capabilities Implemented & Verified:**
+  - **Self-Service Leave Application (`POST /api/leave-requests`):** Regular employees automatically resolve `employeeId` from the authenticated security context (`SecurityAuthorizationService.getAuthenticatedEmployee(authentication)`). Prevents ID spoofing attempts by overriding any client-supplied `employeeId`. HR/Admin can apply on behalf of employees or default to themselves if unspecified.
+  - **Self-Service Leave History (`GET /api/leave-requests/me`):** Authenticated employees securely fetch paginated leave requests with optional status and year filtering without exposing other employees' records (`@PreAuthorize("@securityService.isSelf(authentication, #employeeId) or hasAuthority('ROLE_ADMIN') or hasAuthority('ROLE_HR')")`).
+  - **Multi-Criteria Leave Search (`GET /api/leave-requests`):** Supports dynamic filtering across `employeeId`, `status`, `startDate`, `endDate`, `leaveTypeId`, `departmentId`, and pagination.
+  - **Business Rules & Validations:**
+    - Working days calculation excluding Saturdays and Sundays (`IllegalArgumentException` if request contains only weekend days).
+    - Interval overlap detection preventing concurrent overlapping `PENDING` or `APPROVED` leaves.
+    - Active employee and active leave type verification (`400 Bad Request` if inactive).
+    - Strict single-calendar-year boundary (`400 Bad Request` if cross-year).
+    - Sufficient balance validation against applicable year (`400 Bad Request` if insufficient).
+  - **Approval, Rejection & Cancellation Lifecycle:**
+    - Dual HTTP method support: both `PUT` and `PATCH` supported for `/{id}/approve`, `/{id}/reject`, and `/{id}/cancel` (ensuring compatibility with Postman and automation scripts).
+    - Mandatory rejection reason: rejecting requires non-blank reason parameter (`400 Bad Request` if omitted).
+    - Safe cancellation: cancels pending or approved leaves and accurately restores used and available days on approved leaves.
+    - Double-cancellation protection: returns `400 Bad Request` if request is already cancelled.
+    - Cancellation security: `@PreAuthorize("@securityService.canCancelLeaveRequest(authentication, #id)")` enforces that non-admin/HR users must possess `LEAVE_CANCEL` and be the owner of the leave request (`403 Forbidden` if unauthorized employee attempts cancellation).
+
+## Summary of All Verified Test Suites (243 Total Tests)
 | Test Suite | Tests Run | Passed | Failed | Errors | Skipped |
 |---|---|---|---|---|---|
 | `AuthControllerIntegrationTest` | 9 | 9 | 0 | 0 | 0 |
@@ -25,19 +75,20 @@
 | `DynamicPermissionIntegrationTest` | 1 | 1 | 0 | 0 | 0 |
 | `EmployeeControllerIntegrationTest` | 5 | 5 | 0 | 0 | 0 |
 | `LeaveBalanceControllerIntegrationTest` | 26 | 26 | 0 | 0 | 0 |
-| `LeaveRequestControllerIntegrationTest` | 5 | 5 | 0 | 0 | 0 |
+| `LeaveRequestControllerIntegrationTest` | 21 | 21 | 0 | 0 | 0 |
 | `LeaveTypeControllerIntegrationTest` | 16 | 16 | 0 | 0 | 0 |
 | `ProfileSecurityIntegrationTest` | 20 | 20 | 0 | 0 | 0 |
 | `RolePermissionControllerIntegrationTest` | 7 | 7 | 0 | 0 | 0 |
 | `TeamHierarchyIntegrationTest` | 8 | 8 | 0 | 0 | 0 |
-| `LeaveRequestRepositoryTest` | 2 | 2 | 0 | 0 | 0 |
+| `ValidationIntegrationTest` | 18 | 18 | 0 | 0 | 0 |
+| `LeaveRequestRepositoryTest` | 5 | 5 | 0 | 0 | 0 |
 | `DepartmentServiceTest` | 7 | 7 | 0 | 0 | 0 |
 | `EmployeeServiceTest` | 5 | 5 | 0 | 0 | 0 |
 | `LeaveBalanceServiceTest` | 35 | 35 | 0 | 0 | 0 |
 | `LeaveRequestServiceConcurrencyIntegrationTest` | 3 | 3 | 0 | 0 | 0 |
-| `LeaveRequestServiceTest` | 30 | 30 | 0 | 0 | 0 |
+| `LeaveRequestServiceTest` | 37 | 37 | 0 | 0 | 0 |
 | `LeaveTypeServiceTest` | 17 | 17 | 0 | 0 | 0 |
-| **Total** | **199** | **199** | **0** | **0** | **0** |
+| **Total** | **243** | **243** | **0** | **0** | **0** |
 
 ## Leave Balances Implementation
 - **Status:** Complete

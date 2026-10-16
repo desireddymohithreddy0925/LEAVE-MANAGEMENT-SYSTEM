@@ -16,6 +16,7 @@ import java.util.List;
 @RequestMapping("/api")
 @Tag(name = "Role and Permission Management", description = "Endpoints for managing roles and their permissions")
 @SecurityRequirement(name = "bearerAuth")
+@org.springframework.validation.annotation.Validated
 public class RolePermissionController {
 
     private final RolePermissionService rolePermissionService;

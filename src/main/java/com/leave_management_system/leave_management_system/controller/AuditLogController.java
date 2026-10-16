@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 @RestController
 @RequestMapping("/api/audit-logs")
 @Tag(name = "Audit API", description = "Endpoints for viewing audit and security logs")
+@org.springframework.validation.annotation.Validated
 public class AuditLogController {
 
     private final AuditService auditService;
