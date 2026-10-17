@@ -38,7 +38,7 @@ public class LeaveRequest {
     @Column(nullable = false)
     private LeaveStatus status;
 
-    @Column(name = "rejection_reason")
+    @Column(name = "rejection_reason", length = 500)
     private String rejectionReason;
 
     @Column(name = "applied_at")

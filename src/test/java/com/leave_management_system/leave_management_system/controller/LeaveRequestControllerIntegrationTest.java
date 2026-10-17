@@ -43,6 +43,15 @@ public class LeaveRequestControllerIntegrationTest {
     @Autowired
     private WebApplicationContext context;
 
+    @Autowired
+    private com.leave_management_system.leave_management_system.repository.LeaveRequestRepository leaveRequestRepository;
+
+    @Autowired
+    private com.leave_management_system.leave_management_system.repository.EmployeeRepository employeeRepository;
+
+    @Autowired
+    private com.leave_management_system.leave_management_system.repository.LeaveTypeRepository leaveTypeRepository;
+
     private MockMvc mockMvc;
 
     private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
@@ -767,5 +776,617 @@ public class LeaveRequestControllerIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req2)))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    void approveLeaveRequest_ViaPatch_Success() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(120, 3);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("To be approved via PATCH");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        // Approve via PATCH
+        mockMvc.perform(patch("/api/leave-requests/" + reqId + "/approve"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(reqId))
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+    }
+
+    @Test
+    void approveLeaveRequest_DoubleApproval_Returns400BadRequest() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(126, 2);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("Double approval check");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        // First approval succeeds
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/approve"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+
+        // Second approval attempt fails with 400 Bad Request
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/approve"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("Only pending requests can be approved")));
+    }
+
+    @Test
+    void approveLeaveRequest_AlreadyRejected_Returns400BadRequest() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(132, 2);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("Reject then approve check");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        // Reject
+        mockMvc.perform(patch("/api/leave-requests/" + reqId + "/reject")
+                .param("reason", "Budget constraints"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REJECTED"));
+
+        // Attempt approve on rejected request -> 400 Bad Request
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/approve"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("Only pending requests can be approved")));
+    }
+
+    @Test
+    void approveLeaveRequest_AlreadyCancelled_Returns400BadRequest() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(138, 2);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("Cancel then approve check");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        // Cancel
+        mockMvc.perform(patch("/api/leave-requests/" + reqId + "/cancel"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+
+        // Attempt approve on cancelled request -> 400 Bad Request
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/approve"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("Only pending requests can be approved")));
+    }
+
+    @Test
+    void approveLeaveRequest_OverlappingApprovedLeaveAlreadyExists_Returns400BadRequest() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(144, 4); // 4 weekdays
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        // Request 1: days 0 to 2 (Mon - Wed)
+        LeaveRequestDTO req1 = new LeaveRequestDTO();
+        req1.setEmployeeId(empId);
+        req1.setLeaveTypeId(typeId);
+        req1.setStartDate(range[0]);
+        req1.setEndDate(range[0].plusDays(2));
+        req1.setReason("First request");
+
+        MvcResult res1 = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req1)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long req1Id = JsonPath.parse(res1.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        // Approve Request 1
+        mockMvc.perform(put("/api/leave-requests/" + req1Id + "/approve"))
+                .andExpect(status().isOk());
+
+        // Create Request 2 directly as PENDING in repository on overlapping dates (days 1 to 3: Tue - Thu)
+        com.leave_management_system.leave_management_system.entity.Employee employee = employeeRepository.findById(empId).get();
+        com.leave_management_system.leave_management_system.entity.LeaveType leaveType = leaveTypeRepository.findById(typeId).get();
+        com.leave_management_system.leave_management_system.entity.LeaveRequest req2 = new com.leave_management_system.leave_management_system.entity.LeaveRequest();
+        req2.setEmployee(employee);
+        req2.setLeaveType(leaveType);
+        req2.setStartDate(range[0].plusDays(1));
+        req2.setEndDate(range[0].plusDays(3));
+        req2.setStatus(com.leave_management_system.leave_management_system.entity.LeaveStatus.PENDING);
+        req2.setReason("Second request overlapping with first approved");
+        req2 = leaveRequestRepository.save(req2);
+
+        // Attempt to approve Request 2 -> fails because Request 1 is already approved for overlapping dates
+        mockMvc.perform(put("/api/leave-requests/" + req2.getId() + "/approve"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("an overlapping leave request is already approved for this employee")));
+    }
+
+    @Test
+    void approveLeaveRequest_UnauthorizedUser_Returns403Forbidden() throws Exception {
+        Long deptId = createDepartment();
+        String regularEmpEmail = "regular.emp." + System.currentTimeMillis() + "@example.com";
+        Long empId = createEmployeeWithEmail(regularEmpEmail, deptId);
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(152, 2);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("Regular emp request");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        // Regular employee without LEAVE_APPROVE authority attempts to approve -> 403 Forbidden
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/approve")
+                .with(user(regularEmpEmail).authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void approveLeaveRequest_NotFound_Returns404NotFound() throws Exception {
+        mockMvc.perform(put("/api/leave-requests/999999/approve"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void rejectLeaveRequest_ViaPostWithJsonBody_Success() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(160, 2);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("To reject via POST body");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        com.leave_management_system.leave_management_system.dto.RejectRequestDTO rejectDto = new com.leave_management_system.leave_management_system.dto.RejectRequestDTO();
+        rejectDto.setReason("Critical project deliverable conflict");
+
+        mockMvc.perform(post("/api/leave-requests/" + reqId + "/reject")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rejectDto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REJECTED"))
+                .andExpect(jsonPath("$.rejectionReason").value("Critical project deliverable conflict"));
+    }
+
+    @Test
+    void rejectLeaveRequest_DoubleRejection_Returns400BadRequest() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(165, 2);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("Double rejection test");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        // First rejection -> 200 OK
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/reject")
+                .param("reason", "First rejection"))
+                .andExpect(status().isOk());
+
+        // Second rejection -> 400 Bad Request
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/reject")
+                .param("reason", "Second rejection attempt"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("Only pending requests can be rejected")));
+    }
+
+    @Test
+    void rejectLeaveRequest_AlreadyApproved_Returns400BadRequest() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(170, 2);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("Approved to reject test");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        // Approve
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/approve"))
+                .andExpect(status().isOk());
+
+        // Attempt reject on approved leave -> 400 Bad Request
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/reject")
+                .param("reason", "Attempt to reject approved"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("Only pending requests can be rejected")));
+    }
+
+    @Test
+    void rejectLeaveRequest_AlreadyCancelled_Returns400BadRequest() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(175, 2);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("Cancelled to reject test");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        // Cancel
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/cancel"))
+                .andExpect(status().isOk());
+
+        // Attempt reject on cancelled leave -> 400 Bad Request
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/reject")
+                .param("reason", "Attempt to reject cancelled"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("Only pending requests can be rejected")));
+    }
+
+    @Test
+    void rejectLeaveRequest_BlankReasonInBody_Returns400BadRequest() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(180, 2);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("Blank reason test");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        com.leave_management_system.leave_management_system.dto.RejectRequestDTO rejectDto = new com.leave_management_system.leave_management_system.dto.RejectRequestDTO();
+        rejectDto.setReason("   ");
+
+        mockMvc.perform(post("/api/leave-requests/" + reqId + "/reject")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rejectDto)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rejectLeaveRequest_ReasonExceeds500Characters_Returns400BadRequest() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(185, 2);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("Overlong reason test");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        String tooLong = "R".repeat(501);
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/reject")
+                .param("reason", tooLong))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("must not exceed 500 characters")));
+    }
+
+    @Test
+    void rejectLeaveRequest_UnauthorizedUser_Returns403Forbidden() throws Exception {
+        Long deptId = createDepartment();
+        String regularEmpEmail = "reject.emp." + System.currentTimeMillis() + "@example.com";
+        Long empId = createEmployeeWithEmail(regularEmpEmail, deptId);
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(190, 2);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("Regular emp reject test");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        // Regular employee without LEAVE_REJECT authority -> 403 Forbidden
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/reject")
+                .param("reason", "Unauthorized reject attempt")
+                .with(user(regularEmpEmail).authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void rejectLeaveRequest_NotFound_Returns404NotFound() throws Exception {
+        mockMvc.perform(put("/api/leave-requests/999999/reject")
+                .param("reason", "Non-existent request"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void rejectLeaveRequest_LeavesBalanceUntouched() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(195, 3);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 12);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("Balance preservation test");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        // Reject request
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/reject")
+                .param("reason", "Denial with preserved balance"))
+                .andExpect(status().isOk());
+
+        // Verify leave balance has available=12 and used=0 (untouched)
+        mockMvc.perform(get("/api/leave-balances/employee/" + empId)
+                .param("year", String.valueOf(range[0].getYear())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].available").value(12))
+                .andExpect(jsonPath("$[0].used").value(0));
+    }
+
+    @Test
+    void rejectLeaveRequest_ReapplyOnSameDatesAfterRejection_Success() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(200, 2);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("Initial request to be rejected");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        // Reject initial request
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/reject")
+                .param("reason", "Initial denial"))
+                .andExpect(status().isOk());
+
+        // Re-apply for exact same dates -> succeeds because rejected leaves are excluded from overlap checks
+        LeaveRequestDTO reapplyDto = new LeaveRequestDTO();
+        reapplyDto.setEmployeeId(empId);
+        reapplyDto.setLeaveTypeId(typeId);
+        reapplyDto.setStartDate(range[0]);
+        reapplyDto.setEndDate(range[1]);
+        reapplyDto.setReason("Reapplying with revised justification");
+
+        mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reapplyDto)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    // =========================================================================
+    // Leave Cancellation – additional integration tests
+    // =========================================================================
+
+    @Test
+    void cancelLeaveRequest_PendingLeave_BalanceNotDeducted() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(205, 3);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("Pending cancel test");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        // Balance check before cancel (still 10, untouched since PENDING)
+        mockMvc.perform(get("/api/leave-balances/employee/" + empId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].available").value(10))
+                .andExpect(jsonPath("$[0].used").value(0));
+
+        // Cancel the pending leave request
+        mockMvc.perform(patch("/api/leave-requests/" + reqId + "/cancel"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+
+        // Balance should remain untouched after cancelling a pending leave
+        mockMvc.perform(get("/api/leave-balances/employee/" + empId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].available").value(10))
+                .andExpect(jsonPath("$[0].used").value(0));
+    }
+
+    @Test
+    void cancelLeaveRequest_RejectedLeave_Returns400BadRequest() throws Exception {
+        Long empId = createEmployee();
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(212, 2);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("Will be rejected then cancel attempted");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        // Reject the leave
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/reject")
+                .param("reason", "Not enough staff"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REJECTED"));
+
+        // Attempt to cancel rejected leave -> 400 Bad Request
+        mockMvc.perform(put("/api/leave-requests/" + reqId + "/cancel"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("Cannot cancel a rejected")));
+    }
+
+    @Test
+    void cancelLeaveRequest_SelfService_EmployeeCancelsOwnPendingLeave_Success() throws Exception {
+        Long deptId = createDepartment();
+        String empEmail = "selfcancel." + System.currentTimeMillis() + "@example.com";
+        Long empId = createEmployeeWithEmail(empEmail, deptId);
+
+        Long typeId = createLeaveType();
+        LocalDate[] range = getSafeWeekdayRange(220, 2);
+        createLeaveBalanceWithDays(empId, typeId, range[0].getYear(), 10);
+
+        LeaveRequestDTO reqDto = new LeaveRequestDTO();
+        reqDto.setEmployeeId(empId);
+        reqDto.setLeaveTypeId(typeId);
+        reqDto.setStartDate(range[0]);
+        reqDto.setEndDate(range[1]);
+        reqDto.setReason("Self-service cancel test");
+
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long reqId = JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
+
+        // Employee cancels their own leave using PATCH
+        mockMvc.perform(patch("/api/leave-requests/" + reqId + "/cancel")
+                .with(user(empEmail).authorities(
+                        new SimpleGrantedAuthority("ROLE_EMPLOYEE"),
+                        new SimpleGrantedAuthority("LEAVE_CANCEL"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
     }
 }

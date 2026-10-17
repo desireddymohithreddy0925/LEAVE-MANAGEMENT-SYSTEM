@@ -1,0 +1,9 @@
+databaseChangeLog:
+  - changeSet:
+      id: 015-modify-rejection-reason-length
+      author: antigravity
+      changes:
+        - modifyDataType:
+            tableName: leave_requests
+            columnName: rejection_reason
+            newDataType: varchar(500)

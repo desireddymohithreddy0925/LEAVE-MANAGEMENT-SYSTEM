@@ -162,7 +162,7 @@ public class LeaveRequestController {
     }
 
     @PreAuthorize("@securityService.canViewEmployee(authentication, #employeeId)")
-    @GetMapping("/employee/{employeeId}")
+    @GetMapping("/employee/{employeeId:\\d+}")
     @Operation(summary = "Get employee leave requests", description = "Returns all leave requests for a specific employee.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Successfully retrieved leave requests"),
@@ -183,11 +183,12 @@ public class LeaveRequestController {
     }
 
     @PreAuthorize("@securityService.canApproveLeaveRequest(authentication, #id)")
-    @RequestMapping(value = "/{id}/approve", method = { RequestMethod.PUT, RequestMethod.PATCH })
+    @RequestMapping(value = "/{id:\\d+}/approve", method = { RequestMethod.PUT, RequestMethod.PATCH, RequestMethod.POST })
     @Operation(summary = "Approve a leave request", description = "Approves a pending leave request.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Leave request approved successfully"),
             @ApiResponse(responseCode = "400", description = "Request is not in pending status or insufficient balance"),
+            @ApiResponse(responseCode = "403", description = "Forbidden from approving leave request"),
             @ApiResponse(responseCode = "404", description = "Leave request not found")
     })
     public LeaveResponseDTO approveLeaveRequest(@PathVariable Long id) {
@@ -195,29 +196,31 @@ public class LeaveRequestController {
     }
 
     @PreAuthorize("@securityService.canRejectLeaveRequest(authentication, #id)")
-    @RequestMapping(value = "/{id}/reject", method = { RequestMethod.PUT, RequestMethod.PATCH })
+    @RequestMapping(value = "/{id:\\d+}/reject", method = { RequestMethod.PUT, RequestMethod.PATCH, RequestMethod.POST })
     @Operation(summary = "Reject a leave request", description = "Rejects a pending leave request with a mandatory reason.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Leave request rejected successfully"),
-            @ApiResponse(responseCode = "400", description = "Request is not in pending status or reason is missing"),
+            @ApiResponse(responseCode = "400", description = "Request is not in pending status or reason is missing/invalid"),
+            @ApiResponse(responseCode = "403", description = "Forbidden from rejecting leave request"),
             @ApiResponse(responseCode = "404", description = "Leave request not found")
     })
     public LeaveResponseDTO rejectLeaveRequest(
             @PathVariable Long id,
             @RequestParam(required = false) String reason,
-            @RequestBody(required = false) com.leave_management_system.leave_management_system.dto.RejectRequestDTO body) {
+            @RequestBody(required = false) @jakarta.validation.Valid com.leave_management_system.leave_management_system.dto.RejectRequestDTO body) {
         String effectiveReason = (reason != null && !reason.trim().isEmpty())
-                ? reason
+                ? reason.trim()
                 : (body != null ? body.getReason() : null);
         return leaveRequestService.rejectLeaveRequest(id, effectiveReason);
     }
 
     @PreAuthorize("@securityService.canCancelLeaveRequest(authentication, #id)")
-    @RequestMapping(value = "/{id}/cancel", method = { RequestMethod.PUT, RequestMethod.PATCH })
+    @RequestMapping(value = "/{id:\\d+}/cancel", method = { RequestMethod.PUT, RequestMethod.PATCH, RequestMethod.POST })
     @Operation(summary = "Cancel a leave request", description = "Cancels a pending or approved leave request.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Leave request cancelled successfully"),
             @ApiResponse(responseCode = "400", description = "Request is already cancelled or rejected"),
+            @ApiResponse(responseCode = "403", description = "Forbidden from cancelling leave request"),
             @ApiResponse(responseCode = "404", description = "Leave request not found")
     })
     public LeaveResponseDTO cancelLeaveRequest(@PathVariable Long id) {

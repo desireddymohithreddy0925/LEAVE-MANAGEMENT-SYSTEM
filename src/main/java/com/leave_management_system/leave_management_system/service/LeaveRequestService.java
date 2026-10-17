@@ -252,6 +252,18 @@ public class LeaveRequestService {
                     "Leave request cannot span across multiple calendar years. Please submit separate requests for each year.");
         }
 
+        // Ensure no other APPROVED leave request overlaps with this one (excluding itself)
+        boolean hasApprovedOverlap = leaveRequestRepository.hasOverlappingLeaveExcludingId(
+                leaveRequest.getEmployee(),
+                leaveRequest.getId(),
+                leaveRequest.getStartDate(),
+                leaveRequest.getEndDate(),
+                List.of(LeaveStatus.APPROVED));
+        if (hasApprovedOverlap) {
+            throw new IllegalArgumentException(
+                    "Cannot approve: an overlapping leave request is already approved for this employee");
+        }
+
         long requestedDays = calculateWorkingDays(leaveRequest.getStartDate(), leaveRequest.getEndDate());
 
         int leaveYear = leaveRequest.getStartDate().getYear();
@@ -279,6 +291,9 @@ public class LeaveRequestService {
         if (rejectionReason == null || rejectionReason.trim().isEmpty()) {
             throw new IllegalArgumentException("Rejection reason is required");
         }
+        if (rejectionReason.length() > 500) {
+            throw new IllegalArgumentException("Rejection reason must not exceed 500 characters");
+        }
 
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
@@ -288,7 +303,7 @@ public class LeaveRequestService {
         }
 
         leaveRequest.setStatus(LeaveStatus.REJECTED);
-        leaveRequest.setRejectionReason(rejectionReason);
+        leaveRequest.setRejectionReason(rejectionReason.trim());
         return LeaveResponseDTO.fromEntity(leaveRequestRepository.save(leaveRequest));
     }
 

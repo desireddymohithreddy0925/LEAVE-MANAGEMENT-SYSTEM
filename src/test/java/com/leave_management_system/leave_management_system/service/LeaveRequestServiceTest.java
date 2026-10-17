@@ -207,6 +207,55 @@ public class LeaveRequestServiceTest {
     }
 
     @Test
+    void approveLeaveRequest_AlreadyRejected_ThrowsException() {
+        leaveRequest.setStatus(LeaveStatus.REJECTED);
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.approveLeaveRequest(1L));
+        assertEquals("Only pending requests can be approved", ex.getMessage());
+    }
+
+    @Test
+    void approveLeaveRequest_AlreadyCancelled_ThrowsException() {
+        leaveRequest.setStatus(LeaveStatus.CANCELLED);
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.approveLeaveRequest(1L));
+        assertEquals("Only pending requests can be approved", ex.getMessage());
+    }
+
+    @Test
+    void approveLeaveRequest_OverlappingApprovedLeaveExists_ThrowsException() {
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        when(leaveRequestRepository.hasOverlappingLeaveExcludingId(eq(employee), eq(1L), any(), any(), eq(List.of(LeaveStatus.APPROVED))))
+                .thenReturn(true);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.approveLeaveRequest(1L));
+        assertEquals("Cannot approve: an overlapping leave request is already approved for this employee", ex.getMessage());
+        verify(leaveBalanceRepository, never()).save(any(LeaveBalance.class));
+    }
+
+    @Test
+    void approveLeaveRequest_InsufficientBalance_ThrowsException() {
+        leaveBalance.setAvailable(1); // Requested days = 3 (Tue-Thu)
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        when(leaveRequestRepository.hasOverlappingLeaveExcludingId(eq(employee), eq(1L), any(), any(), eq(List.of(LeaveStatus.APPROVED))))
+                .thenReturn(false);
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithLock(eq(employee), eq(leaveType), eq(2026)))
+                .thenReturn(Optional.of(leaveBalance));
+
+        assertThrows(InsufficientLeaveException.class, () -> leaveRequestService.approveLeaveRequest(1L));
+        verify(leaveRequestRepository, never()).save(any(LeaveRequest.class));
+    }
+
+    @Test
+    void approveLeaveRequest_NotFound_ThrowsException() {
+        when(leaveRequestRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> leaveRequestService.approveLeaveRequest(999L));
+    }
+
+    @Test
     void cancelLeaveRequest_Pending_Success() {
         when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
@@ -303,6 +352,38 @@ public class LeaveRequestServiceTest {
         when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.rejectLeaveRequest(1L, "reason"));
         assertEquals("Only pending requests can be rejected", ex.getMessage());
+    }
+
+    @Test
+    void rejectLeaveRequest_NullReason_ThrowsException() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.rejectLeaveRequest(1L, null));
+        assertEquals("Rejection reason is required", ex.getMessage());
+    }
+
+    @Test
+    void rejectLeaveRequest_ReasonExceeds500Characters_ThrowsException() {
+        String longReason = "A".repeat(501);
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> leaveRequestService.rejectLeaveRequest(1L, longReason));
+        assertEquals("Rejection reason must not exceed 500 characters", ex.getMessage());
+    }
+
+    @Test
+    void rejectLeaveRequest_NotFound_ThrowsException() {
+        when(leaveRequestRepository.findById(999L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> leaveRequestService.rejectLeaveRequest(999L, "Valid reason"));
+    }
+
+    @Test
+    void rejectLeaveRequest_TrimsWhitespaceFromReason() {
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        when(leaveRequestRepository.save(any(LeaveRequest.class))).thenAnswer(i -> i.getArguments()[0]);
+
+        LeaveResponseDTO response = leaveRequestService.rejectLeaveRequest(1L, "   Project release week   ");
+
+        assertNotNull(response);
+        assertEquals(LeaveStatus.REJECTED, response.getStatus());
+        assertEquals("Project release week", response.getRejectionReason());
+        assertEquals("Project release week", leaveRequest.getRejectionReason());
     }
 
     @Test
@@ -563,5 +644,47 @@ public class LeaveRequestServiceTest {
 
         assertThrows(ResourceNotFoundException.class, () ->
                 leaveRequestService.checkOverlap(99L, LocalDate.of(2026, 9, 10), LocalDate.of(2026, 9, 14)));
+    }
+
+    // =========================================================================
+    // Leave Cancellation – additional unit tests
+    // =========================================================================
+
+    @Test
+    void cancelLeaveRequest_NotFound_ThrowsResourceNotFoundException() {
+        when(leaveRequestRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> leaveRequestService.cancelLeaveRequest(999L));
+        verify(leaveBalanceRepository, never()).save(any());
+    }
+
+    @Test
+    void cancelLeaveRequest_Pending_DoesNotInteractWithBalance() {
+        // PENDING cancellation should NEVER touch the balance repository
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
+
+        leaveRequestService.cancelLeaveRequest(1L);
+
+        verify(leaveBalanceRepository, never()).findByEmployeeAndLeaveTypeAndYearWithLock(any(), any(), any());
+        verify(leaveBalanceRepository, never()).save(any());
+    }
+
+    @Test
+    void cancelLeaveRequest_Approved_NullUsedBalance_DefaultsToZeroBeforeRestoration() {
+        leaveRequest.setStatus(LeaveStatus.APPROVED);
+        leaveBalance.setUsed(null); // simulate null 'used' field
+        leaveBalance.setAvailable(10);
+
+        when(leaveRequestRepository.findById(1L)).thenReturn(Optional.of(leaveRequest));
+        when(leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithLock(eq(employee), eq(leaveType), eq(2026)))
+                .thenReturn(Optional.of(leaveBalance));
+        when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
+
+        leaveRequestService.cancelLeaveRequest(1L);
+
+        // used should be clamped to 0 (not negative), available restored
+        assertEquals(0, leaveBalance.getUsed());
+        assertTrue(leaveBalance.getAvailable() >= 10);
     }
 }

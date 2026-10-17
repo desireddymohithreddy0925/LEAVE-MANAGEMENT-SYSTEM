@@ -139,3 +139,7 @@ databaseChangeLog:
   - include:
       file: changes/014-add-permissions.yaml
       relativeToChangelogFile: true
+
+  - include:
+      file: changes/015-modify-rejection-reason-length.yaml
+      relativeToChangelogFile: true

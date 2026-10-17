@@ -1,5 +1,91 @@
 # Test Results
 
+## Leave Cancellation Architecture & Security Lifecycle Implementation
+- **Status:** Complete
+- **Timestamp:** 2026-10-18
+- **Regression Suite:** `mvn clean test` executed successfully.
+- **Result:** All 277 tests passed (0 failures, 0 errors, 0 skipped), including 6 newly added tests across `LeaveRequestServiceTest` (+3 new) and `LeaveRequestControllerIntegrationTest` (+3 new).
+- **Cancellation Capabilities Implemented & Verified:**
+  - **State Machine Transitions & Lifecycle Guards:**
+    - Cancellation is allowed from `PENDING` and `APPROVED` states only.
+    - Attempting to cancel a `REJECTED` leave returns `400 Bad Request` ("Cannot cancel a rejected leave request").
+    - Attempting to cancel an already-`CANCELLED` leave returns `400 Bad Request` ("Leave request is already cancelled").
+  - **Balance Restoration for Approved Leaves:**
+    - When cancelling an `APPROVED` leave, `available` balance is incremented and `used` is decremented atomically using `findByEmployeeAndLeaveTypeAndYearWithLock` (`OPTIMISTIC_FORCE_INCREMENT`).
+    - `used` is clamped to `Math.max(0, currentUsed - days)` to handle null or pre-existing zero values safely.
+    - When cancelling a `PENDING` leave, balance is **not touched** (no balance was ever deducted).
+  - **Single-Calendar-Year Balance Isolation:**
+    - Restoration uses the leave's `startDate.getYear()` to target the correct annual leave balance; cross-year cancellations are rejected (`400 Bad Request`).
+  - **Double-Cancellation Protection:**
+    - Attempting to cancel an already-cancelled leave request immediately returns `400 Bad Request`.
+  - **Security & Authorization (RBAC & Hierarchy Scoping):**
+    - `@PreAuthorize("@securityService.canCancelLeaveRequest(authentication, #id)")` ensures:
+      - Global Admin and HR can cancel any leave request.
+      - Regular employees with `LEAVE_CANCEL` authority can only cancel their **own** leave requests (`isSelf` check).
+      - Attempts by unrelated employees (even with `LEAVE_CANCEL`) to cancel another employee's leave return `403 Forbidden`.
+  - **Flexible Multi-Method HTTP Support:**
+    - `PUT`, `PATCH`, and `POST` all supported on `/api/leave-requests/{id}/cancel` for Postman and automation script compatibility.
+  - **Audit Logging:**
+    - Emits `@AuditAction(action = "LEAVE_CANCELLED", entityType = "LeaveRequest")` for full enterprise compliance.
+
+## Leave Rejection Architecture & Security Lifecycle Implementation
+- **Status:** Complete
+- **Timestamp:** 2026-10-17
+- **Regression Suite:** `mvn clean test` executed successfully.
+- **Result:** All 271 tests passed (0 failures, 0 errors, 0 skipped), including 16 newly added tests across `LeaveRequestServiceTest` (46 tests, +4 new), `LeaveRequestControllerIntegrationTest` (38 tests, +10 new), and `ValidationIntegrationTest` (20 tests, +2 new).
+
+- **Rejection Capabilities Implemented & Verified:**
+  - **State Machine Transitions & Lifecycle Guards:**
+    - Strict transition from `PENDING` to `REJECTED`.
+    - Prohibits rejecting non-pending requests: attempting to reject requests that are already `APPROVED`, `REJECTED`, or `CANCELLED` is blocked with `IllegalArgumentException` and HTTP `400 Bad Request` ("Only pending requests can be rejected").
+    - Prevents double rejection.
+  - **Mandatory Rejection Reason Validation:**
+    - Mandatory, non-blank reason parameter enforced at service, controller, and DTO levels.
+    - Missing, null, or whitespace-only reasons return HTTP `400 Bad Request`.
+    - Reasons are automatically trimmed of surrounding whitespace.
+    - Character length capped at 500 characters (`@Size(max = 500)` in `RejectRequestDTO` and validation in `LeaveRequestService`). Reasons exceeding 500 characters return HTTP `400 Bad Request`.
+    - Liquibase migration `015-modify-rejection-reason-length.yaml` expanded the DB column `rejection_reason` to `varchar(500)`.
+  - **Flexible Multi-Method and Payload Support:**
+    - Supports `PUT`, `PATCH`, and `POST` on `/api/leave-requests/{id}/reject`.
+    - Supports reason delivery via query parameter (`?reason=...`) or structured JSON body (`{"reason": "..."}`).
+  - **Balance Preservation:**
+    - Verified that rejecting a pending leave request leaves employee leave balances untouched (`available` and `used` days remain unchanged).
+  - **Overlap Unblocking:**
+    - Verified that once a leave request is rejected, the dates are freed up and the employee can immediately reapply for leave covering the same dates without overlap conflicts.
+  - **Security & Authorization (RBAC & Hierarchy Scoping):**
+    - `@PreAuthorize("@securityService.canRejectLeaveRequest(authentication, #id)")` ensures only Global Admin/HR or the employee's direct/department/hierarchy manager can reject.
+    - Blocks regular employees without `LEAVE_REJECT` permission (HTTP `403 Forbidden`).
+    - Blocks managers from self-rejecting their own leave requests (HTTP `403 Forbidden`).
+    - Blocks cross-team / cross-department managers without reporting authority (HTTP `403 Forbidden`).
+    - Returns HTTP `404 Not Found` for non-existent leave requests.
+  - **Audit Logging:**
+    - Emits `@AuditAction(action = "LEAVE_REJECTED", entityType = "LeaveRequest")` for full enterprise compliance.
+
+## Leave Approval Architecture & Security Lifecycle Implementation
+- **Status:** Complete
+- **Timestamp:** 2026-10-17
+- **Regression Suite:** `mvn clean test` executed successfully.
+- **Result:** All 255 tests passed (0 failures, 0 errors, 0 skipped), including 12 newly added tests across `LeaveRequestServiceTest` (42 tests, +5 new) and `LeaveRequestControllerIntegrationTest` (28 tests, +7 new).
+- **Approval Capabilities Implemented & Verified:**
+  - **State Machine Transition & Integrity:**
+    - Strict transition from `PENDING` to `APPROVED`.
+    - Prohibits approving non-pending requests: attempting to approve a request that is already `APPROVED`, `REJECTED`, or `CANCELLED` is blocked with `IllegalArgumentException` and HTTP `400 Bad Request`.
+  - **Approving Overlapping Approved Leaves Prevention:**
+    - Pre-approval check using `leaveRequestRepository.hasOverlappingLeaveExcludingId(employeeId, startDate, endDate, id, List.of(LeaveStatus.APPROVED))`.
+    - Prevents approving a request if the employee already has an `APPROVED` leave request overlapping those dates (blocking concurrent pending approvals from corrupting calendar allocations).
+  - **Single-Calendar-Year Balance Isolation & Deduction:**
+    - Locks applicable year balance with optimistic force increment (`findByEmployeeAndLeaveTypeAndYearWithLock`).
+    - Verifies sufficient available balance (`available >= workingDays`).
+    - Deducts `available` balance and increments `used` balance in the same atomic transaction.
+  - **Dual HTTP Method Support (`PUT` and `PATCH`):**
+    - Both `PUT /api/leave-requests/{id}/approve` and `PATCH /api/leave-requests/{id}/approve` supported and verified.
+  - **Strict Security & RBAC Scoping:**
+    - `@PreAuthorize("@securityService.canApproveLeaveRequest(authentication, #id)")` ensures only Global Admin/HR or the employee's direct/department/hierarchy manager can approve.
+    - Rejects unauthorized users or regular employees without `LEAVE_APPROVE` with HTTP `403 Forbidden`.
+    - Handles non-existent leave requests cleanly with HTTP `404 Not Found`.
+  - **Audit Logging:**
+    - Emits `@AuditAction(action = "LEAVE_APPROVED", entityType = "LeaveRequest")` for full compliance auditing.
+
 ## Leave Overlap Detection Architecture & Pre-Flight API
 - **Status:** Complete
 - **Timestamp:** 2026-10-16
@@ -67,7 +153,7 @@
     - Double-cancellation protection: returns `400 Bad Request` if request is already cancelled.
     - Cancellation security: `@PreAuthorize("@securityService.canCancelLeaveRequest(authentication, #id)")` enforces that non-admin/HR users must possess `LEAVE_CANCEL` and be the owner of the leave request (`403 Forbidden` if unauthorized employee attempts cancellation).
 
-## Summary of All Verified Test Suites (243 Total Tests)
+## Summary of All Verified Test Suites (277 Total Tests)
 | Test Suite | Tests Run | Passed | Failed | Errors | Skipped |
 |---|---|---|---|---|---|
 | `AuthControllerIntegrationTest` | 9 | 9 | 0 | 0 | 0 |
@@ -75,20 +161,21 @@
 | `DynamicPermissionIntegrationTest` | 1 | 1 | 0 | 0 | 0 |
 | `EmployeeControllerIntegrationTest` | 5 | 5 | 0 | 0 | 0 |
 | `LeaveBalanceControllerIntegrationTest` | 26 | 26 | 0 | 0 | 0 |
-| `LeaveRequestControllerIntegrationTest` | 21 | 21 | 0 | 0 | 0 |
+| `LeaveRequestControllerIntegrationTest` | 41 | 41 | 0 | 0 | 0 |
 | `LeaveTypeControllerIntegrationTest` | 16 | 16 | 0 | 0 | 0 |
 | `ProfileSecurityIntegrationTest` | 20 | 20 | 0 | 0 | 0 |
 | `RolePermissionControllerIntegrationTest` | 7 | 7 | 0 | 0 | 0 |
 | `TeamHierarchyIntegrationTest` | 8 | 8 | 0 | 0 | 0 |
-| `ValidationIntegrationTest` | 18 | 18 | 0 | 0 | 0 |
+| `ValidationIntegrationTest` | 20 | 20 | 0 | 0 | 0 |
 | `LeaveRequestRepositoryTest` | 5 | 5 | 0 | 0 | 0 |
 | `DepartmentServiceTest` | 7 | 7 | 0 | 0 | 0 |
 | `EmployeeServiceTest` | 5 | 5 | 0 | 0 | 0 |
 | `LeaveBalanceServiceTest` | 35 | 35 | 0 | 0 | 0 |
 | `LeaveRequestServiceConcurrencyIntegrationTest` | 3 | 3 | 0 | 0 | 0 |
-| `LeaveRequestServiceTest` | 37 | 37 | 0 | 0 | 0 |
+| `LeaveRequestServiceTest` | 49 | 49 | 0 | 0 | 0 |
 | `LeaveTypeServiceTest` | 17 | 17 | 0 | 0 | 0 |
-| **Total** | **243** | **243** | **0** | **0** | **0** |
+| **Total** | **277** | **277** | **0** | **0** | **0** |
+
 
 ## Leave Balances Implementation
 - **Status:** Complete

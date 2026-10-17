@@ -338,4 +338,32 @@ public class ValidationIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.newPassword").value(containsString("8")));
     }
+
+    // =========================================================================
+    // 7. RejectRequestDTO Validation Tests
+    // =========================================================================
+
+    @Test
+    void rejectRequest_BlankReason_Returns400() throws Exception {
+        com.leave_management_system.leave_management_system.dto.RejectRequestDTO dto = new com.leave_management_system.leave_management_system.dto.RejectRequestDTO();
+        dto.setReason("   ");
+
+        mockMvc.perform(post("/api/leave-requests/1/reject")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.reason").value(containsString("mandatory")));
+    }
+
+    @Test
+    void rejectRequest_OverlongReason_Returns400() throws Exception {
+        com.leave_management_system.leave_management_system.dto.RejectRequestDTO dto = new com.leave_management_system.leave_management_system.dto.RejectRequestDTO();
+        dto.setReason("R".repeat(501));
+
+        mockMvc.perform(post("/api/leave-requests/1/reject")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.reason").value(containsString("500")));
+    }
 }
