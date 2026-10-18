@@ -37,6 +37,7 @@ public class DepartmentService {
         this.employeeService = employeeService;
     }
 
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "DEPARTMENT_CREATED", entityType = "Department")
     public DepartmentResponseDTO createDepartment(DepartmentRequestDTO dto) {
         if (departmentRepository.existsByName(dto.getName())) {
             throw new DuplicateResourceException("Department already exists");
@@ -61,6 +62,7 @@ public class DepartmentService {
         return DepartmentResponseDTO.fromEntity(department);
     }
 
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "DEPARTMENT_UPDATED", entityType = "Department")
     public DepartmentResponseDTO updateDepartment(Long id, DepartmentRequestDTO dto) {
         Department existingDepartment = departmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + id));
@@ -73,6 +75,7 @@ public class DepartmentService {
         return DepartmentResponseDTO.fromEntity(departmentRepository.save(existingDepartment));
     }
 
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "DEPARTMENT_DELETED", entityType = "Department")
     public void deleteDepartment(Long id) {
         Department department = departmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + id));
@@ -84,6 +87,7 @@ public class DepartmentService {
         departmentRepository.delete(department);
     }
 
+    @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "DEPARTMENT_UPDATED", entityType = "Department")
     public DepartmentResponseDTO assignManager(Long departmentId, Long managerId) {
         Department department = departmentRepository.findById(departmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + departmentId));

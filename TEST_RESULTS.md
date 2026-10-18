@@ -1,5 +1,35 @@
 # Test Results
 
+## Audit Logging & Security Event Logging Architecture Implementation
+- **Status:** Complete
+- **Timestamp:** 2026-10-18
+- **Regression Suite:** `mvn clean test` executed successfully.
+- **Result:** All 307 tests passed (0 failures, 0 errors, 0 skipped), including 30 newly added tests across `AuditServiceTest` (12 tests), `AuditAspectTest` (3 tests), and `AuditLogControllerIntegrationTest` (15 tests).
+- **Audit Capabilities Implemented & Verified:**
+  - **Comprehensive Domain Mutation Tracking:**
+    - Emits `@AuditAction` events intercepted via `AuditAspect` across all business mutations:
+      - Leave Requests: `LEAVE_APPLIED`, `LEAVE_APPROVED`, `LEAVE_REJECTED`, `LEAVE_CANCELLED`.
+      - Leave Balances: `BALANCE_CREATED`, `BALANCE_INITIALIZED`, `BALANCE_UPDATED`, `BALANCE_DELETED`.
+      - Leave Types: `LEAVE_TYPE_CREATED`, `LEAVE_TYPE_UPDATED`, `LEAVE_TYPE_DELETED`, `LEAVE_TYPE_ACTIVATED`, `LEAVE_TYPE_DEACTIVATED`.
+      - Employees: `EMPLOYEE_CREATED`, `EMPLOYEE_UPDATED`, `ROLE_CHANGED`, `EMPLOYEE_DEACTIVATED`.
+      - Departments: `DEPARTMENT_CREATED`, `DEPARTMENT_UPDATED`, `DEPARTMENT_DELETED`.
+      - Role & Permissions: `ROLE_PERMISSIONS_REPLACED`, `ROLE_PERMISSION_ADDED`, `ROLE_PERMISSION_REMOVED`.
+  - **Security Event Monitoring:**
+    - Dedicated event logging for `SUCCESSFUL_LOGIN`, `FAILED_LOGIN`, `USER_LOGOUT`, `PASSWORD_CHANGED`, `UNAUTHORIZED_ACCESS` (403 Forbidden), `EXPIRED_TOKEN`, and `INVALID_TOKEN`.
+    - Integrated with `SecurityConfig` via `DefaultAuthenticationEventPublisher` and `CustomAccessDeniedHandler`.
+  - **Data Sanitization & Credential Protection (Zero Leakage):**
+    - Strict regex-based redaction (`[REDACTED]`) on `old_value` and `new_value` prevents passwords, hashes, JWT secrets, refresh tokens, and sensitive credentials from ever being stored in plain text.
+    - Long JSON and string values are safely bounded to 1,000 characters to match database column limits.
+  - **Full Audit Context Extraction:**
+    - Automatically captures `id`, `user_id` (foreign key resolved from authentication context), `action`, `entity_type`, `entity_id`, `old_value`, `new_value`, `ip_address` (from `X-Forwarded-For` or `remoteAddr`), and `timestamp`.
+  - **Administrative Search & Query APIs:**
+    - `GET /api/audit-logs`: Multi-criteria search with dynamic JPA Specification filtering by `userId`, `action`, `entityType`, `entityId`, `startDate`, `endDate`, and pagination.
+    - `GET /api/audit-logs/{id}`: Single audit record retrieval.
+    - `GET /api/audit-logs/entity/{entityType}/{entityId}`: Dedicated entity audit trail endpoint.
+    - Strict RBAC: Protected by `@PreAuthorize("hasAuthority('ADMIN_VIEW') or hasAuthority('ROLE_ADMIN') or hasAuthority('AUDIT_LOG_VIEW')")`. Employees receive `403 Forbidden`; unauthenticated callers receive `401 Unauthorized`.
+  - **Database Reliability & Performance:**
+    - Liquibase migration `016-add-audit-log-indexes.yaml` introduces database indexes for `timestamp`, `action`, `(entity_type, entity_id)`, and `user_id`.
+
 ## Leave Cancellation Architecture & Security Lifecycle Implementation
 - **Status:** Complete
 - **Timestamp:** 2026-10-18
@@ -153,9 +183,12 @@
     - Double-cancellation protection: returns `400 Bad Request` if request is already cancelled.
     - Cancellation security: `@PreAuthorize("@securityService.canCancelLeaveRequest(authentication, #id)")` enforces that non-admin/HR users must possess `LEAVE_CANCEL` and be the owner of the leave request (`403 Forbidden` if unauthorized employee attempts cancellation).
 
-## Summary of All Verified Test Suites (277 Total Tests)
+## Summary of All Verified Test Suites (307 Total Tests)
 | Test Suite | Tests Run | Passed | Failed | Errors | Skipped |
 |---|---|---|---|---|---|
+| `AuditAspectTest` | 3 | 3 | 0 | 0 | 0 |
+| `AuditLogControllerIntegrationTest` | 15 | 15 | 0 | 0 | 0 |
+| `AuditServiceTest` | 12 | 12 | 0 | 0 | 0 |
 | `AuthControllerIntegrationTest` | 9 | 9 | 0 | 0 | 0 |
 | `DepartmentControllerIntegrationTest` | 3 | 3 | 0 | 0 | 0 |
 | `DynamicPermissionIntegrationTest` | 1 | 1 | 0 | 0 | 0 |
@@ -174,7 +207,7 @@
 | `LeaveRequestServiceConcurrencyIntegrationTest` | 3 | 3 | 0 | 0 | 0 |
 | `LeaveRequestServiceTest` | 49 | 49 | 0 | 0 | 0 |
 | `LeaveTypeServiceTest` | 17 | 17 | 0 | 0 | 0 |
-| **Total** | **277** | **277** | **0** | **0** | **0** |
+| **Total** | **307** | **307** | **0** | **0** | **0** |
 
 
 ## Leave Balances Implementation

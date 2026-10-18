@@ -1,0 +1,31 @@
+databaseChangeLog:
+  - changeSet:
+      id: 016-add-audit-log-indexes
+      author: system
+      changes:
+        - createIndex:
+            tableName: audit_logs
+            indexName: idx_audit_logs_timestamp
+            columns:
+              - column:
+                  name: timestamp
+        - createIndex:
+            tableName: audit_logs
+            indexName: idx_audit_logs_action
+            columns:
+              - column:
+                  name: action
+        - createIndex:
+            tableName: audit_logs
+            indexName: idx_audit_logs_entity
+            columns:
+              - column:
+                  name: entity_type
+              - column:
+                  name: entity_id
+        - createIndex:
+            tableName: audit_logs
+            indexName: idx_audit_logs_user_id
+            columns:
+              - column:
+                  name: user_id

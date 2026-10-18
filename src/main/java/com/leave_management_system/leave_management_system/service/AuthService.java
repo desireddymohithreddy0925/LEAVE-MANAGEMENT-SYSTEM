@@ -61,6 +61,8 @@ public class AuthService {
         String rawRefreshToken = UUID.randomUUID().toString();
         refreshTokenService.createRefreshToken(user.getId(), rawRefreshToken);
 
+        auditService.logSecurityEvent("SUCCESSFUL_LOGIN", null, loginRequest.getEmail(), "Login successful via API");
+
         return new AuthResponseDTO(jwt, rawRefreshToken, UserResponseDTO.fromEntity(user));
     }
 

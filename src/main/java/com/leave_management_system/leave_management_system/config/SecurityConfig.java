@@ -51,6 +51,12 @@ public class SecurityConfig {
     }
 
     @Bean
+    public org.springframework.security.authentication.AuthenticationEventPublisher authenticationEventPublisher(
+            org.springframework.context.ApplicationEventPublisher applicationEventPublisher) {
+        return new org.springframework.security.authentication.DefaultAuthenticationEventPublisher(applicationEventPublisher);
+    }
+
+    @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }

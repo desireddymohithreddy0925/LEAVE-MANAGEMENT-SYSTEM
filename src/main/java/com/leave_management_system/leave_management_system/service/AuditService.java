@@ -2,10 +2,13 @@ package com.leave_management_system.leave_management_system.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.leave_management_system.leave_management_system.dto.AuditLogResponseDTO;
 import com.leave_management_system.leave_management_system.entity.AuditLog;
+import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
 import com.leave_management_system.leave_management_system.repository.AuditLogRepository;
 import com.leave_management_system.leave_management_system.repository.UserRepository;
+import jakarta.persistence.criteria.Predicate;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,18 +25,43 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import jakarta.persistence.criteria.Predicate;
+import java.util.regex.Pattern;
 
 @Service
 public class AuditService {
 
+    private static final Pattern SENSITIVE_JSON_PATTERN = Pattern.compile(
+            "(\"(?:password|currentPassword|newPassword|confirmPassword|confirmationPassword|token|refreshToken|rawRefreshToken|secret|credentials|authorization)\"\\s*:\\s*\")[^\"]*(\")",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private static final Pattern SENSITIVE_KV_PATTERN = Pattern.compile(
+            "(?i)(password|token|secret|refreshToken|credentials)\\s*=\\s*[^,\\s}]+",
+            Pattern.CASE_INSENSITIVE
+    );
+
     private final AuditLogRepository auditLogRepository;
     private final UserRepository userRepository;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     public AuditService(AuditLogRepository auditLogRepository, UserRepository userRepository) {
         this.auditLogRepository = auditLogRepository;
         this.userRepository = userRepository;
+        this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    }
+
+    public String sanitizeValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            String str = value instanceof String ? (String) value : objectMapper.writeValueAsString(value);
+            String sanitized = SENSITIVE_JSON_PATTERN.matcher(str).replaceAll("$1[REDACTED]$2");
+            sanitized = SENSITIVE_KV_PATTERN.matcher(sanitized).replaceAll("$1=[REDACTED]");
+            return sanitized.length() > 1000 ? sanitized.substring(0, 997) + "..." : sanitized;
+        } catch (JsonProcessingException e) {
+            return "Error serializing value";
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -43,84 +71,57 @@ public class AuditService {
         log.setEntityType(entityType);
         log.setEntityId(entityId);
         log.setTimestamp(LocalDateTime.now());
+        log.setOldValue(sanitizeValue(oldValue));
+        log.setNewValue(sanitizeValue(newValue));
 
-        try {
-            if (oldValue != null) {
-                String oldValStr = oldValue instanceof String ? (String) oldValue : objectMapper.writeValueAsString(oldValue);
-                log.setOldValue(oldValStr.length() > 1000 ? oldValStr.substring(0, 997) + "..." : oldValStr);
-            }
-            if (newValue != null) {
-                String newValStr = newValue instanceof String ? (String) newValue : objectMapper.writeValueAsString(newValue);
-                log.setNewValue(newValStr.length() > 1000 ? newValStr.substring(0, 997) + "..." : newValStr);
-            }
-        } catch (JsonProcessingException e) {
-            log.setOldValue("Error serializing old value");
-            log.setNewValue("Error serializing new value");
+        String email = extractCurrentUsername();
+        if (email != null) {
+            userRepository.findByEmail(email).ifPresent(log::setUser);
         }
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated() && !(authentication.getPrincipal() instanceof String && authentication.getPrincipal().equals("anonymousUser"))) {
-            Object principal = authentication.getPrincipal();
-            String email = null;
-            if (principal instanceof UserDetails) {
-                email = ((UserDetails) principal).getUsername();
-            } else if (principal instanceof String) {
-                email = (String) principal;
-            }
-
-            if (email != null) {
-                userRepository.findByEmail(email).ifPresent(log::setUser);
-            }
-        }
-
-        try {
-            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attributes != null) {
-                HttpServletRequest request = attributes.getRequest();
-                String ipAddress = request.getHeader("X-Forwarded-For");
-                if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
-                    ipAddress = request.getRemoteAddr();
-                }
-                log.setIpAddress(ipAddress);
-            }
-        } catch (Exception e) {
-            // Ignore if request context is not available (e.g. from tests or async threads)
-        }
-
+        log.setIpAddress(extractClientIp(null));
         auditLogRepository.save(log);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void logSecurityEvent(String action, String ipAddress, String email) {
+        logSecurityEvent(action, ipAddress, email, null);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void logSecurityEvent(String action, String ipAddress, String email, String details) {
         AuditLog log = new AuditLog();
         log.setAction(action);
         log.setEntityType("SECURITY_EVENT");
         log.setTimestamp(LocalDateTime.now());
-        
-        try {
-            if (ipAddress == null) {
-                ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-                if (attributes != null) {
-                    HttpServletRequest request = attributes.getRequest();
-                    ipAddress = request.getHeader("X-Forwarded-For");
-                    if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
-                        ipAddress = request.getRemoteAddr();
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // Ignore
+        log.setIpAddress(extractClientIp(ipAddress));
+
+        if (email == null) {
+            email = extractCurrentUsername();
         }
-        log.setIpAddress(ipAddress);
-        
+
         if (email != null) {
             userRepository.findByEmail(email).ifPresent(log::setUser);
+        }
+
+        if (details != null) {
+            log.setNewValue(sanitizeValue(details));
+        } else if (email != null) {
+            log.setNewValue(sanitizeValue("email: " + email));
         }
 
         auditLogRepository.save(log);
     }
 
-    public Page<AuditLogResponseDTO> searchAuditLogs(Long userId, String action, String entityType, LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
+    public Page<AuditLogResponseDTO> searchAuditLogs(
+            Long userId,
+            String action,
+            String entityType,
+            Long entityId,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            Pageable pageable) {
+
         Specification<AuditLog> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -128,10 +129,13 @@ public class AuditService {
                 predicates.add(cb.equal(root.get("user").get("id"), userId));
             }
             if (action != null && !action.trim().isEmpty()) {
-                predicates.add(cb.equal(root.get("action"), action));
+                predicates.add(cb.equal(root.get("action"), action.trim()));
             }
             if (entityType != null && !entityType.trim().isEmpty()) {
-                predicates.add(cb.equal(root.get("entityType"), entityType));
+                predicates.add(cb.equal(root.get("entityType"), entityType.trim()));
+            }
+            if (entityId != null) {
+                predicates.add(cb.equal(root.get("entityId"), entityId));
             }
             if (startDate != null && endDate != null) {
                 predicates.add(cb.between(root.get("timestamp"), startDate, endDate));
@@ -145,5 +149,61 @@ public class AuditService {
         };
 
         return auditLogRepository.findAll(spec, pageable).map(AuditLogResponseDTO::fromEntity);
+    }
+
+    public Page<AuditLogResponseDTO> searchAuditLogs(
+            Long userId,
+            String action,
+            String entityType,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            Pageable pageable) {
+        return searchAuditLogs(userId, action, entityType, null, startDate, endDate, pageable);
+    }
+
+    public AuditLogResponseDTO getAuditLogById(Long id) {
+        AuditLog auditLog = auditLogRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Audit log not found with id: " + id));
+        return AuditLogResponseDTO.fromEntity(auditLog);
+    }
+
+    public Page<AuditLogResponseDTO> getAuditLogsByEntity(String entityType, Long entityId, Pageable pageable) {
+        return searchAuditLogs(null, null, entityType, entityId, null, null, pageable);
+    }
+
+    private String extractCurrentUsername() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && !(authentication.getPrincipal() instanceof String && "anonymousUser".equals(authentication.getPrincipal()))) {
+            String name = authentication.getName();
+            if (name != null && !name.trim().isEmpty() && !"anonymousUser".equalsIgnoreCase(name)) {
+                return name;
+            }
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof UserDetails) {
+                return ((UserDetails) principal).getUsername();
+            } else if (principal instanceof String) {
+                return (String) principal;
+            }
+        }
+        return null;
+    }
+
+    private String extractClientIp(String fallbackIp) {
+        if (fallbackIp != null && !fallbackIp.isEmpty() && !"unknown".equalsIgnoreCase(fallbackIp)) {
+            return fallbackIp;
+        }
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes != null) {
+                HttpServletRequest request = attributes.getRequest();
+                String ipAddress = request.getHeader("X-Forwarded-For");
+                if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+                    ipAddress = request.getRemoteAddr();
+                }
+                return ipAddress;
+            }
+        } catch (Exception ignored) {
+        }
+        return fallbackIp;
     }
 }

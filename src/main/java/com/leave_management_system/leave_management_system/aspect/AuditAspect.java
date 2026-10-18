@@ -14,8 +14,11 @@ import java.lang.reflect.Method;
 @Component
 public class AuditAspect {
 
-    @Autowired
-    private AuditService auditService;
+    private final AuditService auditService;
+
+    public AuditAspect(AuditService auditService) {
+        this.auditService = auditService;
+    }
 
     @AfterReturning(pointcut = "@annotation(auditAction)", returning = "result")
     public void logAuditActivity(JoinPoint joinPoint, AuditAction auditAction, Object result) {
@@ -36,7 +39,7 @@ public class AuditAspect {
             }
 
             // Fallback to arguments if no ID from return
-            if (entityId == null && joinPoint.getArgs().length > 0) {
+            if (entityId == null && joinPoint.getArgs() != null && joinPoint.getArgs().length > 0) {
                 Object arg = joinPoint.getArgs()[0];
                 if (arg instanceof Long) {
                     entityId = (Long) arg;

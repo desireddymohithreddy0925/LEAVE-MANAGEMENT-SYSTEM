@@ -101,3 +101,19 @@ This document maps the mandatory internship requirements to their specific imple
 - **API:** N/A (Startup process)
 - **Test:** Server starts successfully over a completely empty MySQL DB without manual intervention.
 - **Status:** **DONE**
+
+### 14. Audit Logging & Security Event Logging
+- **Requirement:** Comprehensive tracking of all domain mutations and security events with full context (`id`, `user_id`, `action`, `entity_type`, `entity_id`, `old_value`, `new_value`, `ip_address`, `timestamp`). Strict data sanitization ensuring passwords, tokens, JWT secrets, and sensitive credentials are never stored in plain text (`[REDACTED]`). Administrative audit search with multi-dimensional filtering (`userId`, `action`, `entityType`, `entityId`, `startDate`, `endDate`), pagination, single-record lookup by ID, and entity audit trails. Security event monitoring for successful/failed logins, logouts, expired/invalid tokens, password changes, and unauthorized access. High-performance indexing on `audit_logs` (`timestamp`, `action`, `entity_type`, `entity_id`, `user_id`).
+- **Implementation:** 
+  - `AuditService`: core service handling `logAction()` and `logSecurityEvent()` with `Propagation.REQUIRES_NEW`, automated username and client IP extraction from request/security contexts, and regex-based sensitive credential redaction.
+  - `AuditAspect`: AOP aspect intercepting methods annotated with `@AuditAction` across `LeaveRequestService`, `LeaveBalanceService`, `LeaveTypeService`, `EmployeeService`, and `DepartmentService`.
+  - `AuditLogController`: administrative REST endpoints (`GET /api/audit-logs`, `GET /api/audit-logs/{id}`, `GET /api/audit-logs/entity/{entityType}/{entityId}`) protected by `@PreAuthorize("hasAuthority('ADMIN_VIEW') or hasAuthority('ROLE_ADMIN') or hasAuthority('AUDIT_LOG_VIEW')")`.
+  - `SecurityEventListener` & `CustomAccessDeniedHandler`: intercepting authentication successes/failures and access denials (403) to log security events.
+  - Liquibase migration `016-add-audit-log-indexes.yaml`: dedicated performance indexes for query optimization.
+- **API:** `GET /api/audit-logs?userId=...&action=...&entityType=...&entityId=...&startDate=...&endDate=...&page=0&size=20`, `GET /api/audit-logs/{id}`, `GET /api/audit-logs/entity/{entityType}/{entityId}`.
+- **Test:** 
+  - `AuditServiceTest` (12 unit tests): action logging, security events, null tolerance, sensitive field redaction, context extraction, truncation of long values, specification filtering, and ID lookups.
+  - `AuditAspectTest` (3 unit tests): DTO ID extraction, argument fallback, and exception safety.
+  - `AuditLogControllerIntegrationTest` (15 integration tests): admin search, action filtering, entity type/ID filtering, date range filtering, RBAC protection (403 for employee, 401 unauthenticated), single-record retrieval, entity trail querying, department lifecycle auditing, login auditing, unauthorized access auditing, and data redaction verification.
+- **Status:** **DONE**
+
