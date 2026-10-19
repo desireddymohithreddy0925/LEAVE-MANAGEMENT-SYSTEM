@@ -3,6 +3,7 @@ package com.leave_management_system.leave_management_system.dto;
 import com.leave_management_system.leave_management_system.entity.Role;
 import com.leave_management_system.leave_management_system.entity.User;
 
+import java.time.LocalDateTime;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -12,6 +13,9 @@ public class UserResponseDTO {
     private String email;
     private boolean active;
     private Set<RoleResponseDTO> roles;
+    private LocalDateTime lastLoginAt;
+    private String lastLoginIp;
+    private Long loginCount;
 
     public static UserResponseDTO fromEntity(User user) {
         if (user == null) {
@@ -21,6 +25,9 @@ public class UserResponseDTO {
         dto.setId(user.getId());
         dto.setEmail(user.getEmail());
         dto.setActive(user.isActive());
+        dto.setLastLoginAt(user.getLastLoginAt());
+        dto.setLastLoginIp(user.getLastLoginIp());
+        dto.setLoginCount(user.getLoginCount());
         if (user.getRoles() != null) {
             dto.setRoles(user.getRoles().stream()
                     .map(RoleResponseDTO::fromEntity)
@@ -59,5 +66,29 @@ public class UserResponseDTO {
 
     public void setRoles(Set<RoleResponseDTO> roles) {
         this.roles = roles;
+    }
+
+    public LocalDateTime getLastLoginAt() {
+        return lastLoginAt;
+    }
+
+    public void setLastLoginAt(LocalDateTime lastLoginAt) {
+        this.lastLoginAt = lastLoginAt;
+    }
+
+    public String getLastLoginIp() {
+        return lastLoginIp;
+    }
+
+    public void setLastLoginIp(String lastLoginIp) {
+        this.lastLoginIp = lastLoginIp;
+    }
+
+    public Long getLoginCount() {
+        return loginCount;
+    }
+
+    public void setLoginCount(Long loginCount) {
+        this.loginCount = loginCount;
     }
 }

@@ -1,6 +1,8 @@
 package com.leave_management_system.leave_management_system.security;
 
 import com.leave_management_system.leave_management_system.service.AuditService;
+import com.leave_management_system.leave_management_system.service.LoginTrackingService;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
 import org.springframework.security.authentication.event.AbstractAuthenticationFailureEvent;
 import org.springframework.security.authentication.event.AuthenticationSuccessEvent;
@@ -13,9 +15,11 @@ import org.springframework.stereotype.Component;
 public class SecurityEventListener {
 
     private final AuditService auditService;
+    private final LoginTrackingService loginTrackingService;
 
-    public SecurityEventListener(AuditService auditService) {
+    public SecurityEventListener(AuditService auditService, @Lazy LoginTrackingService loginTrackingService) {
         this.auditService = auditService;
+        this.loginTrackingService = loginTrackingService;
     }
 
     @EventListener
@@ -23,15 +27,18 @@ public class SecurityEventListener {
         Authentication auth = event.getAuthentication();
         String email = extractEmail(auth);
         
-        auditService.logSecurityEvent("SUCCESSFUL_LOGIN", null, email);
+        auditService.logSecurityEvent(SecurityEventType.SUCCESSFUL_LOGIN, null, email, "Authentication successful");
+        loginTrackingService.recordLoginSuccess(email, null, null);
     }
 
     @EventListener
     public void onAuthenticationFailure(AbstractAuthenticationFailureEvent event) {
         Authentication auth = event.getAuthentication();
         String email = extractEmail(auth);
+        String reason = event.getException() != null ? event.getException().getMessage() : "Authentication failed";
         
-        auditService.logSecurityEvent("FAILED_LOGIN", null, email);
+        auditService.logSecurityEvent(SecurityEventType.FAILED_LOGIN, null, email, reason);
+        loginTrackingService.recordLoginFailure(email, null, null, reason);
     }
 
     @EventListener
@@ -39,7 +46,7 @@ public class SecurityEventListener {
         Authentication auth = (Authentication) event.getAuthentication().get();
         String email = extractEmail(auth);
 
-        auditService.logSecurityEvent("UNAUTHORIZED_ACCESS", null, email);
+        auditService.logSecurityEvent(SecurityEventType.UNAUTHORIZED_ACCESS, null, email, "Access denied to secured resource");
     }
 
     private String extractEmail(Authentication auth) {
@@ -51,6 +58,6 @@ public class SecurityEventListener {
         } else if (auth.getPrincipal() instanceof String) {
             return (String) auth.getPrincipal();
         }
-        return null;
+        return auth.getName();
     }
 }

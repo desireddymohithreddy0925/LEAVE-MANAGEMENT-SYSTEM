@@ -1,0 +1,87 @@
+databaseChangeLog:
+  - changeSet:
+      id: 017-add-login-tracking
+      author: antigravity
+      changes:
+        - addColumn:
+            tableName: users
+            columns:
+              - column:
+                  name: last_login_at
+                  type: timestamp
+              - column:
+                  name: last_login_ip
+                  type: varchar(255)
+              - column:
+                  name: login_count
+                  type: bigint
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+
+        - createTable:
+            tableName: login_history
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: bigint
+                  constraints:
+                    foreignKeyName: fk_login_history_user
+                    references: users(id)
+                    nullable: true
+              - column:
+                  name: email
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: login_time
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: ip_address
+                  type: varchar(255)
+              - column:
+                  name: user_agent
+                  type: varchar(500)
+              - column:
+                  name: status
+                  type: varchar(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: failure_reason
+                  type: varchar(255)
+
+        - createIndex:
+            indexName: idx_login_history_user_id
+            tableName: login_history
+            columns:
+              - column:
+                  name: user_id
+        - createIndex:
+            indexName: idx_login_history_email
+            tableName: login_history
+            columns:
+              - column:
+                  name: email
+        - createIndex:
+            indexName: idx_login_history_login_time
+            tableName: login_history
+            columns:
+              - column:
+                  name: login_time
+        - createIndex:
+            indexName: idx_login_history_status
+            tableName: login_history
+            columns:
+              - column:
+                  name: status

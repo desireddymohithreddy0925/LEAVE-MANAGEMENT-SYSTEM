@@ -50,7 +50,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
                         ip = request.getRemoteAddr();
                     }
-                    auditService.logSecurityEvent("INACTIVE_USER_TOKEN", ip, username);
+                    auditService.logSecurityEvent(SecurityEventType.INACTIVE_USER_TOKEN, ip, username, "Account has been deactivated");
                     sendErrorResponse(response, "User account is inactive", "Account has been deactivated");
                     return;
                 }
@@ -66,7 +66,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
                 ip = request.getRemoteAddr();
             }
-            auditService.logSecurityEvent("EXPIRED_TOKEN", ip, null);
+            String expiredUser = null;
+            try {
+                if (e.getClaims() != null) {
+                    expiredUser = e.getClaims().getSubject();
+                }
+            } catch (Exception ignored) {
+            }
+            auditService.logSecurityEvent(SecurityEventType.EXPIRED_TOKEN, ip, expiredUser, e.getMessage());
             sendErrorResponse(response, "JWT token is expired", e.getMessage());
             return;
         } catch (org.springframework.security.core.userdetails.UsernameNotFoundException e) {
@@ -74,7 +81,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
                 ip = request.getRemoteAddr();
             }
-            auditService.logSecurityEvent("UNKNOWN_USER_TOKEN", ip, null);
+            auditService.logSecurityEvent(SecurityEventType.UNKNOWN_USER_TOKEN, ip, null, e.getMessage());
             sendErrorResponse(response, "User not found", e.getMessage());
             return;
         } catch (JwtException | IllegalArgumentException e) {
@@ -82,7 +89,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
                 ip = request.getRemoteAddr();
             }
-            auditService.logSecurityEvent("INVALID_TOKEN", ip, null);
+            auditService.logSecurityEvent(SecurityEventType.INVALID_TOKEN, ip, null, e.getMessage());
             sendErrorResponse(response, "Invalid JWT token", e.getMessage());
             return;
         }

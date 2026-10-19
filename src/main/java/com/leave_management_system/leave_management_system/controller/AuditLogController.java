@@ -1,6 +1,7 @@
 package com.leave_management_system.leave_management_system.controller;
 
 import com.leave_management_system.leave_management_system.dto.AuditLogResponseDTO;
+import com.leave_management_system.leave_management_system.security.SecurityEventType;
 import com.leave_management_system.leave_management_system.service.AuditService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -43,6 +44,21 @@ public class AuditLogController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             @PageableDefault(size = 20, sort = "timestamp", direction = Sort.Direction.DESC) Pageable pageable) {
         return auditService.searchAuditLogs(userId, action, entityType, entityId, startDate, endDate, pageable);
+    }
+
+    @PreAuthorize("hasAuthority('ADMIN_VIEW') or hasAuthority('ROLE_ADMIN') or hasAuthority('AUDIT_LOG_VIEW')")
+    @GetMapping("/security-events")
+    @Operation(summary = "Get security events", description = "Retrieve security events with filtering and pagination.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successfully retrieved security events")
+    })
+    public Page<AuditLogResponseDTO> getSecurityEvents(
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @PageableDefault(size = 20, sort = "timestamp", direction = Sort.Direction.DESC) Pageable pageable) {
+        return auditService.searchAuditLogs(userId, action, SecurityEventType.ENTITY_TYPE_SECURITY_EVENT, null, startDate, endDate, pageable);
     }
 
     @PreAuthorize("hasAuthority('ADMIN_VIEW') or hasAuthority('ROLE_ADMIN') or hasAuthority('AUDIT_LOG_VIEW')")

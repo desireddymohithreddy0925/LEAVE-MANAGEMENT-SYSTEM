@@ -5,13 +5,21 @@ import com.leave_management_system.leave_management_system.dto.AuthResponseDTO;
 import com.leave_management_system.leave_management_system.dto.RegisterRequestDTO;
 import com.leave_management_system.leave_management_system.dto.PasswordChangeRequestDTO;
 import com.leave_management_system.leave_management_system.dto.TokenRefreshRequestDTO;
+import com.leave_management_system.leave_management_system.dto.LoginHistoryResponseDTO;
 import com.leave_management_system.leave_management_system.service.AuthService;
+import com.leave_management_system.leave_management_system.service.LoginTrackingService;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,9 +32,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final LoginTrackingService loginTrackingService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, @Lazy LoginTrackingService loginTrackingService) {
         this.authService = authService;
+        this.loginTrackingService = loginTrackingService;
     }
 
     @PostMapping("/login")
@@ -62,5 +72,13 @@ public class AuthController {
             @Valid @RequestBody PasswordChangeRequestDTO request) {
         authService.changePassword(authentication.getName(), request);
         return ResponseEntity.ok("Password changed successfully");
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/login-history")
+    @Operation(summary = "Get my login history", description = "Retrieve paginated login attempts for the currently authenticated user")
+    public ResponseEntity<Page<LoginHistoryResponseDTO>> getMyLoginHistory(
+            @PageableDefault(size = 20, sort = "loginTime", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(loginTrackingService.getLoginHistoryForCurrentUser(pageable));
     }
 }

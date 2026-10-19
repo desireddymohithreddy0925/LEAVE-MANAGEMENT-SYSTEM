@@ -1,6 +1,7 @@
 package com.leave_management_system.leave_management_system.entity;
 
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -20,6 +21,15 @@ public class User {
 
     @Column(nullable = false)
     private boolean active = true;
+
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
+
+    @Column(name = "last_login_ip")
+    private String lastLoginIp;
+
+    @Column(name = "login_count")
+    private Long loginCount = 0L;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
@@ -81,5 +91,29 @@ public class User {
 
     public void setEmployee(Employee employee) {
         this.employee = employee;
+    }
+
+    public LocalDateTime getLastLoginAt() {
+        return lastLoginAt;
+    }
+
+    public void setLastLoginAt(LocalDateTime lastLoginAt) {
+        this.lastLoginAt = lastLoginAt;
+    }
+
+    public String getLastLoginIp() {
+        return lastLoginIp;
+    }
+
+    public void setLastLoginIp(String lastLoginIp) {
+        this.lastLoginIp = lastLoginIp;
+    }
+
+    public Long getLoginCount() {
+        return loginCount;
+    }
+
+    public void setLoginCount(Long loginCount) {
+        this.loginCount = loginCount;
     }
 }

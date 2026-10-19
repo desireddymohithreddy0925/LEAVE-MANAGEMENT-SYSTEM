@@ -12,11 +12,22 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 
+import com.leave_management_system.leave_management_system.security.SecurityEventType;
+import com.leave_management_system.leave_management_system.service.AuditService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+
 import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private final AuditService auditService;
+
+    public GlobalExceptionHandler(@Lazy @Autowired(required = false) AuditService auditService) {
+        this.auditService = auditService;
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponseDTO> handleResourceNotFound(
@@ -135,12 +146,27 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponseDTO> handleAccessDeniedException(AccessDeniedException exception) {
+        try {
+            if (auditService != null) {
+                auditService.logSecurityEvent(SecurityEventType.UNAUTHORIZED_ACCESS, null, null, "Access denied: " + exception.getMessage());
+            }
+        } catch (Exception ignored) {
+        }
         ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.FORBIDDEN.value(), "Forbidden", "You do not have permission to access this resource");
         return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(TokenRefreshException.class)
     public ResponseEntity<ErrorResponseDTO> handleTokenRefreshException(TokenRefreshException exception) {
+        try {
+            if (auditService != null) {
+                String action = (exception.getMessage() != null && exception.getMessage().toLowerCase().contains("expired"))
+                        ? SecurityEventType.EXPIRED_TOKEN
+                        : SecurityEventType.INVALID_TOKEN;
+                auditService.logSecurityEvent(action, null, null, exception.getMessage());
+            }
+        } catch (Exception ignored) {
+        }
         ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.UNAUTHORIZED.value(), "Unauthorized", exception.getMessage());
         return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
     }

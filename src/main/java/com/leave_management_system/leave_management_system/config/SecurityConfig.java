@@ -46,14 +46,19 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
-        return authConfig.getAuthenticationManager();
-    }
-
-    @Bean
     public org.springframework.security.authentication.AuthenticationEventPublisher authenticationEventPublisher(
             org.springframework.context.ApplicationEventPublisher applicationEventPublisher) {
         return new org.springframework.security.authentication.DefaultAuthenticationEventPublisher(applicationEventPublisher);
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig,
+                                                       org.springframework.security.authentication.AuthenticationEventPublisher eventPublisher) throws Exception {
+        AuthenticationManager authenticationManager = authConfig.getAuthenticationManager();
+        if (authenticationManager instanceof org.springframework.security.authentication.ProviderManager pm) {
+            pm.setAuthenticationEventPublisher(eventPublisher);
+        }
+        return authenticationManager;
     }
 
     @Bean
@@ -71,6 +76,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> 
                 auth.requestMatchers("/api/auth/change-password").authenticated()
+                    .requestMatchers("/api/auth/login-history/**", "/api/auth/login-history").authenticated()
                     .requestMatchers("/api/auth/**").permitAll()
                     .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                     .anyRequest().authenticated()

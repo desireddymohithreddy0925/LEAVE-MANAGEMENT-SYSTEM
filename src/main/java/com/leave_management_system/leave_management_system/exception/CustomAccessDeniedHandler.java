@@ -2,6 +2,7 @@ package com.leave_management_system.leave_management_system.exception;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leave_management_system.leave_management_system.dto.ErrorResponseDTO;
+import com.leave_management_system.leave_management_system.security.SecurityEventType;
 import com.leave_management_system.leave_management_system.service.AuditService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,7 +40,7 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             String userEmail = (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal()))
                     ? auth.getName() : null;
-            auditService.logSecurityEvent("UNAUTHORIZED_ACCESS", ip, userEmail, request.getMethod() + " " + request.getRequestURI());
+            auditService.logSecurityEvent(SecurityEventType.UNAUTHORIZED_ACCESS, ip, userEmail, request.getMethod() + " " + request.getRequestURI());
         } catch (Exception ignored) {
         }
 

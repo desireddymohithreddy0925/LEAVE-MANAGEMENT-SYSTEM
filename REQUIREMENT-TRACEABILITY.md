@@ -103,17 +103,67 @@ This document maps the mandatory internship requirements to their specific imple
 - **Status:** **DONE**
 
 ### 14. Audit Logging & Security Event Logging
-- **Requirement:** Comprehensive tracking of all domain mutations and security events with full context (`id`, `user_id`, `action`, `entity_type`, `entity_id`, `old_value`, `new_value`, `ip_address`, `timestamp`). Strict data sanitization ensuring passwords, tokens, JWT secrets, and sensitive credentials are never stored in plain text (`[REDACTED]`). Administrative audit search with multi-dimensional filtering (`userId`, `action`, `entityType`, `entityId`, `startDate`, `endDate`), pagination, single-record lookup by ID, and entity audit trails. Security event monitoring for successful/failed logins, logouts, expired/invalid tokens, password changes, and unauthorized access. High-performance indexing on `audit_logs` (`timestamp`, `action`, `entity_type`, `entity_id`, `user_id`).
+- **Requirement:** Comprehensive tracking of all domain mutations and security events with full context (`id`, `user_id`, `action`, `entity_type`, `entity_id`, `old_value`, `new_value`, `ip_address`, `timestamp`). Strict data sanitization ensuring passwords, tokens, JWT secrets, and sensitive credentials are never stored in plain text (`[REDACTED]`). Administrative audit search with multi-dimensional filtering (`userId`, `action`, `entityType`, `entityId`, `startDate`, `endDate`), pagination, single-record lookup by ID, and entity audit trails. Dedicated security event monitoring for 7 core security event types (`SUCCESSFUL_LOGIN`, `FAILED_LOGIN`, `USER_LOGOUT`, `EXPIRED_TOKEN`, `INVALID_TOKEN`, `UNAUTHORIZED_ACCESS`, `PASSWORD_CHANGED`) plus auxiliary events (`INACTIVE_USER_TOKEN`, `TOKEN_REFRESHED`, `UNKNOWN_USER_TOKEN`). High-performance indexing on `audit_logs` (`timestamp`, `action`, `entity_type`, `entity_id`, `user_id`).
 - **Implementation:** 
   - `AuditService`: core service handling `logAction()` and `logSecurityEvent()` with `Propagation.REQUIRES_NEW`, automated username and client IP extraction from request/security contexts, and regex-based sensitive credential redaction.
+  - `SecurityEventType`: canonical constants defining all standard security event types and entity identifiers.
+  - `SecurityEventListener`: Spring event listener capturing `AuthenticationSuccessEvent` (`SUCCESSFUL_LOGIN`), `AbstractAuthenticationFailureEvent` (`FAILED_LOGIN`), and `AuthorizationDeniedEvent` (`UNAUTHORIZED_ACCESS`).
+  - `CustomAuthenticationEntryPoint` & `CustomAccessDeniedHandler`: capturing unauthenticated 401s and forbidden 403s as `UNAUTHORIZED_ACCESS` security events.
+  - `JwtAuthenticationFilter`: intercepting token expiration (`EXPIRED_TOKEN`), malformed/tampered tokens (`INVALID_TOKEN`), disabled accounts (`INACTIVE_USER_TOKEN`), and non-existent users (`UNKNOWN_USER_TOKEN`).
+  - `GlobalExceptionHandler`: intercepting refresh token exceptions (`EXPIRED_TOKEN`, `INVALID_TOKEN`) and method access denials (`UNAUTHORIZED_ACCESS`).
+  - `AuthService`: event-driven logging for `USER_LOGOUT`, `TOKEN_REFRESHED`, and `PASSWORD_CHANGED`.
   - `AuditAspect`: AOP aspect intercepting methods annotated with `@AuditAction` across `LeaveRequestService`, `LeaveBalanceService`, `LeaveTypeService`, `EmployeeService`, and `DepartmentService`.
-  - `AuditLogController`: administrative REST endpoints (`GET /api/audit-logs`, `GET /api/audit-logs/{id}`, `GET /api/audit-logs/entity/{entityType}/{entityId}`) protected by `@PreAuthorize("hasAuthority('ADMIN_VIEW') or hasAuthority('ROLE_ADMIN') or hasAuthority('AUDIT_LOG_VIEW')")`.
-  - `SecurityEventListener` & `CustomAccessDeniedHandler`: intercepting authentication successes/failures and access denials (403) to log security events.
+  - `AuditLogController`: administrative REST endpoints:
+    - `GET /api/audit-logs`: general audit trail search with multi-field filtering and pagination.
+    - `GET /api/audit-logs/security-events`: dedicated security events endpoint filtering on `entityType="SECURITY_EVENT"`, supporting `action`, `userId`, `startDate`, `endDate`, and pagination.
+    - `GET /api/audit-logs/{id}`: single log lookup.
+    - `GET /api/audit-logs/entity/{entityType}/{entityId}`: entity audit trail.
+    All protected by `@PreAuthorize("hasAuthority('ADMIN_VIEW') or hasAuthority('ROLE_ADMIN') or hasAuthority('AUDIT_LOG_VIEW')")`.
   - Liquibase migration `016-add-audit-log-indexes.yaml`: dedicated performance indexes for query optimization.
-- **API:** `GET /api/audit-logs?userId=...&action=...&entityType=...&entityId=...&startDate=...&endDate=...&page=0&size=20`, `GET /api/audit-logs/{id}`, `GET /api/audit-logs/entity/{entityType}/{entityId}`.
+- **API:** 
+  - `GET /api/audit-logs?userId=...&action=...&entityType=...&entityId=...&startDate=...&endDate=...&page=0&size=20`
+  - `GET /api/audit-logs/security-events?userId=...&action=...&startDate=...&endDate=...&page=0&size=20`
+  - `GET /api/audit-logs/{id}`
+  - `GET /api/audit-logs/entity/{entityType}/{entityId}`
 - **Test:** 
   - `AuditServiceTest` (12 unit tests): action logging, security events, null tolerance, sensitive field redaction, context extraction, truncation of long values, specification filtering, and ID lookups.
   - `AuditAspectTest` (3 unit tests): DTO ID extraction, argument fallback, and exception safety.
   - `AuditLogControllerIntegrationTest` (15 integration tests): admin search, action filtering, entity type/ID filtering, date range filtering, RBAC protection (403 for employee, 401 unauthenticated), single-record retrieval, entity trail querying, department lifecycle auditing, login auditing, unauthorized access auditing, and data redaction verification.
+  - `SecurityEventIntegrationTest` (13 integration tests): comprehensive end-to-end suite verifying all 7 security events (`SUCCESSFUL_LOGIN`, `FAILED_LOGIN`, `USER_LOGOUT`, `EXPIRED_TOKEN`, `INVALID_TOKEN`, `UNAUTHORIZED_ACCESS` 401/403, `PASSWORD_CHANGED`), token refresh events, strict password/token credential redaction in audit logs, dedicated `/api/audit-logs/security-events` endpoint functionality, admin filtering, and RBAC enforcement (403 employee, 401 unauthenticated).
 - **Status:** **DONE**
+
+### 15. User Login Tracking & History
+- **Requirement:** Comprehensive tracking of user login activity and chronological login history across the system:
+  - User-level login metrics on the `User` entity: `last_login_at` (timestamp of most recent successful login), `last_login_ip` (client IP address of most recent successful login), and `login_count` (lifetime count of successful logins).
+  - Detailed chronological login attempt history (`login_history` table) capturing both successful and failed attempts: `id`, `user_id` (FK to `users`), `email` (login identifier used), `login_time`, `ip_address` (supporting proxies and IPv4/IPv6 via `X-Forwarded-For`), `user_agent` (browser/client device metadata), `status` (`SUCCESS` or `FAILED`), and `failure_reason`.
+  - Strict security and credential sanitization: passwords and raw credentials submitted during failed login attempts must never be logged or persisted in `failure_reason` (only sanitized reasons such as `Bad credentials` or `User account is locked`).
+  - Self-service endpoints for authenticated employees to inspect their own login history and summary metrics (`/api/login-history/me`, `/api/login-history/me/summary`, `/api/auth/login-history`).
+  - Administrative endpoints for searching and auditing user login history across the organization with multi-dimensional filtering (`userId`, `email`, `status`, `startDate`, `endDate`), pagination, and user login summaries.
+  - Performance indexing on `login_history` (`user_id`, `email`, `login_time`, `status`).
+- **Implementation:** 
+  - Database migration: `017-add-login-tracking.yaml` adding columns `last_login_at`, `last_login_ip`, `login_count` to `users`, creating `login_history` table with foreign key `fk_login_history_user`, and creating performance indexes `idx_login_history_user_id`, `idx_login_history_email`, `idx_login_history_time`, and `idx_login_history_status`. Registered in `db.changelog-master.yaml`.
+  - Domain models: `User` entity updated with `lastLoginAt`, `lastLoginIp`, and `loginCount`. `LoginHistory` entity mapped to `login_history` table.
+  - DTOs: `LoginHistoryResponseDTO`, `LoginSummaryDTO`, and updated `UserResponseDTO` exposing login tracking fields.
+  - Repository: `LoginHistoryRepository` extending `JpaRepository` and `JpaSpecificationExecutor<LoginHistory>`, featuring custom query methods `findByUserIdOrderByLoginTimeDesc`, `findByEmailOrderByLoginTimeDesc`, and status count queries.
+  - Service: `LoginTrackingService` managing:
+    - `recordLoginSuccess(User, HttpServletRequest)`: updates `lastLoginAt`, `lastLoginIp`, increments `loginCount`, and persists `SUCCESS` login history.
+    - `recordLoginFailure(String email, String failureReason, HttpServletRequest)`: `@Transactional(propagation = Propagation.REQUIRES_NEW)` ensures failed attempts persist even when authentication failure triggers a rollback, safely resolving the optional user without leaking passwords.
+    - `getLoginHistoryForCurrentUser(UserDetails, Pageable)`, `getLoginSummaryForCurrentUser(UserDetails)`, `getLoginHistoryForUser(Long, Pageable)`, `getLoginSummaryForUser(Long)`, and `searchLoginHistory(...)` with specification-based filtering.
+  - Security integration: `SecurityEventListener` hooked into Spring Security's `AuthenticationSuccessEvent` and `AbstractAuthenticationFailureEvent`, delegating to `@Lazy LoginTrackingService` with client IP and User-Agent extraction.
+  - REST Controllers:
+    - `LoginHistoryController`: `/api/login-history/me` and `/api/login-history/me/summary` for self-service employee access; `/api/login-history` and `/api/login-history/user/{userId}` for administrator search and user metrics (`hasAuthority('ADMIN_VIEW') or hasAuthority('ROLE_ADMIN') or hasAuthority('LOGIN_HISTORY_VIEW')`).
+    - `AuthController`: convenient self-service endpoint `GET /api/auth/login-history` returning recent login history for the currently authenticated user.
+  - Security Configuration: `SecurityConfig` rules explicitly protecting `/api/auth/login-history/**` as authenticated before permitAll `/api/auth/**`.
+- **API:** 
+  - `GET /api/login-history/me?page=0&size=20` (Authenticated)
+  - `GET /api/login-history/me/summary` (Authenticated)
+  - `GET /api/auth/login-history?page=0&size=20` (Authenticated)
+  - `GET /api/login-history?userId=...&email=...&status=...&startDate=...&endDate=...&page=0&size=20` (Admin / Login History View)
+  - `GET /api/login-history/user/{userId}?page=0&size=20` (Admin / Login History View)
+  - `GET /api/login-history/user/{userId}/summary` (Admin / Login History View)
+- **Test:** 
+  - `LoginTrackingIntegrationTest` (10 integration tests): verifying successful login records with IP/User-Agent, user login count incrementing, failed login tracking with sanitized reasons and without credential leakage, self-service history and summary endpoints (`/api/login-history/me`, `/api/login-history/me/summary`, `/api/auth/login-history`), administrative multi-field filtering (`userId`, `email`, `status`), and RBAC enforcement (403 for employee on admin endpoints, 401 for unauthenticated requests).
+- **Status:** **DONE**
+
+
 

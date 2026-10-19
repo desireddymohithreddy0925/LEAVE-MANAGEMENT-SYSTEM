@@ -11,6 +11,7 @@ import com.leave_management_system.leave_management_system.repository.EmployeeRe
 import com.leave_management_system.leave_management_system.repository.RoleRepository;
 import com.leave_management_system.leave_management_system.repository.UserRepository;
 import com.leave_management_system.leave_management_system.security.JwtUtils;
+import com.leave_management_system.leave_management_system.security.SecurityEventType;
 import com.leave_management_system.leave_management_system.exception.TokenRefreshException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -61,8 +62,6 @@ public class AuthService {
         String rawRefreshToken = UUID.randomUUID().toString();
         refreshTokenService.createRefreshToken(user.getId(), rawRefreshToken);
 
-        auditService.logSecurityEvent("SUCCESSFUL_LOGIN", null, loginRequest.getEmail(), "Login successful via API");
-
         return new AuthResponseDTO(jwt, rawRefreshToken, UserResponseDTO.fromEntity(user));
     }
 
@@ -100,7 +99,6 @@ public class AuthService {
         refreshTokenService.createRefreshToken(user.getId(), rawRefreshToken);
 
         auditService.logAction("EMPLOYEE_CREATED", "Employee", employee.getId(), null, "Registered through API");
-        auditService.logSecurityEvent("SUCCESSFUL_LOGIN", null, registerRequest.getEmail());
 
         return new AuthResponseDTO(jwt, rawRefreshToken, UserResponseDTO.fromEntity(user));
     }
@@ -120,6 +118,8 @@ public class AuthService {
                     String newRawRefreshToken = UUID.randomUUID().toString();
                     refreshTokenService.createRefreshToken(user.getId(), newRawRefreshToken);
 
+                    auditService.logSecurityEvent(SecurityEventType.TOKEN_REFRESHED, null, user.getEmail(), "Token refreshed successfully");
+
                     return new AuthResponseDTO(token, newRawRefreshToken, UserResponseDTO.fromEntity(user));
                 })
                 .orElseThrow(() -> new TokenRefreshException("Refresh token is not in database!"));
@@ -128,7 +128,7 @@ public class AuthService {
     @PreAuthorize("isAuthenticated()")
     public void logout(String refreshToken) {
         refreshTokenService.deleteByToken(refreshToken);
-        auditService.logSecurityEvent("USER_LOGOUT", null, null); // Email will be auto-extracted by context
+        auditService.logSecurityEvent(SecurityEventType.USER_LOGOUT, null, null, "User logged out"); // Email will be auto-extracted by context
     }
 
     @PreAuthorize("isAuthenticated()")
@@ -152,6 +152,6 @@ public class AuthService {
         refreshTokenService.deleteByUserId(user.getId());
 
         auditService.logAction("PASSWORD_CHANGED", "User", user.getId(), null, "Password changed successfully");
-        auditService.logSecurityEvent("PASSWORD_CHANGED", null, email);
+        auditService.logSecurityEvent(SecurityEventType.PASSWORD_CHANGED, null, email, "Password changed successfully");
     }
 }
