@@ -152,3 +152,8 @@ databaseChangeLog:
       file: changes/017-add-login-tracking.yaml
       relativeToChangelogFile: true
 
+  - include:
+      file: changes/018-add-authorization-auditing.yaml
+      relativeToChangelogFile: true
+
+

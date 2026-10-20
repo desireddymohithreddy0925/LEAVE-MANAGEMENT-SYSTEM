@@ -66,6 +66,9 @@ public class LoginTrackingIntegrationTest {
     private com.leave_management_system.leave_management_system.repository.RefreshTokenRepository refreshTokenRepository;
 
     @Autowired
+    private com.leave_management_system.leave_management_system.repository.AuthorizationAuditLogRepository authorizationAuditLogRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -88,6 +91,7 @@ public class LoginTrackingIntegrationTest {
         auditLogRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         loginHistoryRepository.deleteAll();
+        authorizationAuditLogRepository.deleteAll();
 
         uniqueSuffix = UUID.randomUUID().toString().substring(0, 8);
 
@@ -133,6 +137,7 @@ public class LoginTrackingIntegrationTest {
         auditLogRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         loginHistoryRepository.deleteAll();
+        authorizationAuditLogRepository.deleteAll();
         userRepository.findAll().stream()
                 .filter(u -> u.getEmail() != null && u.getEmail().contains(uniqueSuffix))
                 .forEach(u -> {

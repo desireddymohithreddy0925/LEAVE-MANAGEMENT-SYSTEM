@@ -54,6 +54,9 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
     private LoginHistoryRepository loginHistoryRepository;
 
     @Autowired
+    private com.leave_management_system.leave_management_system.repository.AuthorizationAuditLogRepository authorizationAuditLogRepository;
+
+    @Autowired
     private RoleRepository roleRepository;
 
     private Employee testEmployee;
@@ -68,6 +71,7 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
         leaveTypeRepository.deleteAll();
         auditLogRepository.deleteAll();
         loginHistoryRepository.deleteAll();
+        authorizationAuditLogRepository.deleteAll();
         userRepository.deleteAll();
 
         User user = new User();

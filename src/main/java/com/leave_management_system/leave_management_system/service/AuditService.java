@@ -31,12 +31,12 @@ import java.util.regex.Pattern;
 public class AuditService {
 
     private static final Pattern SENSITIVE_JSON_PATTERN = Pattern.compile(
-            "(\"(?:password|currentPassword|newPassword|confirmPassword|confirmationPassword|token|refreshToken|rawRefreshToken|secret|credentials|authorization)\"\\s*:\\s*\")[^\"]*(\")",
+            "(\"(?:password|currentPassword|newPassword|confirmPassword|confirmationPassword|token|refreshToken|rawRefreshToken|secret|credentials|authorization|salary|phone|ssn|creditCard|cardNumber|cvv|pin|apiKey|secretKey)\"\\s*:\\s*\")[^\"]*(\")",
             Pattern.CASE_INSENSITIVE
     );
 
     private static final Pattern SENSITIVE_KV_PATTERN = Pattern.compile(
-            "(?i)(password|token|secret|refreshToken|credentials)\\s*=\\s*[^,\\s}]+",
+            "(?i)(password|token|secret|refreshToken|credentials|salary|phone|ssn|creditCard|cardNumber|cvv|pin|apiKey|secretKey)\\s*=\\s*[^,\\s}]+",
             Pattern.CASE_INSENSITIVE
     );
 

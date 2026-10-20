@@ -1,6 +1,8 @@
 package com.leave_management_system.leave_management_system.dto;
 
 import com.leave_management_system.leave_management_system.entity.Employee;
+import com.leave_management_system.leave_management_system.security.sensitive.SensitiveData;
+import com.leave_management_system.leave_management_system.security.sensitive.SensitiveType;
 
 public class EmployeeResponseDTO {
     private Long id;
@@ -8,8 +10,13 @@ public class EmployeeResponseDTO {
     private String lastName;
     private String employeeCode;
     private String email;
+
+    @SensitiveData(type = SensitiveType.PHONE, requiredAuthorities = {"ROLE_ADMIN", "ROLE_HR"}, allowOwner = true)
     private String phone;
+
     private String status;
+
+    @SensitiveData(type = SensitiveType.SALARY, requiredAuthorities = {"ROLE_ADMIN", "ROLE_HR", "EMPLOYEE_SALARY_VIEW"}, allowOwner = true)
     private java.math.BigDecimal salary;
     private DepartmentResponseDTO department;
     private Long managerId;

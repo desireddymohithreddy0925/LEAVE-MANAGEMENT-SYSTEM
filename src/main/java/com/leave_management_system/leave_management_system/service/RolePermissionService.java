@@ -7,6 +7,7 @@ import com.leave_management_system.leave_management_system.entity.Role;
 import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
 import com.leave_management_system.leave_management_system.repository.PermissionRepository;
 import com.leave_management_system.leave_management_system.repository.RoleRepository;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,11 +21,16 @@ public class RolePermissionService {
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
     private final AuditService auditService;
+    private final AuthorizationAuditService authorizationAuditService;
 
-    public RolePermissionService(RoleRepository roleRepository, PermissionRepository permissionRepository, AuditService auditService) {
+    public RolePermissionService(RoleRepository roleRepository,
+                                 PermissionRepository permissionRepository,
+                                 AuditService auditService,
+                                 @Lazy AuthorizationAuditService authorizationAuditService) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
         this.auditService = auditService;
+        this.authorizationAuditService = authorizationAuditService;
     }
 
     public List<PermissionResponseDTO> getAllPermissions() {
@@ -66,6 +72,11 @@ public class RolePermissionService {
         Role updatedRole = roleRepository.save(role);
         
         auditService.logAction("ROLE_PERMISSIONS_REPLACED", "Role", role.getId(), null, "Replaced with " + permissionIds.size() + " permissions");
+        if (authorizationAuditService != null) {
+            authorizationAuditService.recordGranted(null, null, "ROLE_PERMISSIONS_REPLACED",
+                    "Role#" + role.getId() + " (" + role.getName() + ")", "ROLE_PERMISSION_MANAGE",
+                    "Replaced with " + permissionIds.size() + " permissions");
+        }
         
         return updatedRole.getPermissions().stream()
                 .map(PermissionResponseDTO::fromEntity)
@@ -83,6 +94,11 @@ public class RolePermissionService {
         Role updatedRole = roleRepository.save(role);
         
         auditService.logAction("ROLE_PERMISSION_ADDED", "Role", role.getId(), null, "Added permission: " + permission.getName());
+        if (authorizationAuditService != null) {
+            authorizationAuditService.recordGranted(null, null, "ROLE_PERMISSION_ADDED",
+                    "Role#" + role.getId() + " (" + role.getName() + ")", "ROLE_PERMISSION_MANAGE",
+                    "Added permission: " + permission.getName());
+        }
         
         return updatedRole.getPermissions().stream()
                 .map(PermissionResponseDTO::fromEntity)
@@ -100,6 +116,11 @@ public class RolePermissionService {
         Role updatedRole = roleRepository.save(role);
         
         auditService.logAction("ROLE_PERMISSION_REMOVED", "Role", role.getId(), null, "Removed permission: " + permission.getName());
+        if (authorizationAuditService != null) {
+            authorizationAuditService.recordGranted(null, null, "ROLE_PERMISSION_REMOVED",
+                    "Role#" + role.getId() + " (" + role.getName() + ")", "ROLE_PERMISSION_MANAGE",
+                    "Removed permission: " + permission.getName());
+        }
         
         return updatedRole.getPermissions().stream()
                 .map(PermissionResponseDTO::fromEntity)

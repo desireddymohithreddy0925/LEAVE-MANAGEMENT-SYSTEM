@@ -28,6 +28,16 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.leave_management_system.leave_management_system.service.AuthorizationAuditService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
+import java.util.*;
+import java.util.stream.Collectors;
+
 @Service
 @PreAuthorize("hasAuthority('EMPLOYEE_UPDATE')")
 public class EmployeeService {
@@ -36,17 +46,29 @@ public class EmployeeService {
     private final DepartmentRepository departmentRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final AuthorizationAuditService authorizationAuditService;
 
     public EmployeeService(
             EmployeeRepository employeeRepository,
             DepartmentRepository departmentRepository,
             UserRepository userRepository,
             RoleRepository roleRepository) {
+        this(employeeRepository, departmentRepository, userRepository, roleRepository, null);
+    }
+
+    @Autowired
+    public EmployeeService(
+            EmployeeRepository employeeRepository,
+            DepartmentRepository departmentRepository,
+            UserRepository userRepository,
+            RoleRepository roleRepository,
+            @Lazy @Autowired(required = false) AuthorizationAuditService authorizationAuditService) {
 
         this.employeeRepository = employeeRepository;
         this.departmentRepository = departmentRepository;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
+        this.authorizationAuditService = authorizationAuditService;
     }
 
     @PreAuthorize("hasAuthority('EMPLOYEE_CREATE')")
@@ -314,6 +336,12 @@ public class EmployeeService {
         employee.getUser().getRoles().add(newRole);
 
         userRepository.save(employee.getUser());
+        if (authorizationAuditService != null) {
+            String targetEmail = employee.getUser() != null ? employee.getUser().getEmail() : "user#" + employee.getId();
+            authorizationAuditService.recordGranted(null, null, "USER_ROLE_ASSIGNED",
+                    "Employee#" + employee.getId() + " (" + targetEmail + ")",
+                    "EMPLOYEE_UPDATE", "Assigned role: " + roleName);
+        }
         return EmployeeResponseDTO.fromEntity(employee);
     }
 

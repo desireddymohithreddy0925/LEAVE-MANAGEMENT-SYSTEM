@@ -11,6 +11,7 @@ import com.leave_management_system.leave_management_system.entity.RefreshToken;
 import com.leave_management_system.leave_management_system.entity.Role;
 import com.leave_management_system.leave_management_system.entity.User;
 import com.leave_management_system.leave_management_system.repository.AuditLogRepository;
+import com.leave_management_system.leave_management_system.repository.AuthorizationAuditLogRepository;
 import com.leave_management_system.leave_management_system.repository.EmployeeRepository;
 import com.leave_management_system.leave_management_system.repository.LoginHistoryRepository;
 import com.leave_management_system.leave_management_system.repository.RefreshTokenRepository;
@@ -84,6 +85,9 @@ public class SecurityEventIntegrationTest {
     private LoginHistoryRepository loginHistoryRepository;
 
     @Autowired
+    private AuthorizationAuditLogRepository authorizationAuditLogRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -112,6 +116,7 @@ public class SecurityEventIntegrationTest {
         auditLogRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         loginHistoryRepository.deleteAll();
+        authorizationAuditLogRepository.deleteAll();
 
         uniqueSuffix = UUID.randomUUID().toString().substring(0, 8);
 
@@ -157,6 +162,7 @@ public class SecurityEventIntegrationTest {
         auditLogRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         loginHistoryRepository.deleteAll();
+        authorizationAuditLogRepository.deleteAll();
         userRepository.findAll().stream()
                 .filter(u -> u.getEmail() != null && u.getEmail().contains(uniqueSuffix))
                 .forEach(u -> {

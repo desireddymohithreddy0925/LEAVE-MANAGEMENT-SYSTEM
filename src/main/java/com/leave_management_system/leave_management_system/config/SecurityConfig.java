@@ -52,6 +52,12 @@ public class SecurityConfig {
     }
 
     @Bean
+    public org.springframework.security.authorization.AuthorizationEventPublisher authorizationEventPublisher(
+            org.springframework.context.ApplicationEventPublisher applicationEventPublisher) {
+        return new org.springframework.security.authorization.SpringAuthorizationEventPublisher(applicationEventPublisher);
+    }
+
+    @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig,
                                                        org.springframework.security.authentication.AuthenticationEventPublisher eventPublisher) throws Exception {
         AuthenticationManager authenticationManager = authConfig.getAuthenticationManager();

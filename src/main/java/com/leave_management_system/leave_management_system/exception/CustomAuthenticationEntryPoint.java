@@ -22,9 +22,12 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private final AuditService auditService;
+    private final com.leave_management_system.leave_management_system.service.AuthorizationAuditService authorizationAuditService;
 
-    public CustomAuthenticationEntryPoint(@Lazy @Autowired(required = false) AuditService auditService) {
+    public CustomAuthenticationEntryPoint(@Lazy @Autowired(required = false) AuditService auditService,
+                                          @Lazy @Autowired(required = false) com.leave_management_system.leave_management_system.service.AuthorizationAuditService authorizationAuditService) {
         this.auditService = auditService;
+        this.authorizationAuditService = authorizationAuditService;
     }
 
     @Override
@@ -32,13 +35,17 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
                          AuthenticationException authException) throws IOException, ServletException {
 
         try {
+            String ip = request.getHeader("X-Forwarded-For");
+            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                ip = request.getRemoteAddr();
+            }
+            String details = request.getMethod() + " " + request.getRequestURI();
             if (auditService != null) {
-                String ip = request.getHeader("X-Forwarded-For");
-                if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-                    ip = request.getRemoteAddr();
-                }
-                String details = request.getMethod() + " " + request.getRequestURI();
                 auditService.logSecurityEvent(SecurityEventType.UNAUTHORIZED_ACCESS, ip, null, details);
+            }
+            if (authorizationAuditService != null) {
+                authorizationAuditService.recordDecision("anonymousUser", null, "ENDPOINT_ACCESS", details,
+                        "AUTHENTICATION", "DENIED", "Authentication required: 401 Unauthorized", ip);
             }
         } catch (Exception ignored) {
         }

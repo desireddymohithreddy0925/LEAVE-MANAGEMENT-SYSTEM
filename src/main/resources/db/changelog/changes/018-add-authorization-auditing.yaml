@@ -1,0 +1,87 @@
+databaseChangeLog:
+  - changeSet:
+      id: 018-add-authorization-auditing
+      author: antigravity
+      changes:
+        - createTable:
+            tableName: authorization_audit_logs
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: bigint
+                  constraints:
+                    foreignKeyName: fk_authz_audit_user
+                    references: users(id)
+                    nullable: true
+              - column:
+                  name: email
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: action
+                  type: varchar(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: resource
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: permission_required
+                  type: varchar(150)
+              - column:
+                  name: decision
+                  type: varchar(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: reason
+                  type: varchar(500)
+              - column:
+                  name: ip_address
+                  type: varchar(255)
+              - column:
+                  name: timestamp
+                  type: timestamp
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            indexName: idx_authz_audit_user_id
+            tableName: authorization_audit_logs
+            columns:
+              - column:
+                  name: user_id
+        - createIndex:
+            indexName: idx_authz_audit_email
+            tableName: authorization_audit_logs
+            columns:
+              - column:
+                  name: email
+        - createIndex:
+            indexName: idx_authz_audit_timestamp
+            tableName: authorization_audit_logs
+            columns:
+              - column:
+                  name: timestamp
+        - createIndex:
+            indexName: idx_authz_audit_decision
+            tableName: authorization_audit_logs
+            columns:
+              - column:
+                  name: decision
+        - createIndex:
+            indexName: idx_authz_audit_action
+            tableName: authorization_audit_logs
+            columns:
+              - column:
+                  name: action

@@ -165,5 +165,125 @@ This document maps the mandatory internship requirements to their specific imple
   - `LoginTrackingIntegrationTest` (10 integration tests): verifying successful login records with IP/User-Agent, user login count incrementing, failed login tracking with sanitized reasons and without credential leakage, self-service history and summary endpoints (`/api/login-history/me`, `/api/login-history/me/summary`, `/api/auth/login-history`), administrative multi-field filtering (`userId`, `email`, `status`), and RBAC enforcement (403 for employee on admin endpoints, 401 for unauthenticated requests).
 - **Status:** **DONE**
 
+### 16. Authorization Auditing
+- **Requirement:** Enterprise-grade authorization auditing tracking authorization decisions (`GRANTED` and `DENIED`), business authorization checks, RBAC policy mutations, and security denials across the leave management system:
+  - Dedicated storage table `authorization_audit_logs`: `id`, `user_id` (FK to `users`, nullable for anonymous/unauthenticated attempts), `email`, `action` (e.g. `LEAVE_APPROVAL_CHECK`, `EMPLOYEE_VIEW_CHECK`, `ROLE_PERMISSION_CHANGE`, `USER_ROLE_ASSIGNED`, `ENDPOINT_ACCESS`), `resource` (target entity/resource identifier), `permission_required` (expected authority or policy rule), `decision` (`GRANTED` or `DENIED`), `reason` (evaluation rationale), `ip_address` (client IP via direct or `X-Forwarded-For`), and `timestamp`.
+  - Comprehensive auditing of business authorization checks in `SecurityAuthorizationService`:
+    - `canApproveLeaveRequest`: audits granted/denied decisions with caller email, required `LEAVE_APPROVE` authority, and manager hierarchy verification.
+    - `canRejectLeaveRequest`: audits granted/denied decisions with caller email and required `LEAVE_REJECT` authority.
+    - `canCancelLeaveRequest`: audits granted/denied decisions with caller email and required `LEAVE_CANCEL` authority.
+    - `canViewManagerTeam`: audits granted/denied decisions with caller email and required `LEAVE_VIEW_TEAM` / `EMPLOYEE_VIEW` authority.
+    - `canManageLeaveBalance`: audits granted/denied decisions with caller email and required `LEAVE_BALANCE_MANAGE` authority.
+    - `canViewEmployee`: audits granted/denied decisions with caller email and self/manager scope.
+    - `canViewLeaveRequest`: audits granted/denied decisions with caller email and self/manager scope.
+  - Interception and auditing of security denials:
+    - `SecurityEventListener`: listens for Spring Security `AuthorizationDeniedEvent` to audit method and web security rejections.
+    - `CustomAccessDeniedHandler`: audits 403 Forbidden endpoint denials with client IP and target resource.
+    - `CustomAuthenticationEntryPoint`: audits 401 Unauthorized unauthenticated requests with client IP and target resource.
+  - Auditing of RBAC policy mutations:
+    - `RolePermissionService`: audits role permission replacements, additions, and removals (`ROLE_PERMISSIONS_REPLACED`, `ROLE_PERMISSION_ADDED`, `ROLE_PERMISSION_REMOVED`).
+    - `EmployeeService`: audits user role modifications (`USER_ROLE_ASSIGNED`).
+  - Self-service endpoints for authenticated employees to inspect their own authorization decision history (`/api/authorization-audits/me`).
+  - Administrative search and metrics endpoints:
+    - `GET /api/authorization-audits`: multi-criteria filtering (`userId`, `email`, `action`, `resource`, `decision`, `startDate`, `endDate`) with pagination.
+    - `GET /api/authorization-audits/summary`: aggregated metrics (total evaluated, total granted, total denied, grant rate percentage).
+    - `GET /api/authorization-audits/user/{userId}`: user-specific authorization audit trail.
+    - `GET /api/authorization-audits/{id}`: single record retrieval.
+    - `GET /api/audit-logs/authorization`: unified bridge endpoint alongside general and security audit logs.
+  - Performance indexing on `authorization_audit_logs` (`user_id`, `email`, `timestamp`, `decision`, `action`).
+- **Implementation:**
+  - Database migration: `018-add-authorization-auditing.yaml` defining table `authorization_audit_logs` with foreign key `fk_authorization_audit_user` and indexes `idx_authz_audit_user_id`, `idx_authz_audit_email`, `idx_authz_audit_time`, `idx_authz_audit_decision`, and `idx_authz_audit_action`. Registered in `db.changelog-master.yaml`.
+  - Domain models: `AuthorizationAuditLog` entity with mapped relationships and constants `DECISION_GRANTED` and `DECISION_DENIED`.
+  - DTOs: `AuthorizationAuditResponseDTO` and `AuthorizationSummaryDTO`.
+  - Repository: `AuthorizationAuditLogRepository` extending `JpaRepository` and `JpaSpecificationExecutor<AuthorizationAuditLog>`.
+  - Service: `AuthorizationAuditService` implementing:
+    - `recordDecision(...)`: `@Transactional(propagation = Propagation.REQUIRES_NEW)` ensuring audit records persist independently of business transaction rollbacks, with length truncation safeguards.
+    - `recordGranted(...)` and `recordDenied(...)`: convenience evaluation recorders.
+    - `searchAuthorizationAudits(...)`: dynamic JPA Specification filter supporting all filter criteria and pagination.
+    - `getSummaryMetrics(...)`: aggregate decision counts and computed grant rate percentage.
+    - `getAuditsForUser(...)`: user-scoped audit pagination.
+  - Security configuration & listeners:
+    - `SecurityConfig`: registered `SpringAuthorizationEventPublisher` bean enabling Spring Security 6/7 authorization event publication.
+    - `SecurityEventListener`: hooked into `AuthorizationDeniedEvent` to record `DENIED` decisions with safe method reflection and resource formatting.
+    - `CustomAccessDeniedHandler`: records 403 Forbidden denials.
+    - `CustomAuthenticationEntryPoint`: records 401 Unauthorized denials.
+  - REST Controllers:
+    - `AuthorizationAuditController`: `/api/authorization-audits`, `/api/authorization-audits/summary`, `/api/authorization-audits/me`, `/api/authorization-audits/user/{userId}`, `/api/authorization-audits/{id}` protected by `ADMIN_SECURITY_VIEW` or `ROLE_ADMIN`.
+    - `AuditLogController`: unified bridge endpoint `GET /api/audit-logs/authorization`.
+- **API:**
+  - `GET /api/authorization-audits?userId=...&email=...&action=...&decision=...&startDate=...&endDate=...&page=0&size=20` (Admin / Security View)
+  - `GET /api/authorization-audits/summary` (Admin / Security View)
+  - `GET /api/authorization-audits/{id}` (Admin / Security View)
+  - `GET /api/authorization-audits/user/{userId}?page=0&size=20` (Admin / Security View)
+  - `GET /api/authorization-audits/me?page=0&size=20` (Authenticated)
+  - `GET /api/audit-logs/authorization?userId=...&decision=...&page=0&size=20` (Admin / Audit Log View)
+- **Test:**
+  - `AuthorizationAuditingIntegrationTest` (13 integration tests): verifying manager leave approval granted audit, unauthorized employee leave approval denied audit, unauthenticated 401 denied audit, employee accessing admin endpoint 403 denied audit, role permission addition and removal audits, employee role assignment audit, administrative multi-dimensional search filtering (`decision=DENIED`, `decision=GRANTED`), summary metrics calculation, single audit retrieval by ID, user-specific audits retrieval, self-service `/api/authorization-audits/me` endpoint, and unified bridge endpoint `/api/audit-logs/authorization`.
+- **Status:** **DONE**
+
+### 17. Sensitive-Data Protection
+- **Requirement:** Comprehensive enterprise sensitive-data protection architecture safeguarding PII, financial compensation, authentication secrets, and credentials across storage, serialization, auditing, and data lifecycle management:
+  - Multi-type data masking engine supporting:
+    - `PHONE`: Preserves international country code and last 4 digits while masking middle digits (`+1 (***) ***-7890`, `******7890`).
+    - `EMAIL`: Masks the middle of the username while preserving first/last character and full domain (`j****e@example.com`).
+    - `SALARY`: Formats as redacted currency (`$***,***.00`).
+    - `TOKEN`: Redacts all but first 4 and last 4 characters (`eyJh...8901`).
+    - `PASSWORD` / `CREDENTIAL`: Complete redaction (`[PROTECTED]`).
+    - `CREDIT_CARD`: Preserves first 4 and last 4 digits (`4111-****-****-1111`).
+    - `NATIONAL_ID`: Preserves last 4 digits (`***-**-6789`).
+    - `GENERIC`: Contextual partial masking preserving boundaries.
+    - JSON & Key-Value sanitization for log/audit streams redacting sensitive fields (`password`, `token`, `secret`, `salary`, `phone`, `ssn`, `creditCard`, `cvv`, `apiKey`).
+  - Cryptographic operations at rest and transit:
+    - Authenticated symmetric encryption: AES-256-GCM (`AES/GCM/NoPadding`) with unique 12-byte cryptographically secure random IV per operation and 128-bit authentication tag to prevent tampering and ciphertext manipulation.
+    - Cryptographic key management: Key derivation via SHA-256 from application encryption key (`app.security.encryption.key`).
+    - Deterministic HMAC-SHA256 blind indexing (`generateHmacBlindIndex`) allowing exact-match searches over encrypted fields without decrypting records or exposing plaintext.
+    - JPA Attribute Converter (`AesGcmEncryptionConverter`): Transparent database column-level encryption/decryption with graceful plaintext fallback for zero-downtime migrations.
+  - Field-level contextual access control & Jackson serialization:
+    - `@SensitiveData` declarative annotation with `@JacksonAnnotationsInside` and custom `SensitiveDataSerializer`.
+    - Dynamic contextual evaluation based on Spring Security caller context (`ROLE_ADMIN`, `ROLE_HR`, or specific permissions like `EMPLOYEE_SALARY_VIEW`).
+    - Non-privileged callers receive masked phone numbers and nullified or masked salary fields on employee profiles/DTOs (`EmployeeResponseDTO`).
+  - Log & Audit Trail Protection:
+    - `AuditService` regex scrubbing updated with sensitive patterns for salaries, phone numbers, SSNs, credit cards, CVVs, and API keys.
+  - GDPR Compliance & Privacy Lifecycle:
+    - Article 17 Right to Erasure / Anonymization: `DataAnonymizationService.anonymizeEmployee` wipes PII (email converted to anonymized hash, names scrubbed, phone cleared, salary zeroed, user deactivated) while preserving referential integrity for organizational audit compliance.
+    - Article 20 Right to Data Portability: `DataAnonymizationService.exportPersonalData` aggregates and packages personal identity data, department information, role assignments, leave balance quotas, and historical leave requests into an exportable JSON payload (`PersonalDataExportDTO`).
+  - REST Endpoints:
+    - `POST /api/sensitive-data/mask`: On-demand masking utility endpoint for text, emails, phones, and tokens.
+    - `POST /api/sensitive-data/encrypt`: Admin cryptographic encryption endpoint.
+    - `POST /api/sensitive-data/decrypt`: Admin cryptographic decryption endpoint with integrity check.
+    - `POST /api/sensitive-data/anonymize/{employeeId}`: Admin GDPR right to erasure endpoint.
+    - `GET /api/sensitive-data/me/export`: Self-service personal data portability export for authenticated users.
+    - `GET /api/sensitive-data/export/{employeeId}`: Administrative personal data export for authorized HR/admins.
+- **Implementation:**
+  - Security package: `com.leave_management_system.leave_management_system.security.sensitive`:
+    - `SensitiveType`: Enum specifying sensitive categories (`PHONE`, `EMAIL`, `SALARY`, `TOKEN`, `PASSWORD`, `CREDENTIAL`, `CREDIT_CARD`, `NATIONAL_ID`, `GENERIC`).
+    - `SensitiveData`: Meta-annotation binding `SensitiveDataSerializer`.
+    - `DataMaskingService`: Core masking algorithms, JSON string redactor, and Map sanitizer.
+    - `CryptoService`: AES-256-GCM authenticated encryption/decryption and HMAC-SHA256 blind indexing.
+    - `AesGcmEncryptionConverter`: JPA AttributeConverter for database entity columns.
+    - `SensitiveDataSerializer`: Jackson ContextualSerializer enforcing field-level role/permission/ownership authorization checks.
+    - `DataAnonymizationService`: GDPR Article 17 erasure and Article 20 data portability export engine.
+  - DTOs:
+    - `MaskRequestDTO`, `MaskResponseDTO`
+    - `CryptoRequestDTO`, `CryptoResponseDTO`
+    - `PersonalDataExportDTO`, `AnonymizeResponseDTO`
+  - Controller:
+    - `SensitiveDataController`: Exposes endpoints for masking, encryption/decryption, GDPR erasure, and personal data export with `@PreAuthorize` security checks.
+  - Audit & DTO Integration:
+    - `AuditService`: Expanded sensitive regex to redact `salary`, `phone`, `ssn`, `creditCard`, `cvv`, `apiKey`.
+    - `EmployeeResponseDTO`: Added `@SensitiveData(type = SensitiveType.SALARY, privilegeRequired = "ROLE_ADMIN")` and `@SensitiveData(type = SensitiveType.PHONE)`.
+- **API:**
+  - `POST /api/sensitive-data/mask` (Authenticated)
+  - `POST /api/sensitive-data/encrypt` (Admin / Security View)
+  - `POST /api/sensitive-data/decrypt` (Admin / Security View)
+  - `POST /api/sensitive-data/anonymize/{employeeId}` (Admin / User Manage)
+  - `GET /api/sensitive-data/me/export` (Authenticated)
+  - `GET /api/sensitive-data/export/{employeeId}` (Admin / Employee View)
+- **Test:**
+  - `SensitiveDataProtectionIntegrationTest` (13 integration tests): Phone and email masking API verification; AES-256-GCM encryption/decryption roundtrip; AES-256-GCM ciphertext tampering detection; deterministic HMAC-SHA256 blind indexing; employee self-service personal data export (GDPR Art. 20); admin personal data export for target employee; non-admin forbidden from exporting other employees' personal data (403); admin employee anonymization (GDPR Art. 17) verifying PII scrub and account deactivation; non-admin forbidden from anonymizing employees (403); JPA column converter transparent encryption and plaintext fallback; audit log sanitization redacting salary, phone, and tokens; unauthenticated request rejection (401).
+- **Status:** **DONE**
+
+
+
 
 

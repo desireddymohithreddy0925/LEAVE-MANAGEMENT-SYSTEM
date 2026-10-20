@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leave_management_system.leave_management_system.dto.ErrorResponseDTO;
 import com.leave_management_system.leave_management_system.security.SecurityEventType;
 import com.leave_management_system.leave_management_system.service.AuditService;
+import com.leave_management_system.leave_management_system.service.AuthorizationAuditService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -23,9 +24,12 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private final AuditService auditService;
+    private final AuthorizationAuditService authorizationAuditService;
 
-    public CustomAccessDeniedHandler(@Lazy AuditService auditService) {
+    public CustomAccessDeniedHandler(@Lazy AuditService auditService,
+                                     @Lazy AuthorizationAuditService authorizationAuditService) {
         this.auditService = auditService;
+        this.authorizationAuditService = authorizationAuditService;
     }
 
     @Override
@@ -40,7 +44,12 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             String userEmail = (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal()))
                     ? auth.getName() : null;
-            auditService.logSecurityEvent(SecurityEventType.UNAUTHORIZED_ACCESS, ip, userEmail, request.getMethod() + " " + request.getRequestURI());
+            String resource = request.getMethod() + " " + request.getRequestURI();
+            auditService.logSecurityEvent(SecurityEventType.UNAUTHORIZED_ACCESS, ip, userEmail, resource);
+            if (authorizationAuditService != null) {
+                authorizationAuditService.recordDecision(userEmail, null, "ENDPOINT_ACCESS", resource,
+                        "SECURED_ENDPOINT", "DENIED", "Access denied: 403 Forbidden", ip);
+            }
         } catch (Exception ignored) {
         }
 

@@ -1,12 +1,15 @@
 package com.leave_management_system.leave_management_system.controller;
 
 import com.leave_management_system.leave_management_system.dto.AuditLogResponseDTO;
+import com.leave_management_system.leave_management_system.dto.AuthorizationAuditResponseDTO;
 import com.leave_management_system.leave_management_system.security.SecurityEventType;
 import com.leave_management_system.leave_management_system.service.AuditService;
+import com.leave_management_system.leave_management_system.service.AuthorizationAuditService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -24,9 +27,11 @@ import java.time.LocalDateTime;
 public class AuditLogController {
 
     private final AuditService auditService;
+    private final AuthorizationAuditService authorizationAuditService;
 
-    public AuditLogController(AuditService auditService) {
+    public AuditLogController(AuditService auditService, @Lazy AuthorizationAuditService authorizationAuditService) {
         this.auditService = auditService;
+        this.authorizationAuditService = authorizationAuditService;
     }
 
     @PreAuthorize("hasAuthority('ADMIN_VIEW') or hasAuthority('ROLE_ADMIN') or hasAuthority('AUDIT_LOG_VIEW')")
@@ -83,5 +88,23 @@ public class AuditLogController {
             @PathVariable Long entityId,
             @PageableDefault(size = 20, sort = "timestamp", direction = Sort.Direction.DESC) Pageable pageable) {
         return auditService.getAuditLogsByEntity(entityType, entityId, pageable);
+    }
+
+    @PreAuthorize("hasAuthority('ADMIN_VIEW') or hasAuthority('ROLE_ADMIN') or hasAuthority('AUDIT_LOG_VIEW')")
+    @GetMapping("/authorization")
+    @Operation(summary = "Get authorization audits", description = "Retrieve authorization decision audits with filtering and pagination.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successfully retrieved authorization audit logs")
+    })
+    public Page<AuthorizationAuditResponseDTO> getAuthorizationAudits(
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) String resource,
+            @RequestParam(required = false) String decision,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @PageableDefault(size = 20, sort = "timestamp", direction = Sort.Direction.DESC) Pageable pageable) {
+        return authorizationAuditService.searchAuthorizationAudits(userId, email, action, resource, decision, startDate, endDate, pageable);
     }
 }

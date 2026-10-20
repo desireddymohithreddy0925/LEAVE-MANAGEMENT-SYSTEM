@@ -134,7 +134,7 @@ public class LeaveRequestControllerIntegrationTest {
 
     private LocalDate[] getSafeWeekdayRange(int daysFromNow, int durationDays) {
         LocalDate start = LocalDate.now().plusDays(daysFromNow);
-        if (start.getYear() > LocalDate.now().getYear()) {
+        if (start.getYear() > LocalDate.now().getYear() || (start.getMonthValue() == 12 && start.getDayOfMonth() >= 25)) {
             start = LocalDate.of(LocalDate.now().getYear() + 1, 3, 10);
         }
         while (start.getDayOfWeek() == java.time.DayOfWeek.SATURDAY || start.getDayOfWeek() == java.time.DayOfWeek.SUNDAY) {

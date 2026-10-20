@@ -16,10 +16,14 @@ public class SecurityEventListener {
 
     private final AuditService auditService;
     private final LoginTrackingService loginTrackingService;
+    private final com.leave_management_system.leave_management_system.service.AuthorizationAuditService authorizationAuditService;
 
-    public SecurityEventListener(AuditService auditService, @Lazy LoginTrackingService loginTrackingService) {
+    public SecurityEventListener(AuditService auditService,
+                                 @Lazy LoginTrackingService loginTrackingService,
+                                 @Lazy com.leave_management_system.leave_management_system.service.AuthorizationAuditService authorizationAuditService) {
         this.auditService = auditService;
         this.loginTrackingService = loginTrackingService;
+        this.authorizationAuditService = authorizationAuditService;
     }
 
     @EventListener
@@ -45,8 +49,31 @@ public class SecurityEventListener {
     public void onAuthorizationDenied(AuthorizationDeniedEvent<?> event) {
         Authentication auth = (Authentication) event.getAuthentication().get();
         String email = extractEmail(auth);
+        String resource = "Secured Resource";
+        try {
+            if (event.getObject() instanceof org.aopalliance.intercept.MethodInvocation mi) {
+                resource = mi.getMethod().getDeclaringClass().getSimpleName() + "#" + mi.getMethod().getName();
+            } else if (event.getObject() != null) {
+                resource = event.getObject().toString();
+            }
+        } catch (Exception ignored) {
+        }
 
-        auditService.logSecurityEvent(SecurityEventType.UNAUTHORIZED_ACCESS, null, email, "Access denied to secured resource");
+        if (resource.length() > 255) {
+            resource = resource.substring(0, 252) + "...";
+        }
+
+        try {
+            auditService.logSecurityEvent(SecurityEventType.UNAUTHORIZED_ACCESS, null, email, "Access denied to secured resource: " + resource);
+        } catch (Exception ignored) {
+        }
+
+        try {
+            if (authorizationAuditService != null) {
+                authorizationAuditService.recordDenied(email, null, "ACCESS_DENIED", resource, "SECURITY_RULE", "Access denied to secured resource");
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     private String extractEmail(Authentication auth) {
