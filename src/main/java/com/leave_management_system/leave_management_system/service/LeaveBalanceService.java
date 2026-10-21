@@ -13,7 +13,12 @@ import com.leave_management_system.leave_management_system.repository.EmployeeRe
 import com.leave_management_system.leave_management_system.repository.LeaveBalanceRepository;
 import com.leave_management_system.leave_management_system.repository.LeaveRequestRepository;
 import com.leave_management_system.leave_management_system.repository.LeaveTypeRepository;
+import com.leave_management_system.leave_management_system.entity.User;
+import com.leave_management_system.leave_management_system.repository.UserRepository;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,16 +35,53 @@ public class LeaveBalanceService {
     private final EmployeeRepository employeeRepository;
     private final LeaveTypeRepository leaveTypeRepository;
     private final LeaveRequestRepository leaveRequestRepository;
+    private final TransactionReviewService transactionReviewService;
+    private final UserRepository userRepository;
 
     public LeaveBalanceService(
             LeaveBalanceRepository leaveBalanceRepository,
             EmployeeRepository employeeRepository,
             LeaveTypeRepository leaveTypeRepository,
             LeaveRequestRepository leaveRequestRepository) {
+        this(leaveBalanceRepository, employeeRepository, leaveTypeRepository, leaveRequestRepository, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public LeaveBalanceService(
+            LeaveBalanceRepository leaveBalanceRepository,
+            EmployeeRepository employeeRepository,
+            LeaveTypeRepository leaveTypeRepository,
+            LeaveRequestRepository leaveRequestRepository,
+            @Lazy TransactionReviewService transactionReviewService,
+            @Lazy UserRepository userRepository) {
         this.leaveBalanceRepository = leaveBalanceRepository;
         this.employeeRepository = employeeRepository;
         this.leaveTypeRepository = leaveTypeRepository;
         this.leaveRequestRepository = leaveRequestRepository;
+        this.transactionReviewService = transactionReviewService;
+        this.userRepository = userRepository;
+    }
+
+    private User resolveCurrentActor() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getName() != null && userRepository != null) {
+                return userRepository.findByEmail(auth.getName()).orElse(null);
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    private String resolveCurrentActorEmail() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getName() != null) {
+                return auth.getName();
+            }
+        } catch (Exception ignored) {
+        }
+        return "system";
     }
 
     @AuditAction(action = "BALANCE_CREATED", entityType = "LeaveBalance")
@@ -104,7 +146,11 @@ public class LeaveBalanceService {
         leaveBalance.setUsed(0);
         leaveBalance.setAvailable(initialDays);
 
-        return LeaveBalanceResponseDTO.fromEntity(leaveBalanceRepository.save(leaveBalance));
+        LeaveBalance saved = leaveBalanceRepository.save(leaveBalance);
+        if (transactionReviewService != null) {
+            transactionReviewService.recordBalanceCreation(saved, resolveCurrentActor(), resolveCurrentActorEmail());
+        }
+        return LeaveBalanceResponseDTO.fromEntity(saved);
     }
 
     public List<LeaveBalanceResponseDTO> getAllLeaveBalances() {
@@ -203,10 +249,17 @@ public class LeaveBalanceService {
                             + ") cannot exceed total days (" + targetTotal + ")");
         }
 
+        int oldTotal = leaveBalance.getTotal();
+        int oldAvailable = leaveBalance.getAvailable();
+
         leaveBalance.setAvailable(targetAvailable);
         leaveBalance.setTotal(targetTotal);
 
-        return LeaveBalanceResponseDTO.fromEntity(leaveBalanceRepository.save(leaveBalance));
+        LeaveBalance saved = leaveBalanceRepository.save(leaveBalance);
+        if (transactionReviewService != null) {
+            transactionReviewService.recordBalanceAdjustment(saved, oldTotal, oldAvailable, resolveCurrentActor(), resolveCurrentActorEmail());
+        }
+        return LeaveBalanceResponseDTO.fromEntity(saved);
     }
 
     @AuditAction(action = "BALANCE_DELETED", entityType = "LeaveBalance")

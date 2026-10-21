@@ -83,6 +83,9 @@ public class AuthorizationAuditingIntegrationTest {
     private AuthorizationAuditLogRepository authorizationAuditLogRepository;
 
     @Autowired
+    private com.leave_management_system.leave_management_system.repository.TransactionReviewRepository transactionReviewRepository;
+
+    @Autowired
     private AuthorizationAuditService authorizationAuditService;
 
     @Autowired
@@ -244,6 +247,7 @@ public class AuthorizationAuditingIntegrationTest {
 
     @AfterEach
     public void cleanup() {
+        transactionReviewRepository.deleteAll();
         leaveRequestRepository.deleteAll();
         leaveBalanceRepository.deleteAll();
         leaveTypeRepository.deleteAll();

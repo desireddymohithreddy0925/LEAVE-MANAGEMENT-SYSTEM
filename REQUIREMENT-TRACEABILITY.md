@@ -283,6 +283,75 @@ This document maps the mandatory internship requirements to their specific imple
   - `SensitiveDataProtectionIntegrationTest` (13 integration tests): Phone and email masking API verification; AES-256-GCM encryption/decryption roundtrip; AES-256-GCM ciphertext tampering detection; deterministic HMAC-SHA256 blind indexing; employee self-service personal data export (GDPR Art. 20); admin personal data export for target employee; non-admin forbidden from exporting other employees' personal data (403); admin employee anonymization (GDPR Art. 17) verifying PII scrub and account deactivation; non-admin forbidden from anonymizing employees (403); JPA column converter transparent encryption and plaintext fallback; audit log sanitization redacting salary, phone, and tokens; unauthenticated request rejection (401).
 - **Status:** **DONE**
 
+### 18. Leave & Balance Transaction Review Engine
+- **Requirement:**
+  - Automated, risk-scored transaction monitoring and review system for all sensitive leave and balance operations across the organization.
+  - Automated heuristic risk evaluation and classification:
+    - Standard routine leave requests: `LOW` risk (score 10), automatically approved/reviewed.
+    - Extended leave requests: duration > 14 days flagged as `MEDIUM` risk (score 45), duration > 30 days flagged as `HIGH` risk (score 75).
+    - Retroactive leave submissions: start date before creation date flagged as `HIGH` risk (score 80).
+    - Post-approval leave cancellations: cancellation of previously approved requests flagged as `MEDIUM` risk (score 50).
+    - Manual leave balance adjustments: admin balance overrides with absolute delta >= 10 days flagged as `HIGH` risk (score 75), delta >= 20 days flagged as `CRITICAL` risk (score 95).
+    - Generic administrative transactions: role changes, department transfers.
+  - Multi-state transaction review lifecycle:
+    - States: `PENDING_REVIEW`, `UNDER_REVIEW`, `REVIEWED`, `FLAGGED`, `RESOLVED`.
+    - Risk levels: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` with numerical risk score (0-100).
+    - Reviewer assignment (`assignReviewer`) transitioning review to `UNDER_REVIEW`.
+    - Review decision submission (`submitReview`) transitioning review to `REVIEWED`.
+    - Suspicious transaction flagging (`flagTransaction`) with escalation reason transitioning review to `FLAGGED`.
+    - Disposition resolution (`resolveReview`) with resolution notes transitioning review to `RESOLVED`.
+  - Dynamic Search, Filtering & Analytics:
+    - Multi-criteria specification queries filtering by `transactionType`, `reviewStatus`, `riskLevel`, `employeeId`, `actorId`, `reviewerId`, `minRiskScore`, and date ranges (`startDate`, `endDate`).
+    - Aggregated executive metrics summary endpoint (`/api/transaction-reviews/summary`) reporting total transactions, status breakdowns, risk level distributions, pending high-risk queue size, and review completion rates.
+    - Role-based contextual access: Self-service endpoint (`/me`) for employees, managed employee endpoint (`/employee/{id}`) for managers/admins, full review control for Admin and Audit viewers.
+    - Unified audit log bridging: Cross-system lookup endpoint under `/api/audit-logs/transaction-reviews`.
+- **Implementation:**
+  - Liquibase Migration:
+    - `019-add-transaction-review.yaml`: Creates `transaction_reviews` table with indexed foreign keys (`employee_id`, `actor_id`, `reviewer_id`) with cascading delete rules, risk attributes, lifecycle status, JSON details, and search indexes.
+  - Domain Model & Repositories:
+    - Enums: `TransactionType`, `ReviewStatus`, `RiskLevel`.
+    - Entity: `TransactionReview` tracking transaction references, actor, target employee, risk score/reason, review status, reviewer assignment, review notes, resolution disposition, and contextual JSON details.
+    - Repository: `TransactionReviewRepository` with `JpaSpecificationExecutor` and aggregate metric count queries.
+  - DTOs:
+    - `TransactionReviewResponseDTO`, `TransactionReviewSummaryDTO`, `ReviewDecisionDTO`, `FlagTransactionDTO`, `ResolveReviewDTO`, `AssignReviewerDTO`.
+  - Service Layer:
+    - `TransactionReviewService`: Automated heuristic risk evaluation, lifecycle state machines, criteria-based filtering, and KPI calculation.
+    - `LeaveRequestService`: Integrated with `TransactionReviewService` on creation, approval, rejection, and cancellation.
+    - `LeaveBalanceService`: Integrated with `TransactionReviewService` on quota creation and manual balance adjustments.
+  - Security & Controllers:
+    - `SecurityAuthorizationService.canViewTransactionReview`: Role, hierarchy, and ownership validation.
+    - `TransactionReviewController`: REST endpoints under `/api/transaction-reviews`.
+    - `AuditLogController`: Unified bridging endpoint `GET /api/audit-logs/transaction-reviews`.
+- **API:**
+  - `GET /api/transaction-reviews` (Admin / Audit Log View)
+  - `GET /api/transaction-reviews/summary` (Admin / Audit Log View)
+  - `GET /api/transaction-reviews/me` (Authenticated Employee)
+  - `GET /api/transaction-reviews/employee/{employeeId}` (Manager / Admin)
+  - `GET /api/transaction-reviews/{id}` (Contextual Authorization)
+  - `POST /api/transaction-reviews/{id}/assign` (Admin / Leave Approve)
+  - `POST /api/transaction-reviews/{id}/review` (Admin / Leave Approve)
+  - `POST /api/transaction-reviews/{id}/flag` (Admin / Leave Approve)
+  - `POST /api/transaction-reviews/{id}/resolve` (Admin / Leave Approve)
+  - `GET /api/audit-logs/transaction-reviews` (Admin / Audit Log View)
+- **Test:**
+  - `TransactionReviewIntegrationTest` (14 integration tests):
+    - Routine leave request creates low-risk reviewed transaction review.
+    - Extended leave request (> 14 days) triggers MEDIUM risk and PENDING_REVIEW status.
+    - Retroactive leave request creates HIGH risk review flagged for verification.
+    - Leave cancellation post-approval triggers MEDIUM risk PENDING_REVIEW.
+    - Manual balance adjustment with significant delta triggers HIGH risk FLAGGED review.
+    - Multi-criteria specification filtering and pagination.
+    - Reviewer assignment transitioning review to UNDER_REVIEW.
+    - Review submission with notes transitioning to REVIEWED.
+    - Flagging suspicious transaction with escalation note transitioning to FLAGGED.
+    - Resolving flagged review with disposition note transitioning to RESOLVED.
+    - Executive summary KPI metrics computation.
+    - Employee self-service `/me` endpoint returns owned transaction reviews.
+    - Contextual authorization check preventing unauthorized employee access (403).
+    - Unified audit log bridging endpoint queries transaction reviews.
+- **Status:** **DONE**
+
+
 
 
 

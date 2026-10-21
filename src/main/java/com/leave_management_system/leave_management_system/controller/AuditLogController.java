@@ -2,9 +2,14 @@ package com.leave_management_system.leave_management_system.controller;
 
 import com.leave_management_system.leave_management_system.dto.AuditLogResponseDTO;
 import com.leave_management_system.leave_management_system.dto.AuthorizationAuditResponseDTO;
+import com.leave_management_system.leave_management_system.dto.TransactionReviewResponseDTO;
+import com.leave_management_system.leave_management_system.entity.ReviewStatus;
+import com.leave_management_system.leave_management_system.entity.RiskLevel;
+import com.leave_management_system.leave_management_system.entity.TransactionType;
 import com.leave_management_system.leave_management_system.security.SecurityEventType;
 import com.leave_management_system.leave_management_system.service.AuditService;
 import com.leave_management_system.leave_management_system.service.AuthorizationAuditService;
+import com.leave_management_system.leave_management_system.service.TransactionReviewService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -28,10 +33,14 @@ public class AuditLogController {
 
     private final AuditService auditService;
     private final AuthorizationAuditService authorizationAuditService;
+    private final TransactionReviewService transactionReviewService;
 
-    public AuditLogController(AuditService auditService, @Lazy AuthorizationAuditService authorizationAuditService) {
+    public AuditLogController(AuditService auditService,
+                              @Lazy AuthorizationAuditService authorizationAuditService,
+                              @Lazy TransactionReviewService transactionReviewService) {
         this.auditService = auditService;
         this.authorizationAuditService = authorizationAuditService;
+        this.transactionReviewService = transactionReviewService;
     }
 
     @PreAuthorize("hasAuthority('ADMIN_VIEW') or hasAuthority('ROLE_ADMIN') or hasAuthority('AUDIT_LOG_VIEW')")
@@ -107,4 +116,25 @@ public class AuditLogController {
             @PageableDefault(size = 20, sort = "timestamp", direction = Sort.Direction.DESC) Pageable pageable) {
         return authorizationAuditService.searchAuthorizationAudits(userId, email, action, resource, decision, startDate, endDate, pageable);
     }
+
+    @PreAuthorize("hasAuthority('ADMIN_VIEW') or hasAuthority('ROLE_ADMIN') or hasAuthority('AUDIT_LOG_VIEW')")
+    @GetMapping("/transaction-reviews")
+    @Operation(summary = "Get transaction reviews audit log", description = "Retrieve transaction reviews with filtering and pagination.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successfully retrieved transaction reviews")
+    })
+    public Page<TransactionReviewResponseDTO> getTransactionReviews(
+            @RequestParam(required = false) TransactionType transactionType,
+            @RequestParam(required = false) ReviewStatus reviewStatus,
+            @RequestParam(required = false) RiskLevel riskLevel,
+            @RequestParam(required = false) Long employeeId,
+            @RequestParam(required = false) String actorEmail,
+            @RequestParam(required = false) Long reviewerId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return transactionReviewService.searchTransactionReviews(transactionType, reviewStatus, riskLevel,
+                employeeId, actorEmail, reviewerId, startDate, endDate, pageable);
+    }
 }
+

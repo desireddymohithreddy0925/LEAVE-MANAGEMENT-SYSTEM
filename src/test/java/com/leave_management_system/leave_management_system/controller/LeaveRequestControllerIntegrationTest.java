@@ -513,8 +513,9 @@ public class LeaveRequestControllerIntegrationTest {
 
         Long typeId = createLeaveType();
         LocalDate[] range1 = getSafeWeekdayRange(58, 2);
+        LocalDate[] range2 = getSafeWeekdayRange(65, 2);
         createLeaveBalanceWithDays(emp1Id, typeId, range1[0].getYear(), 10);
-        createLeaveBalanceWithDays(emp2Id, typeId, range1[0].getYear(), 10);
+        createLeaveBalanceWithDays(emp2Id, typeId, range2[0].getYear(), 10);
 
         // Emp1 applies leave
         LeaveRequestDTO req1 = new LeaveRequestDTO();
@@ -530,7 +531,6 @@ public class LeaveRequestControllerIntegrationTest {
                 .andExpect(status().isCreated());
 
         // Emp2 applies leave
-        LocalDate[] range2 = getSafeWeekdayRange(65, 2);
         LeaveRequestDTO req2 = new LeaveRequestDTO();
         req2.setLeaveTypeId(typeId);
         req2.setStartDate(range2[0]);

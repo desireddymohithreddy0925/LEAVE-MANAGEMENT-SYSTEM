@@ -98,6 +98,9 @@ public class SensitiveDataProtectionIntegrationTest {
     private LoginHistoryRepository loginHistoryRepository;
 
     @Autowired
+    private com.leave_management_system.leave_management_system.repository.TransactionReviewRepository transactionReviewRepository;
+
+    @Autowired
     private JwtUtils jwtUtils;
 
     @Autowired
@@ -205,6 +208,7 @@ public class SensitiveDataProtectionIntegrationTest {
 
     @AfterEach
     public void cleanup() {
+        transactionReviewRepository.deleteAll();
         leaveRequestRepository.deleteAll();
         leaveBalanceRepository.deleteAll();
         leaveTypeRepository.deleteAll();

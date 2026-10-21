@@ -6,6 +6,8 @@ import com.leave_management_system.leave_management_system.entity.LeaveRequest;
 import com.leave_management_system.leave_management_system.repository.EmployeeRepository;
 import com.leave_management_system.leave_management_system.repository.LeaveRequestRepository;
 import com.leave_management_system.leave_management_system.service.AuthorizationAuditService;
+import com.leave_management_system.leave_management_system.entity.TransactionReview;
+import com.leave_management_system.leave_management_system.repository.TransactionReviewRepository;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -18,13 +20,16 @@ public class SecurityAuthorizationService {
     private final EmployeeRepository employeeRepository;
     private final LeaveRequestRepository leaveRequestRepository;
     private final AuthorizationAuditService authorizationAuditService;
+    private final TransactionReviewRepository transactionReviewRepository;
 
     public SecurityAuthorizationService(EmployeeRepository employeeRepository,
                                         LeaveRequestRepository leaveRequestRepository,
-                                        @Lazy AuthorizationAuditService authorizationAuditService) {
+                                        @Lazy AuthorizationAuditService authorizationAuditService,
+                                        @Lazy TransactionReviewRepository transactionReviewRepository) {
         this.employeeRepository = employeeRepository;
         this.leaveRequestRepository = leaveRequestRepository;
         this.authorizationAuditService = authorizationAuditService;
+        this.transactionReviewRepository = transactionReviewRepository;
     }
 
     public Optional<Employee> getAuthenticatedEmployee(Authentication authentication) {
@@ -301,4 +306,45 @@ public class SecurityAuthorizationService {
             return false;
         }
     }
+
+    public boolean canViewTransactionReview(Authentication authentication, Long reviewId) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return false;
+        }
+        boolean isGlobalScope = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_HR")
+                        || a.getAuthority().equals("AUDIT_VIEW") || a.getAuthority().equals("ADMIN_AUDIT_VIEW"));
+        if (isGlobalScope) {
+            return true;
+        }
+
+        if (reviewId == null) {
+            return false;
+        }
+
+        Optional<TransactionReview> reviewOpt = transactionReviewRepository.findById(reviewId);
+        if (reviewOpt.isEmpty()) {
+            return false;
+        }
+
+        TransactionReview review = reviewOpt.get();
+        String callerEmail = authentication.getName();
+
+        if (review.getActorEmail() != null && review.getActorEmail().equalsIgnoreCase(callerEmail)) {
+            return true;
+        }
+
+        if (review.getEmployee() != null && review.getEmployee().getUser() != null && review.getEmployee().getUser().getEmail() != null) {
+            if (review.getEmployee().getUser().getEmail().equalsIgnoreCase(callerEmail)) {
+                return true;
+            }
+        }
+
+        if (review.getEmployee() != null) {
+            return isManagerOfEmployee(authentication, review.getEmployee().getId());
+        }
+
+        return false;
+    }
 }
+

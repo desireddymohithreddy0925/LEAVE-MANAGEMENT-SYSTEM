@@ -27,6 +27,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.leave_management_system.leave_management_system.entity.User;
+import com.leave_management_system.leave_management_system.repository.UserRepository;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 @Service
 @PreAuthorize("hasAuthority('LEAVE_VIEW_ALL')")
 public class LeaveRequestService {
@@ -35,15 +41,51 @@ public class LeaveRequestService {
     private final LeaveBalanceRepository leaveBalanceRepository;
     private final EmployeeRepository employeeRepository;
     private final LeaveTypeRepository leaveTypeRepository;
+    private final TransactionReviewService transactionReviewService;
+    private final UserRepository userRepository;
 
     public LeaveRequestService(LeaveRequestRepository leaveRequestRepository,
             LeaveBalanceRepository leaveBalanceRepository,
             EmployeeRepository employeeRepository,
             LeaveTypeRepository leaveTypeRepository) {
+        this(leaveRequestRepository, leaveBalanceRepository, employeeRepository, leaveTypeRepository, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public LeaveRequestService(LeaveRequestRepository leaveRequestRepository,
+            LeaveBalanceRepository leaveBalanceRepository,
+            EmployeeRepository employeeRepository,
+            LeaveTypeRepository leaveTypeRepository,
+            @Lazy TransactionReviewService transactionReviewService,
+            @Lazy UserRepository userRepository) {
         this.leaveRequestRepository = leaveRequestRepository;
         this.leaveBalanceRepository = leaveBalanceRepository;
         this.employeeRepository = employeeRepository;
         this.leaveTypeRepository = leaveTypeRepository;
+        this.transactionReviewService = transactionReviewService;
+        this.userRepository = userRepository;
+    }
+
+    private User resolveCurrentActor() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getName() != null && userRepository != null) {
+                return userRepository.findByEmail(auth.getName()).orElse(null);
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    private String resolveCurrentActorEmail() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getName() != null) {
+                return auth.getName();
+            }
+        } catch (Exception ignored) {
+        }
+        return "system";
     }
 
     @Transactional
@@ -105,8 +147,11 @@ public class LeaveRequestService {
         leaveRequest.setEndDate(dto.getEndDate());
         leaveRequest.setReason(dto.getReason());
         leaveRequest.setStatus(LeaveStatus.PENDING);
-
-        return LeaveResponseDTO.fromEntity(leaveRequestRepository.save(leaveRequest));
+        LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
+        if (transactionReviewService != null) {
+            transactionReviewService.recordLeaveRequest(saved, resolveCurrentActor(), resolveCurrentActorEmail());
+        }
+        return LeaveResponseDTO.fromEntity(saved);
     }
 
     @Transactional(readOnly = true)
@@ -281,7 +326,11 @@ public class LeaveRequestService {
         leaveBalanceRepository.save(balance);
 
         leaveRequest.setStatus(LeaveStatus.APPROVED);
-        return LeaveResponseDTO.fromEntity(leaveRequestRepository.save(leaveRequest));
+        LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
+        if (transactionReviewService != null) {
+            transactionReviewService.recordLeaveApproval(saved, resolveCurrentActor(), resolveCurrentActorEmail());
+        }
+        return LeaveResponseDTO.fromEntity(saved);
     }
 
     @Transactional
@@ -304,7 +353,11 @@ public class LeaveRequestService {
 
         leaveRequest.setStatus(LeaveStatus.REJECTED);
         leaveRequest.setRejectionReason(rejectionReason.trim());
-        return LeaveResponseDTO.fromEntity(leaveRequestRepository.save(leaveRequest));
+        LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
+        if (transactionReviewService != null) {
+            transactionReviewService.recordLeaveRejection(saved, rejectionReason.trim(), resolveCurrentActor(), resolveCurrentActorEmail());
+        }
+        return LeaveResponseDTO.fromEntity(saved);
     }
 
     @Transactional
@@ -323,7 +376,8 @@ public class LeaveRequestService {
             }
         }
 
-        if (leaveRequest.getStatus() == LeaveStatus.APPROVED) {
+        boolean wasApproved = leaveRequest.getStatus() == LeaveStatus.APPROVED;
+        if (wasApproved) {
             if (leaveRequest.getStartDate().getYear() != leaveRequest.getEndDate().getYear()) {
                 throw new IllegalArgumentException(
                         "Leave request cannot span across multiple calendar years. Please submit separate requests for each year.");
@@ -341,7 +395,11 @@ public class LeaveRequestService {
         }
 
         leaveRequest.setStatus(LeaveStatus.CANCELLED);
-        return LeaveResponseDTO.fromEntity(leaveRequestRepository.save(leaveRequest));
+        LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
+        if (transactionReviewService != null) {
+            transactionReviewService.recordLeaveCancellation(saved, wasApproved, resolveCurrentActor(), resolveCurrentActorEmail());
+        }
+        return LeaveResponseDTO.fromEntity(saved);
     }
 
     public void deleteLeaveRequest(Long id) {

@@ -156,4 +156,9 @@ databaseChangeLog:
       file: changes/018-add-authorization-auditing.yaml
       relativeToChangelogFile: true
 
+  - include:
+      file: changes/019-add-transaction-review.yaml
+      relativeToChangelogFile: true
+
+
 
