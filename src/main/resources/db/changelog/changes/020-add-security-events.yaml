@@ -1,0 +1,130 @@
+databaseChangeLog:
+  - changeSet:
+      id: 020-add-security-events
+      author: antigravity
+      changes:
+        - createTable:
+            tableName: security_events
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: event_type
+                  type: varchar(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: severity
+                  type: varchar(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: bigint
+                  constraints:
+                    foreignKeyName: fk_sec_event_user
+                    references: users(id)
+                    deleteCascade: true
+                    nullable: true
+              - column:
+                  name: email
+                  type: varchar(255)
+              - column:
+                  name: ip_address
+                  type: varchar(255)
+              - column:
+                  name: user_agent
+                  type: varchar(500)
+              - column:
+                  name: resource
+                  type: varchar(255)
+              - column:
+                  name: threat_score
+                  type: int
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: threat_reason
+                  type: varchar(500)
+              - column:
+                  name: resolution_notes
+                  type: varchar(2000)
+              - column:
+                  name: resolved_by_id
+                  type: bigint
+                  constraints:
+                    foreignKeyName: fk_sec_event_resolved_by
+                    references: users(id)
+                    deleteCascade: true
+                    nullable: true
+              - column:
+                  name: resolved_at
+                  type: timestamp
+              - column:
+                  name: details
+                  type: varchar(4000)
+              - column:
+                  name: created_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            indexName: idx_sec_event_type
+            tableName: security_events
+            columns:
+              - column:
+                  name: event_type
+        - createIndex:
+            indexName: idx_sec_event_severity
+            tableName: security_events
+            columns:
+              - column:
+                  name: severity
+        - createIndex:
+            indexName: idx_sec_event_status
+            tableName: security_events
+            columns:
+              - column:
+                  name: status
+        - createIndex:
+            indexName: idx_sec_event_user_id
+            tableName: security_events
+            columns:
+              - column:
+                  name: user_id
+        - createIndex:
+            indexName: idx_sec_event_email
+            tableName: security_events
+            columns:
+              - column:
+                  name: email
+        - createIndex:
+            indexName: idx_sec_event_ip
+            tableName: security_events
+            columns:
+              - column:
+                  name: ip_address
+        - createIndex:
+            indexName: idx_sec_event_threat_score
+            tableName: security_events
+            columns:
+              - column:
+                  name: threat_score
+        - createIndex:
+            indexName: idx_sec_event_created_at
+            tableName: security_events
+            columns:
+              - column:
+                  name: created_at

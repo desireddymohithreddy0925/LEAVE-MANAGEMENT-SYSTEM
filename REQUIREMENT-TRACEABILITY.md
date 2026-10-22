@@ -351,6 +351,60 @@ This document maps the mandatory internship requirements to their specific imple
     - Unified audit log bridging endpoint queries transaction reviews.
 - **Status:** **DONE**
 
+### 19. Security Event Management & Automated Threat Detection Engine
+- **Requirement:**
+  - Dedicated first-class security event management and automated threat detection engine.
+  - Track security events: `SUCCESSFUL_LOGIN`, `FAILED_LOGIN`, `USER_LOGOUT`, `EXPIRED_TOKEN`, `INVALID_TOKEN`, `UNAUTHORIZED_ACCESS`, `PASSWORD_CHANGED`, `INACTIVE_USER_TOKEN`, `TOKEN_REFRESHED`, `UNKNOWN_USER_TOKEN`, `BRUTE_FORCE_ATTEMPT`, `REPEATED_UNAUTHORIZED_ACCESS`, `SUSPICIOUS_TOKEN_ACTIVITY`, `PRIVILEGE_ESCALATION`, `SUSPICIOUS_IP_ACTIVITY`.
+  - Severity classification: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` with numerical threat scoring (0-100).
+  - Incident lifecycle tracking: `OPEN`, `INVESTIGATING`, `RESOLVED`, `FALSE_POSITIVE` with resolution notes and reviewer timestamps.
+  - Automated threat detection heuristics:
+    - Brute-force detection: $\ge$ 5 failed logins within 15 minutes triggers `BRUTE_FORCE_ATTEMPT` with `CRITICAL` severity (score 95).
+    - Repeated unauthorized access: $\ge$ 3 unauthorized requests within 10 minutes triggers `REPEATED_UNAUTHORIZED_ACCESS` with `HIGH` severity (score 85).
+    - Suspicious token failures: $\ge$ 4 invalid/expired token requests within 10 minutes triggers `SUSPICIOUS_TOKEN_ACTIVITY` with `HIGH` severity (score 80).
+  - Multi-criteria specification filtering: search by `eventType`, `severity`, `status`, `userId`, `email`, `ipAddress`, `minThreatScore`, `startDate`, `endDate`, and pagination.
+  - Executive security posture summary endpoint (`/api/security-events/summary`) reporting total events, open/investigating/resolved/false positive counts, severity breakdowns, pending high-risk queue size, and resolution rate %.
+  - Strict credential sanitization: passwords, tokens, JWTs, and sensitive keys are redacted with `[REDACTED]`.
+  - Seamless bridge with unified audit trail: `AuditService.logSecurityEvent` feeds both `audit_logs` and `security_events`.
+- **Implementation:**
+  - Liquibase Migration:
+    - `020-add-security-events.yaml`: Schema migration creating `security_events` table with indexed foreign keys (`user_id`, `resolved_by_id`) with cascading delete rules, threat scores, lifecycle status, resolution details, and search indexes.
+  - Domain Model & Repositories:
+    - Enums: `SecurityEventSeverity`, `SecurityEventStatus`.
+    - Constants: Extended `SecurityEventType` with threat detection event types.
+    - Entity: `SecurityEvent` tracking event type, severity, status, user, email, IP, user-agent, resource, threat score, threat reason, resolution notes, resolver, resolved timestamp, and details.
+    - Repository: `SecurityEventRepository` with `JpaSpecificationExecutor` and threat detection window queries.
+  - DTOs:
+    - `SecurityEventResponseDTO`, `SecurityEventSummaryDTO`, `UpdateSecurityEventStatusDTO`.
+  - Service Layer:
+    - `SecurityEventManagementService`: Event recording, baseline severity scoring, automated threat heuristics, multi-criteria filtering, lifecycle state transitions, and executive KPI calculation.
+    - `AuditService`: Connected to `SecurityEventManagementService` on `logSecurityEvent`.
+  - Security & Controllers:
+    - `SecurityEventController`: REST endpoints under `/api/security-events`.
+- **API:**
+  - `GET /api/security-events` (Admin / Audit Log View / HR)
+  - `GET /api/security-events/summary` (Admin / Audit Log View / HR)
+  - `GET /api/security-events/{id}` (Admin / Audit Log View / HR)
+  - `PATCH /api/security-events/{id}/status` (Admin / Audit Log View)
+  - `POST /api/security-events/{id}/investigate` (Admin / Audit Log View)
+  - `POST /api/security-events/{id}/resolve` (Admin / Audit Log View)
+  - `POST /api/security-events/{id}/false-positive` (Admin / Audit Log View)
+- **Test:**
+  - `SecurityEventManagementIntegrationTest` (12 integration tests):
+    - Routine login creates LOW severity, auto-resolved security event.
+    - Failed login creates MEDIUM severity, OPEN security event with threat score 40.
+    - Automated brute-force detection triggers CRITICAL alert after 5 failed logins within 15 minutes.
+    - Repeated unauthorized access triggers HIGH threat alert after 3 unauthorized attempts.
+    - Suspicious token activity triggers HIGH threat alert after 4 token validation failures.
+    - Multi-criteria specification filtering by event type, severity, and minimum threat score.
+    - Get security event by ID (success and 404).
+    - Status lifecycle update via PATCH.
+    - Convenience status transition endpoints (investigate, resolve, false positive) with resolution notes and resolver metadata.
+    - Executive security posture summary KPI metrics calculation.
+    - Credential sanitization verifying passwords and tokens in payload details are redacted.
+    - RBAC enforcement: non-admin employee forbidden (403), unauthenticated rejected (401).
+- **Status:** **DONE**
+
+
 
 
 

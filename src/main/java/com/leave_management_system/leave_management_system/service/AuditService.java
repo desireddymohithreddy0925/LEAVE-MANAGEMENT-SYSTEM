@@ -42,11 +42,21 @@ public class AuditService {
 
     private final AuditLogRepository auditLogRepository;
     private final UserRepository userRepository;
+    private final SecurityEventManagementService securityEventManagementService;
     private final ObjectMapper objectMapper;
 
     public AuditService(AuditLogRepository auditLogRepository, UserRepository userRepository) {
+        this(auditLogRepository, userRepository, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public AuditService(
+            AuditLogRepository auditLogRepository,
+            UserRepository userRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) SecurityEventManagementService securityEventManagementService) {
         this.auditLogRepository = auditLogRepository;
         this.userRepository = userRepository;
+        this.securityEventManagementService = securityEventManagementService;
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     }
 
@@ -111,6 +121,10 @@ public class AuditService {
         }
 
         auditLogRepository.save(log);
+
+        if (securityEventManagementService != null) {
+            securityEventManagementService.recordSecurityEvent(action, ipAddress, email, null, details, null);
+        }
     }
 
     public Page<AuditLogResponseDTO> searchAuditLogs(

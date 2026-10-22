@@ -160,5 +160,9 @@ databaseChangeLog:
       file: changes/019-add-transaction-review.yaml
       relativeToChangelogFile: true
 
+  - include:
+      file: changes/020-add-security-events.yaml
+      relativeToChangelogFile: true
+
 
 

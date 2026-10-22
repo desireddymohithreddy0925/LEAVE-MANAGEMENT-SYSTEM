@@ -88,6 +88,9 @@ public class SecurityEventIntegrationTest {
     private AuthorizationAuditLogRepository authorizationAuditLogRepository;
 
     @Autowired
+    private com.leave_management_system.leave_management_system.repository.SecurityEventRepository securityEventRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -113,6 +116,7 @@ public class SecurityEventIntegrationTest {
                 .apply(springSecurity())
                 .build();
 
+        securityEventRepository.deleteAll();
         auditLogRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         loginHistoryRepository.deleteAll();
@@ -159,6 +163,7 @@ public class SecurityEventIntegrationTest {
 
     @AfterEach
     public void cleanup() {
+        securityEventRepository.deleteAll();
         auditLogRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         loginHistoryRepository.deleteAll();
