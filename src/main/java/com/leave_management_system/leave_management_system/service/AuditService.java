@@ -31,12 +31,32 @@ import java.util.regex.Pattern;
 public class AuditService {
 
     private static final Pattern SENSITIVE_JSON_PATTERN = Pattern.compile(
-            "(\"(?:password|currentPassword|newPassword|confirmPassword|confirmationPassword|token|refreshToken|rawRefreshToken|secret|credentials|authorization|salary|phone|ssn|creditCard|cardNumber|cvv|pin|apiKey|secretKey)\"\\s*:\\s*\")[^\"]*(\")",
+            "(\"(?:password|currentPassword|newPassword|confirmPassword|confirmationPassword|token|accessToken|access_token|refreshToken|refresh_token|rawRefreshToken|secret|clientSecret|client_secret|credentials|authorization|salary|phone|ssn|creditCard|credit_card|cardNumber|card_number|cvv|pin|apiKey|api_key|secretKey|secret_key|privateKey|private_key|authToken|auth_token|jwt|idToken|id_token)\"\\s*:\\s*)(?:\"[^\"]*\"|\\d+(?:\\.\\d+)?)",
             Pattern.CASE_INSENSITIVE
     );
 
     private static final Pattern SENSITIVE_KV_PATTERN = Pattern.compile(
-            "(?i)(password|token|secret|refreshToken|credentials|salary|phone|ssn|creditCard|cardNumber|cvv|pin|apiKey|secretKey)\\s*=\\s*[^,\\s}]+",
+            "(?i)(password|currentPassword|newPassword|token|accessToken|access_token|refreshToken|refresh_token|secret|clientSecret|client_secret|credentials|authorization|salary|phone|ssn|creditCard|credit_card|cardNumber|card_number|cvv|pin|apiKey|api_key|secretKey|secret_key|privateKey|private_key|authToken|auth_token|jwt|idToken|id_token)\\s*=\\s*[^,\\s}]+",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private static final Pattern AUTHORIZATION_HEADER_PATTERN = Pattern.compile(
+            "(?i)(authorization\\s*:\\s*(?:bearer|basic)\\s+)[^\\s,\";]+",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private static final Pattern BEARER_TOKEN_PATTERN = Pattern.compile(
+            "(?i)\\b(bearer\\s+)[A-Za-z0-9\\-_.~+/]+=*",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private static final Pattern BASIC_AUTH_PATTERN = Pattern.compile(
+            "(?i)\\b(basic\\s+)[A-Za-z0-9+/]+=*",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private static final Pattern PEM_PRIVATE_KEY_PATTERN = Pattern.compile(
+            "-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\\s\\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -66,7 +86,11 @@ public class AuditService {
         }
         try {
             String str = value instanceof String ? (String) value : objectMapper.writeValueAsString(value);
-            String sanitized = SENSITIVE_JSON_PATTERN.matcher(str).replaceAll("$1[REDACTED]$2");
+            String sanitized = PEM_PRIVATE_KEY_PATTERN.matcher(str).replaceAll("[REDACTED_PRIVATE_KEY]");
+            sanitized = AUTHORIZATION_HEADER_PATTERN.matcher(sanitized).replaceAll("$1[REDACTED]");
+            sanitized = BEARER_TOKEN_PATTERN.matcher(sanitized).replaceAll("$1[REDACTED]");
+            sanitized = BASIC_AUTH_PATTERN.matcher(sanitized).replaceAll("$1[REDACTED]");
+            sanitized = SENSITIVE_JSON_PATTERN.matcher(sanitized).replaceAll("$1\"[REDACTED]\"");
             sanitized = SENSITIVE_KV_PATTERN.matcher(sanitized).replaceAll("$1=[REDACTED]");
             return sanitized.length() > 1000 ? sanitized.substring(0, 997) + "..." : sanitized;
         } catch (JsonProcessingException e) {

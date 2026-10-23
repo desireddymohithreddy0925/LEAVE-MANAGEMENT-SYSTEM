@@ -37,12 +37,32 @@ import java.util.regex.Pattern;
 public class SecurityEventManagementService {
 
     private static final Pattern SENSITIVE_JSON_PATTERN = Pattern.compile(
-            "(\"(?:password|currentPassword|newPassword|confirmPassword|confirmationPassword|token|refreshToken|rawRefreshToken|secret|credentials|authorization|salary|phone|ssn|creditCard|cardNumber|cvv|pin|apiKey|secretKey)\"\\s*:\\s*\")[^\"]*(\")",
+            "(\"(?:password|currentPassword|newPassword|confirmPassword|confirmationPassword|token|accessToken|access_token|refreshToken|refresh_token|rawRefreshToken|secret|clientSecret|client_secret|credentials|authorization|salary|phone|ssn|creditCard|credit_card|cardNumber|card_number|cvv|pin|apiKey|api_key|secretKey|secret_key|privateKey|private_key|authToken|auth_token|jwt|idToken|id_token)\"\\s*:\\s*)(?:\"[^\"]*\"|\\d+(?:\\.\\d+)?)",
             Pattern.CASE_INSENSITIVE
     );
 
     private static final Pattern SENSITIVE_KV_PATTERN = Pattern.compile(
-            "(?i)(password|token|secret|refreshToken|credentials|salary|phone|ssn|creditCard|cardNumber|cvv|pin|apiKey|secretKey)\\s*=\\s*[^,\\s}]+",
+            "(?i)(password|currentPassword|newPassword|token|accessToken|access_token|refreshToken|refresh_token|secret|clientSecret|client_secret|credentials|authorization|salary|phone|ssn|creditCard|credit_card|cardNumber|card_number|cvv|pin|apiKey|api_key|secretKey|secret_key|privateKey|private_key|authToken|auth_token|jwt|idToken|id_token)\\s*=\\s*[^,\\s}]+",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private static final Pattern AUTHORIZATION_HEADER_PATTERN = Pattern.compile(
+            "(?i)(authorization\\s*:\\s*(?:bearer|basic)\\s+)[^\\s,\";]+",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private static final Pattern BEARER_TOKEN_PATTERN = Pattern.compile(
+            "(?i)\\b(bearer\\s+)[A-Za-z0-9\\-_.~+/]+=*",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private static final Pattern BASIC_AUTH_PATTERN = Pattern.compile(
+            "(?i)\\b(basic\\s+)[A-Za-z0-9+/]+=*",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private static final Pattern PEM_PRIVATE_KEY_PATTERN = Pattern.compile(
+            "-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\\s\\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -201,37 +221,61 @@ public class SecurityEventManagementService {
         // Rule 1: Brute Force Login Detection (>= 5 failed attempts in 15 minutes)
         if (SecurityEventType.FAILED_LOGIN.equals(eventType)) {
             LocalDateTime windowStart = LocalDateTime.now().minusMinutes(15);
-            long failedCount = 0;
+            LocalDateTime cooldown = LocalDateTime.now().minusMinutes(5);
+
+            // 1a. Target Account Brute-Force Check (repeated attempts against single account)
             if (email != null && !email.isBlank()) {
-                failedCount = securityEventRepository.countByEventTypeAndEmailAndCreatedAtAfter(
+                long accountFailedCount = securityEventRepository.countByEventTypeAndEmailAndCreatedAtAfter(
                         SecurityEventType.FAILED_LOGIN, email, windowStart);
-            } else if (ipAddress != null && !ipAddress.isBlank()) {
-                failedCount = securityEventRepository.countByEventTypeAndIpAddressAndCreatedAtAfter(
-                        SecurityEventType.FAILED_LOGIN, ipAddress, windowStart);
+
+                if (accountFailedCount >= 5) {
+                    long recentAlerts = securityEventRepository.countByEventTypeAndEmailAndCreatedAtAfter(
+                            SecurityEventType.BRUTE_FORCE_ATTEMPT, email, cooldown);
+
+                    if (recentAlerts == 0) {
+                        SecurityEvent alert = new SecurityEvent();
+                        alert.setEventType(SecurityEventType.BRUTE_FORCE_ATTEMPT);
+                        alert.setSeverity(SecurityEventSeverity.CRITICAL);
+                        alert.setStatus(SecurityEventStatus.OPEN);
+                        alert.setUser(sourceEvent.getUser());
+                        alert.setEmail(email);
+                        alert.setIpAddress(ipAddress);
+                        alert.setUserAgent(truncate(userAgent, 500));
+                        alert.setResource(resource != null ? resource : "/api/auth/login");
+                        alert.setThreatScore(95);
+                        alert.setThreatReason("Automated threat detection: " + accountFailedCount + " consecutive failed login attempts detected against account '" + email + "' within 15 minutes.");
+                        alert.setDetails("Target email: " + email + ", Source IP: " + (ipAddress != null ? ipAddress : "unknown"));
+                        alert.setCreatedAt(LocalDateTime.now());
+                        securityEventRepository.save(alert);
+                    }
+                }
             }
 
-            if (failedCount >= 5) {
-                // Ensure we haven't already raised a brute force alert in the last 5 minutes
-                LocalDateTime cooldown = LocalDateTime.now().minusMinutes(5);
-                long recentAlerts = email != null && !email.isBlank()
-                        ? securityEventRepository.countByEventTypeAndEmailAndCreatedAtAfter(SecurityEventType.BRUTE_FORCE_ATTEMPT, email, cooldown)
-                        : securityEventRepository.countByEventTypeAndIpAddressAndCreatedAtAfter(SecurityEventType.BRUTE_FORCE_ATTEMPT, ipAddress, cooldown);
+            // 1b. Source IP Brute-Force / Credential Stuffing Check (repeated attempts from single IP across any accounts)
+            if (ipAddress != null && !ipAddress.isBlank()) {
+                long ipFailedCount = securityEventRepository.countByEventTypeAndIpAddressAndCreatedAtAfter(
+                        SecurityEventType.FAILED_LOGIN, ipAddress, windowStart);
 
-                if (recentAlerts == 0) {
-                    SecurityEvent alert = new SecurityEvent();
-                    alert.setEventType(SecurityEventType.BRUTE_FORCE_ATTEMPT);
-                    alert.setSeverity(SecurityEventSeverity.CRITICAL);
-                    alert.setStatus(SecurityEventStatus.OPEN);
-                    alert.setUser(sourceEvent.getUser());
-                    alert.setEmail(email);
-                    alert.setIpAddress(ipAddress);
-                    alert.setUserAgent(truncate(userAgent, 500));
-                    alert.setResource(resource != null ? resource : "/api/auth/login");
-                    alert.setThreatScore(95);
-                    alert.setThreatReason("Automated threat detection: " + failedCount + " consecutive failed login attempts detected within 15 minutes.");
-                    alert.setDetails("Target email: " + (email != null ? email : "unknown") + ", Source IP: " + (ipAddress != null ? ipAddress : "unknown"));
-                    alert.setCreatedAt(LocalDateTime.now());
-                    securityEventRepository.save(alert);
+                if (ipFailedCount >= 5) {
+                    long recentIpAlerts = securityEventRepository.countByEventTypeAndIpAddressAndCreatedAtAfter(
+                            SecurityEventType.BRUTE_FORCE_ATTEMPT, ipAddress, cooldown);
+
+                    if (recentIpAlerts == 0) {
+                        SecurityEvent alert = new SecurityEvent();
+                        alert.setEventType(SecurityEventType.BRUTE_FORCE_ATTEMPT);
+                        alert.setSeverity(SecurityEventSeverity.CRITICAL);
+                        alert.setStatus(SecurityEventStatus.OPEN);
+                        alert.setUser(sourceEvent.getUser());
+                        alert.setEmail(email);
+                        alert.setIpAddress(ipAddress);
+                        alert.setUserAgent(truncate(userAgent, 500));
+                        alert.setResource(resource != null ? resource : "/api/auth/login");
+                        alert.setThreatScore(95);
+                        alert.setThreatReason("Automated threat detection: " + ipFailedCount + " failed login attempts detected from IP " + ipAddress + " across accounts within 15 minutes.");
+                        alert.setDetails("Source IP: " + ipAddress + ", Target account: " + (email != null ? email : "multiple"));
+                        alert.setCreatedAt(LocalDateTime.now());
+                        securityEventRepository.save(alert);
+                    }
                 }
             }
         }
@@ -353,29 +397,60 @@ public class SecurityEventManagementService {
         return mapToDTO(event);
     }
 
+    private static final Map<SecurityEventStatus, Set<SecurityEventStatus>> ALLOWED_STATUS_TRANSITIONS = Map.of(
+            SecurityEventStatus.OPEN, Set.of(SecurityEventStatus.INVESTIGATING, SecurityEventStatus.RESOLVED, SecurityEventStatus.FALSE_POSITIVE),
+            SecurityEventStatus.INVESTIGATING, Set.of(SecurityEventStatus.OPEN, SecurityEventStatus.RESOLVED, SecurityEventStatus.FALSE_POSITIVE),
+            SecurityEventStatus.RESOLVED, Set.of(SecurityEventStatus.OPEN, SecurityEventStatus.INVESTIGATING, SecurityEventStatus.FALSE_POSITIVE),
+            SecurityEventStatus.FALSE_POSITIVE, Set.of(SecurityEventStatus.OPEN, SecurityEventStatus.INVESTIGATING, SecurityEventStatus.RESOLVED)
+    );
+
     @Transactional
     public SecurityEventResponseDTO updateStatus(
             Long id,
             UpdateSecurityEventStatusDTO dto,
             Authentication authentication) {
 
+        if (dto == null || dto.getStatus() == null) {
+            throw new IllegalArgumentException("Target status must not be null");
+        }
+
         SecurityEvent event = securityEventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Security event not found with ID: " + id));
 
-        event.setStatus(dto.getStatus());
+        SecurityEventStatus currentStatus = event.getStatus();
+        SecurityEventStatus targetStatus = dto.getStatus();
+
+        validateStatusTransition(currentStatus, targetStatus);
+
+        event.setStatus(targetStatus);
         if (dto.getResolutionNotes() != null && !dto.getResolutionNotes().isBlank()) {
             event.setResolutionNotes(dto.getResolutionNotes());
         }
 
-        if (dto.getStatus() == SecurityEventStatus.RESOLVED || dto.getStatus() == SecurityEventStatus.FALSE_POSITIVE) {
+        // Keep resolution timestamps and reviewer information consistent
+        if (targetStatus == SecurityEventStatus.RESOLVED || targetStatus == SecurityEventStatus.FALSE_POSITIVE) {
             event.setResolvedAt(LocalDateTime.now());
             if (authentication != null && authentication.getName() != null) {
                 userRepository.findByEmail(authentication.getName()).ifPresent(event::setResolvedBy);
             }
+        } else {
+            // Reopened (OPEN) or marked INVESTIGATING: clear resolution metadata
+            event.setResolvedAt(null);
+            event.setResolvedBy(null);
         }
 
         SecurityEvent saved = securityEventRepository.save(event);
         return mapToDTO(saved);
+    }
+
+    private void validateStatusTransition(SecurityEventStatus currentStatus, SecurityEventStatus targetStatus) {
+        if (currentStatus == targetStatus) {
+            throw new IllegalArgumentException("Security event is already in status: " + currentStatus);
+        }
+        Set<SecurityEventStatus> allowed = ALLOWED_STATUS_TRANSITIONS.get(currentStatus);
+        if (allowed == null || !allowed.contains(targetStatus)) {
+            throw new IllegalArgumentException("Invalid status transition from " + currentStatus + " to " + targetStatus);
+        }
     }
 
     public SecurityEventSummaryDTO getSummary() {
@@ -444,13 +519,17 @@ public class SecurityEventManagementService {
         return dto;
     }
 
-    private String sanitizeDetails(Object value) {
+    public String sanitizeDetails(Object value) {
         if (value == null) {
             return null;
         }
         try {
             String str = value instanceof String ? (String) value : objectMapper.writeValueAsString(value);
-            String sanitized = SENSITIVE_JSON_PATTERN.matcher(str).replaceAll("$1[REDACTED]$2");
+            String sanitized = PEM_PRIVATE_KEY_PATTERN.matcher(str).replaceAll("[REDACTED_PRIVATE_KEY]");
+            sanitized = AUTHORIZATION_HEADER_PATTERN.matcher(sanitized).replaceAll("$1[REDACTED]");
+            sanitized = BEARER_TOKEN_PATTERN.matcher(sanitized).replaceAll("$1[REDACTED]");
+            sanitized = BASIC_AUTH_PATTERN.matcher(sanitized).replaceAll("$1[REDACTED]");
+            sanitized = SENSITIVE_JSON_PATTERN.matcher(sanitized).replaceAll("$1\"[REDACTED]\"");
             sanitized = SENSITIVE_KV_PATTERN.matcher(sanitized).replaceAll("$1=[REDACTED]");
             return truncate(sanitized, 4000);
         } catch (JsonProcessingException e) {

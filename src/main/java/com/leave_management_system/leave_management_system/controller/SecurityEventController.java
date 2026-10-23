@@ -78,7 +78,7 @@ public class SecurityEventController {
         return securityEventManagementService.getSecurityEventById(id);
     }
 
-    @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ADMIN_VIEW') or hasAuthority('AUDIT_LOG_VIEW')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('SECURITY_EVENT_MANAGE')")
     @PatchMapping("/{id}/status")
     @Operation(summary = "Update security incident status", description = "Change incident status and document resolution/investigation notes.")
     @ApiResponses({
@@ -92,7 +92,7 @@ public class SecurityEventController {
         return securityEventManagementService.updateStatus(id, dto, authentication);
     }
 
-    @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ADMIN_VIEW') or hasAuthority('AUDIT_LOG_VIEW')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('SECURITY_EVENT_MANAGE')")
     @PostMapping("/{id}/investigate")
     @Operation(summary = "Mark incident under investigation", description = "Transition incident status to INVESTIGATING.")
     public SecurityEventResponseDTO investigate(
@@ -103,7 +103,7 @@ public class SecurityEventController {
         return securityEventManagementService.updateStatus(id, dto, authentication);
     }
 
-    @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ADMIN_VIEW') or hasAuthority('AUDIT_LOG_VIEW')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('SECURITY_EVENT_MANAGE')")
     @PostMapping("/{id}/resolve")
     @Operation(summary = "Resolve security incident", description = "Transition incident status to RESOLVED with resolution notes.")
     public SecurityEventResponseDTO resolve(
@@ -114,7 +114,7 @@ public class SecurityEventController {
         return securityEventManagementService.updateStatus(id, dto, authentication);
     }
 
-    @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ADMIN_VIEW') or hasAuthority('AUDIT_LOG_VIEW')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('SECURITY_EVENT_MANAGE')")
     @PostMapping("/{id}/false-positive")
     @Operation(summary = "Mark incident as false positive", description = "Transition incident status to FALSE_POSITIVE with rationale.")
     public SecurityEventResponseDTO falsePositive(
