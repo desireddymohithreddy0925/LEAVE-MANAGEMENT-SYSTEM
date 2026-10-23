@@ -1,0 +1,43 @@
+databaseChangeLog:
+  - changeSet:
+      id: 021-add-security-management-permissions
+      author: antigravity
+      changes:
+        # 1. Provision SECURITY_EVENT_MANAGE permission
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'SECURITY_EVENT_MANAGE'}
+              - column: {name: description, value: 'Triage, investigate, resolve, and manage security incidents'}
+              - column: {name: active, valueBoolean: true}
+
+        # 2. Provision AUDIT_LOG_VIEW permission
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'AUDIT_LOG_VIEW'}
+              - column: {name: description, value: 'View security audit logs and incident history'}
+              - column: {name: active, valueBoolean: true}
+
+        # 3. Provision ADMIN_VIEW permission
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'ADMIN_VIEW'}
+              - column: {name: description, value: 'View administrative dashboards and security posture'}
+              - column: {name: active, valueBoolean: true}
+
+        # 4. Provision SECURITY_OFFICER role
+        - insert:
+            tableName: roles
+            columns:
+              - column: {name: name, value: 'SECURITY_OFFICER'}
+
+        # 5. Map permissions to ADMIN and SECURITY_OFFICER roles
+        - sql:
+            comment: Map SECURITY_EVENT_MANAGE, AUDIT_LOG_VIEW, and ADMIN_VIEW permissions to ADMIN and SECURITY_OFFICER roles
+            sql: >
+              INSERT INTO role_permissions (role_id, permission_id)
+              SELECT r.id, p.id FROM roles r, permissions p
+              WHERE r.name IN ('ADMIN', 'SECURITY_OFFICER')
+              AND p.name IN ('SECURITY_EVENT_MANAGE', 'AUDIT_LOG_VIEW', 'ADMIN_VIEW');

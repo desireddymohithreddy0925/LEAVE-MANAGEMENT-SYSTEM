@@ -226,6 +226,9 @@ public class AuditService {
         return null;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.leave_management_system.leave_management_system.security.ClientIpResolver clientIpResolver;
+
     private String extractClientIp(String fallbackIp) {
         if (fallbackIp != null && !fallbackIp.isEmpty() && !"unknown".equalsIgnoreCase(fallbackIp)) {
             return fallbackIp;
@@ -234,14 +237,13 @@ public class AuditService {
             ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             if (attributes != null) {
                 HttpServletRequest request = attributes.getRequest();
-                String ipAddress = request.getHeader("X-Forwarded-For");
-                if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
-                    ipAddress = request.getRemoteAddr();
+                if (clientIpResolver != null) {
+                    return clientIpResolver.resolveClientIp(request);
                 }
-                return ipAddress;
+                return request.getRemoteAddr();
             }
         } catch (Exception ignored) {
         }
-        return fallbackIp;
+        return fallbackIp != null ? fallbackIp : "127.0.0.1";
     }
 }

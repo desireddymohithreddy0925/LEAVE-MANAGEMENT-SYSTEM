@@ -35,7 +35,7 @@ public class SecurityEventController {
         this.securityEventManagementService = securityEventManagementService;
     }
 
-    @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ADMIN_VIEW') or hasAuthority('AUDIT_LOG_VIEW') or hasAuthority('ROLE_HR')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ADMIN_VIEW') or hasAuthority('AUDIT_LOG_VIEW') or hasAuthority('ROLE_HR') or hasAuthority('SECURITY_EVENT_MANAGE')")
     @GetMapping
     @Operation(summary = "Search security events", description = "Query security events with multi-criteria filtering and pagination.")
     @ApiResponses({
@@ -57,7 +57,7 @@ public class SecurityEventController {
                 eventType, severity, status, userId, email, ipAddress, minThreatScore, startDate, endDate, pageable);
     }
 
-    @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ADMIN_VIEW') or hasAuthority('AUDIT_LOG_VIEW') or hasAuthority('ROLE_HR')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ADMIN_VIEW') or hasAuthority('AUDIT_LOG_VIEW') or hasAuthority('ROLE_HR') or hasAuthority('SECURITY_EVENT_MANAGE')")
     @GetMapping("/summary")
     @Operation(summary = "Get security event posture summary", description = "Retrieves executive security metrics and incident resolution KPIs.")
     @ApiResponses({
@@ -67,7 +67,7 @@ public class SecurityEventController {
         return securityEventManagementService.getSummary();
     }
 
-    @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ADMIN_VIEW') or hasAuthority('AUDIT_LOG_VIEW') or hasAuthority('ROLE_HR')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ADMIN_VIEW') or hasAuthority('AUDIT_LOG_VIEW') or hasAuthority('ROLE_HR') or hasAuthority('SECURITY_EVENT_MANAGE')")
     @GetMapping("/{id}")
     @Operation(summary = "Get security event by ID", description = "Inspect a specific security incident record.")
     @ApiResponses({

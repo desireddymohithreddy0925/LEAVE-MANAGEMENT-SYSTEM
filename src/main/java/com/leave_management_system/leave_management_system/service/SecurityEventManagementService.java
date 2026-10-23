@@ -13,6 +13,7 @@ import com.leave_management_system.leave_management_system.entity.User;
 import com.leave_management_system.leave_management_system.exception.ResourceNotFoundException;
 import com.leave_management_system.leave_management_system.repository.SecurityEventRepository;
 import com.leave_management_system.leave_management_system.repository.UserRepository;
+import com.leave_management_system.leave_management_system.security.ClientIpResolver;
 import com.leave_management_system.leave_management_system.security.SecurityEventType;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.servlet.http.HttpServletRequest;
@@ -68,14 +69,23 @@ public class SecurityEventManagementService {
 
     private final SecurityEventRepository securityEventRepository;
     private final UserRepository userRepository;
+    private final ClientIpResolver clientIpResolver;
     private final ObjectMapper objectMapper;
+
+    public SecurityEventManagementService(
+            SecurityEventRepository securityEventRepository,
+            UserRepository userRepository) {
+        this(securityEventRepository, userRepository, new ClientIpResolver("127.0.0.1,::1,0:0:0:0:0:0:0:1"));
+    }
 
     @Autowired
     public SecurityEventManagementService(
             SecurityEventRepository securityEventRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            ClientIpResolver clientIpResolver) {
         this.securityEventRepository = securityEventRepository;
         this.userRepository = userRepository;
+        this.clientIpResolver = clientIpResolver != null ? clientIpResolver : new ClientIpResolver("127.0.0.1,::1,0:0:0:0:0:0:0:1");
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     }
 
@@ -537,20 +547,20 @@ public class SecurityEventManagementService {
         }
     }
 
-    private String extractClientIp(String ipAddress) {
+    public String extractClientIp(String ipAddress) {
         if (ipAddress != null && !ipAddress.isBlank()) {
             return ipAddress;
         }
         ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attrs != null) {
             HttpServletRequest request = attrs.getRequest();
-            String xForwardedFor = request.getHeader("X-Forwarded-For");
-            if (xForwardedFor != null && !xForwardedFor.isBlank()) {
-                return xForwardedFor.split(",")[0].trim();
-            }
-            return request.getRemoteAddr();
+            return clientIpResolver.resolveClientIp(request);
         }
         return "127.0.0.1";
+    }
+
+    public String resolveRequestClientIp(HttpServletRequest request) {
+        return clientIpResolver.resolveClientIp(request);
     }
 
     private String extractUserAgent() {

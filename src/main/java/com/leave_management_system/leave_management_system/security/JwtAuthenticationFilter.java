@@ -34,6 +34,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         this.auditService = auditService;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ClientIpResolver clientIpResolver;
+
+    private String getClientIp(HttpServletRequest request) {
+        if (clientIpResolver != null) {
+            return clientIpResolver.resolveClientIp(request);
+        }
+        return request.getRemoteAddr();
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
@@ -46,10 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
                 if (!userDetails.isEnabled()) {
-                    String ip = request.getHeader("X-Forwarded-For");
-                    if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-                        ip = request.getRemoteAddr();
-                    }
+                    String ip = getClientIp(request);
                     auditService.logSecurityEvent(SecurityEventType.INACTIVE_USER_TOKEN, ip, username, "Account has been deactivated");
                     sendErrorResponse(response, "User account is inactive", "Account has been deactivated");
                     return;
@@ -62,10 +69,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (ExpiredJwtException e) {
-            String ip = request.getHeader("X-Forwarded-For");
-            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-                ip = request.getRemoteAddr();
-            }
+            String ip = getClientIp(request);
             String expiredUser = null;
             try {
                 if (e.getClaims() != null) {
@@ -77,18 +81,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             sendErrorResponse(response, "JWT token is expired", e.getMessage());
             return;
         } catch (org.springframework.security.core.userdetails.UsernameNotFoundException e) {
-            String ip = request.getHeader("X-Forwarded-For");
-            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-                ip = request.getRemoteAddr();
-            }
+            String ip = getClientIp(request);
             auditService.logSecurityEvent(SecurityEventType.UNKNOWN_USER_TOKEN, ip, null, e.getMessage());
             sendErrorResponse(response, "User not found", e.getMessage());
             return;
         } catch (JwtException | IllegalArgumentException e) {
-            String ip = request.getHeader("X-Forwarded-For");
-            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-                ip = request.getRemoteAddr();
-            }
+            String ip = getClientIp(request);
             auditService.logSecurityEvent(SecurityEventType.INVALID_TOKEN, ip, null, e.getMessage());
             sendErrorResponse(response, "Invalid JWT token", e.getMessage());
             return;

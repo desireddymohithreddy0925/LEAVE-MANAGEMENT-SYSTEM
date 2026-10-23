@@ -28,6 +28,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -87,6 +91,9 @@ public class SecurityEventManagementIntegrationTest {
     @Autowired
     private JwtUtils jwtUtils;
 
+    @Autowired
+    private com.leave_management_system.leave_management_system.security.ClientIpResolver clientIpResolver;
+
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
 
     private User adminUser;
@@ -95,6 +102,8 @@ public class SecurityEventManagementIntegrationTest {
     private String employeeToken;
     private User auditorUser;
     private String auditorToken;
+    private User securityOfficerUser;
+    private String securityOfficerToken;
     private String uniqueSuffix;
 
     @BeforeEach
@@ -165,6 +174,30 @@ public class SecurityEventManagementIntegrationTest {
         auditorToken = jwtUtils.generateJwtToken(
                 new UsernamePasswordAuthenticationToken(auditorDetails, null, auditorDetails.getAuthorities())
         );
+
+        // Setup Security Officer (Security management role with SECURITY_EVENT_MANAGE)
+        Role secRole = roleRepository.findByName("SECURITY_OFFICER").orElseGet(() -> {
+            Role r = roleRepository.save(new Role("SECURITY_OFFICER"));
+            Permission secPerm = permissionRepository.findByName("SECURITY_EVENT_MANAGE")
+                    .orElseGet(() -> permissionRepository.save(new Permission("SECURITY_EVENT_MANAGE", "Manage security incidents")));
+            r.getPermissions().add(secPerm);
+            return roleRepository.save(r);
+        });
+        securityOfficerUser = new User();
+        securityOfficerUser.setEmail("sec-officer-" + uniqueSuffix + "@test.com");
+        securityOfficerUser.setPassword(passwordEncoder.encode("OfficerPass123!"));
+        securityOfficerUser.setActive(true);
+        securityOfficerUser.getRoles().add(secRole);
+        securityOfficerUser = userRepository.save(securityOfficerUser);
+
+        UserDetails officerDetails = new org.springframework.security.core.userdetails.User(
+                securityOfficerUser.getEmail(),
+                securityOfficerUser.getPassword(),
+                List.of(new SimpleGrantedAuthority("ROLE_SECURITY_OFFICER"), new SimpleGrantedAuthority("SECURITY_EVENT_MANAGE"))
+        );
+        securityOfficerToken = jwtUtils.generateJwtToken(
+                new UsernamePasswordAuthenticationToken(officerDetails, null, officerDetails.getAuthorities())
+        );
     }
 
     @AfterEach
@@ -190,6 +223,11 @@ public class SecurityEventManagementIntegrationTest {
             employeeRepository.findByUserEmail(auditorUser.getEmail()).ifPresent(employeeRepository::delete);
             userRepository.deleteById(auditorUser.getId());
             auditorUser = null;
+        }
+        if (securityOfficerUser != null && securityOfficerUser.getId() != null) {
+            employeeRepository.findByUserEmail(securityOfficerUser.getEmail()).ifPresent(employeeRepository::delete);
+            userRepository.deleteById(securityOfficerUser.getId());
+            securityOfficerUser = null;
         }
     }
 
@@ -664,5 +702,137 @@ public class SecurityEventManagementIntegrationTest {
         assertTrue(sanitized6.contains("secret_key=[REDACTED]"));
         assertTrue(sanitized6.contains("auth_token=[REDACTED]"));
         assertTrue(sanitized6.contains("status=active"));
+    }
+
+    // 17. Positive Authorization Test: SECURITY_OFFICER role possessing SECURITY_EVENT_MANAGE can view and triage incidents
+    @Test
+    public void testRbac_SecurityOfficerRole_CanManageIncidents_PositiveAuthorizationTest() throws Exception {
+        SecurityEvent event = securityEventManagementService.recordSecurityEvent(
+                SecurityEventType.FAILED_LOGIN, "10.50.50.50", "target-sec@test.com", "/api/auth/login", "Failure", null);
+
+        // 1. Security Officer can read events, details, and summary
+        mockMvc.perform(get("/api/security-events")
+                        .header("Authorization", "Bearer " + securityOfficerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/security-events/" + event.getId())
+                        .header("Authorization", "Bearer " + securityOfficerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(event.getId()));
+
+        mockMvc.perform(get("/api/security-events/summary")
+                        .header("Authorization", "Bearer " + securityOfficerToken))
+                .andExpect(status().isOk());
+
+        // 2. Security Officer can transition to INVESTIGATING
+        mockMvc.perform(post("/api/security-events/" + event.getId() + "/investigate")
+                        .header("Authorization", "Bearer " + securityOfficerToken)
+                        .param("notes", "Security officer triaging incident"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("INVESTIGATING"))
+                .andExpect(jsonPath("$.resolutionNotes").value("Security officer triaging incident"));
+
+        // 3. Security Officer can resolve incident and become the reviewer
+        mockMvc.perform(post("/api/security-events/" + event.getId() + "/resolve")
+                        .header("Authorization", "Bearer " + securityOfficerToken)
+                        .param("notes", "Incident mitigated and closed by security officer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESOLVED"))
+                .andExpect(jsonPath("$.resolvedAt").isNotEmpty())
+                .andExpect(jsonPath("$.resolvedByEmail").value(securityOfficerUser.getEmail()));
+
+        // 4. Security Officer can update status via PATCH
+        UpdateSecurityEventStatusDTO reopenDTO = new UpdateSecurityEventStatusDTO(SecurityEventStatus.INVESTIGATING, "Reopening for post-incident review");
+        mockMvc.perform(patch("/api/security-events/" + event.getId() + "/status")
+                        .header("Authorization", "Bearer " + securityOfficerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(reopenDTO)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("INVESTIGATING"));
+
+        // 5. Security Officer can mark FALSE_POSITIVE
+        mockMvc.perform(post("/api/security-events/" + event.getId() + "/false-positive")
+                        .header("Authorization", "Bearer " + securityOfficerToken)
+                        .param("notes", "Confirmed benign scanner probe"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FALSE_POSITIVE"))
+                .andExpect(jsonPath("$.resolvedByEmail").value(securityOfficerUser.getEmail()));
+    }
+
+    // 18. Trusted Client IP: Untrusted proxy ignores X-Forwarded-For to prevent IP spoofing
+    @Test
+    public void testClientIpResolution_UntrustedProxy_IgnoresXForwardedFor_PreventsSpoofing() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("198.51.100.25"); // External untrusted client
+        request.addHeader("X-Forwarded-For", "203.0.113.1"); // Spoofed IP header
+
+        assertFalse(clientIpResolver.isTrustedProxy("198.51.100.25"));
+        String resolvedIp = clientIpResolver.resolveClientIp(request);
+
+        // Header MUST be ignored; direct connection remoteAddr is returned
+        assertEquals("198.51.100.25", resolvedIp);
+    }
+
+    // 19. Trusted Client IP: Trusted proxy respects valid X-Forwarded-For header
+    @Test
+    public void testClientIpResolution_TrustedProxy_AcceptsValidXForwardedFor() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("127.0.0.1"); // Localhost / trusted proxy
+        request.addHeader("X-Forwarded-For", "203.0.113.50");
+
+        assertTrue(clientIpResolver.isTrustedProxy("127.0.0.1"));
+        String resolvedIp = clientIpResolver.resolveClientIp(request);
+
+        assertEquals("203.0.113.50", resolvedIp);
+    }
+
+    // 20. Trusted Client IP: Chained hops picks the first client IP from trusted proxy
+    @Test
+    public void testClientIpResolution_TrustedProxy_ChainedHops_TakesFirstClientIp() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("127.0.0.1");
+        request.addHeader("X-Forwarded-For", "203.0.113.88, 10.0.0.1, 192.168.1.50");
+
+        String resolvedIp = clientIpResolver.resolveClientIp(request);
+        assertEquals("203.0.113.88", resolvedIp);
+    }
+
+    // 21. Trusted Client IP: Malformed/injection header falls back to remoteAddr safely
+    @Test
+    public void testClientIpResolution_TrustedProxy_MalformedHeader_FallsBackToRemoteAddr() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("127.0.0.1");
+        request.addHeader("X-Forwarded-For", "<script>alert(1)</script>, evil-host");
+
+        String resolvedIp = clientIpResolver.resolveClientIp(request);
+        assertEquals("127.0.0.1", resolvedIp);
+    }
+
+    // 22. Security Event Recording with Untrusted Proxy: Prevents spoofed header from bypassing IP detection
+    @Test
+    public void testSecurityEventRecording_UntrustedProxy_PreventsBypassingThreatDetection() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("198.51.100.99"); // Actual attacker IP
+        request.addHeader("X-Forwarded-For", "10.0.0.5"); // Attacker attempting to evade IP blocking
+
+        ServletRequestAttributes attributes = new ServletRequestAttributes(request);
+        RequestContextHolder.setRequestAttributes(attributes);
+
+        try {
+            // When recorded without explicit IP override, it extracts from request attributes
+            SecurityEvent event = securityEventManagementService.recordSecurityEvent(
+                    SecurityEventType.FAILED_LOGIN,
+                    null,
+                    "target@test.com",
+                    "/api/auth/login",
+                    "Invalid password",
+                    "Mozilla/5.0"
+            );
+
+            // Attacker IP is correctly identified as 198.51.100.99, spoofed 10.0.0.5 was rejected
+            assertEquals("198.51.100.99", event.getIpAddress());
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
     }
 }

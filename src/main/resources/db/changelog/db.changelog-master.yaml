@@ -164,5 +164,9 @@ databaseChangeLog:
       file: changes/020-add-security-events.yaml
       relativeToChangelogFile: true
 
+  - include:
+      file: changes/021-add-security-management-permissions.yaml
+      relativeToChangelogFile: true
+
 
 
