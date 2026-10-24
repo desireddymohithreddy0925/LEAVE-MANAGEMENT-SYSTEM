@@ -10,8 +10,18 @@ import java.util.List;
 import java.time.LocalDate;
 import com.leave_management_system.leave_management_system.entity.LeaveStatus;
 import com.leave_management_system.leave_management_system.entity.LeaveType;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
+import java.util.Optional;
 
 public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long>, JpaSpecificationExecutor<LeaveRequest> {
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT lr FROM LeaveRequest lr WHERE lr.id = :id")
+    Optional<LeaveRequest> findByIdWithPessimisticLock(@Param("id") Long id);
+
+    @Lock(LockModeType.OPTIMISTIC_FORCE_INCREMENT)
+    @Query("SELECT lr FROM LeaveRequest lr WHERE lr.id = :id")
+    Optional<LeaveRequest> findByIdWithOptimisticLock(@Param("id") Long id);
     List<LeaveRequest> findByEmployee(Employee employee);
     List<LeaveRequest> findByStatus(LeaveStatus status);
     List<LeaveRequest> findByEmployee_Manager_Id(Long managerId);

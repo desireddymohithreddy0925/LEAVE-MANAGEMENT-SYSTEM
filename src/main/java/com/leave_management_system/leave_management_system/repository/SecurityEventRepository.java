@@ -9,9 +9,12 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.List;
 
 @Repository
 public interface SecurityEventRepository extends JpaRepository<SecurityEvent, Long>, JpaSpecificationExecutor<SecurityEvent> {
+
+    List<SecurityEvent> findByEventType(String eventType);
 
     long countByStatus(SecurityEventStatus status);
 

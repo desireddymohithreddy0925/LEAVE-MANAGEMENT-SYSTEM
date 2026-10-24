@@ -39,13 +39,22 @@ public class CustomUserDetailsService implements UserDetailsService {
 
         boolean isEnabled = user.isActive() && (user.getEmployee() == null || "ACTIVE".equalsIgnoreCase(user.getEmployee().getStatus()));
 
+        boolean isAccountNonLocked = user.isAccountNonLocked();
+        if (!isAccountNonLocked && user.getLockExpiresAt() != null && java.time.LocalDateTime.now().isAfter(user.getLockExpiresAt())) {
+            user.setAccountNonLocked(true);
+            user.setFailedLoginAttempts(0);
+            user.setLockExpiresAt(null);
+            userRepository.save(user);
+            isAccountNonLocked = true;
+        }
+
         return new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
                 user.getPassword(),
                 isEnabled,
                 true, // accountNonExpired
                 true, // credentialsNonExpired
-                true, // accountNonLocked
+                isAccountNonLocked,
                 authorities
         );
     }

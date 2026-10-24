@@ -1,0 +1,38 @@
+databaseChangeLog:
+  - changeSet:
+      id: 022-add-user-account-locking
+      author: antigravity
+      changes:
+        - addColumn:
+            tableName: users
+            columns:
+              - column:
+                  name: account_non_locked
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: failed_login_attempts
+                  type: int
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: lock_expires_at
+                  type: timestamp
+
+        - insert:
+            tableName: permissions
+            columns:
+              - column: {name: name, value: 'USER_LOCK_MANAGE'}
+              - column: {name: description, value: 'Manually lock and unlock user accounts'}
+              - column: {name: active, valueBoolean: true}
+
+        - sql:
+            comment: Map USER_LOCK_MANAGE to ADMIN and SECURITY_OFFICER roles
+            sql: >
+              INSERT INTO role_permissions (role_id, permission_id)
+              SELECT r.id, p.id FROM roles r, permissions p
+              WHERE r.name IN ('ADMIN', 'SECURITY_OFFICER')
+              AND p.name = 'USER_LOCK_MANAGE';

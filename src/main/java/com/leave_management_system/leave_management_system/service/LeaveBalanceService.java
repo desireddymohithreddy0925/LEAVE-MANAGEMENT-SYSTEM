@@ -222,9 +222,13 @@ public class LeaveBalanceService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional
     @AuditAction(action = "BALANCE_UPDATED", entityType = "LeaveBalance")
     public LeaveBalanceResponseDTO updateLeaveBalance(Long id, LeaveBalanceRequestDTO dto) {
-        LeaveBalance leaveBalance = getLeaveBalanceEntityById(id);
+        LeaveBalance leaveBalance = leaveBalanceRepository.findByIdWithPessimisticLock(id)
+                .or(() -> leaveBalanceRepository.findById(id))
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Leave balance not found with id: " + id));
 
         if (dto.getAvailable() == null && dto.getTotal() == null) {
             throw new IllegalArgumentException("At least one of total or available days must be provided for update");
@@ -262,9 +266,13 @@ public class LeaveBalanceService {
         return LeaveBalanceResponseDTO.fromEntity(saved);
     }
 
+    @Transactional
     @AuditAction(action = "BALANCE_DELETED", entityType = "LeaveBalance")
     public void deleteLeaveBalance(Long id) {
-        LeaveBalance leaveBalance = getLeaveBalanceEntityById(id);
+        LeaveBalance leaveBalance = leaveBalanceRepository.findByIdWithPessimisticLock(id)
+                .or(() -> leaveBalanceRepository.findById(id))
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Leave balance not found with id: " + id));
 
         if (leaveRequestRepository.existsByEmployeeAndLeaveTypeAndStatusIn(
                 leaveBalance.getEmployee(),

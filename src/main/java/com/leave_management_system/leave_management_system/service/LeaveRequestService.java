@@ -279,12 +279,17 @@ public class LeaveRequestService {
                 .collect(Collectors.toList());
     }
 
+    private LeaveRequest findLeaveRequestWithLock(Long id) {
+        return leaveRequestRepository.findByIdWithPessimisticLock(id)
+                .or(() -> leaveRequestRepository.findById(id))
+                .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
+    }
+
     @Transactional
     @PreAuthorize("@securityService.canApproveLeaveRequest(authentication, #id)")
     @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "LEAVE_APPROVED", entityType = "LeaveRequest")
     public LeaveResponseDTO approveLeaveRequest(Long id) {
-        LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
+        LeaveRequest leaveRequest = findLeaveRequestWithLock(id);
 
         // Protect against double deduction by ensuring only PENDING requests can be
         // approved.
@@ -344,8 +349,7 @@ public class LeaveRequestService {
             throw new IllegalArgumentException("Rejection reason must not exceed 500 characters");
         }
 
-        LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
+        LeaveRequest leaveRequest = findLeaveRequestWithLock(id);
 
         if (leaveRequest.getStatus() != LeaveStatus.PENDING) {
             throw new IllegalArgumentException("Only pending requests can be rejected");
@@ -364,8 +368,7 @@ public class LeaveRequestService {
     @PreAuthorize("@securityService.canCancelLeaveRequest(authentication, #id)")
     @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "LEAVE_CANCELLED", entityType = "LeaveRequest")
     public LeaveResponseDTO cancelLeaveRequest(Long id) {
-        LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
+        LeaveRequest leaveRequest = findLeaveRequestWithLock(id);
 
         if (leaveRequest.getStatus() != LeaveStatus.PENDING && leaveRequest.getStatus() != LeaveStatus.APPROVED) {
             if (leaveRequest.getStatus() == LeaveStatus.REJECTED) {

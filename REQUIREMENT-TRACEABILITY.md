@@ -404,6 +404,48 @@ This document maps the mandatory internship requirements to their specific imple
     - RBAC enforcement: non-admin employee forbidden (403), unauthenticated rejected (401).
 - **Status:** **DONE**
 
+---
+
+### 24. Database Concurrency Locking & User Account Security Lockout
+- **Requirement:**
+  - **Database Concurrency Locking:** Prevent race conditions, double approval, double cancellation/refund, and dirty balance updates under high-concurrency requests through optimistic and pessimistic locking.
+  - **User Account Lockout:** Protect against brute-force password guessing and credential stuffing attacks by locking accounts after repeated consecutive failed authentication attempts, with automated duration-based expiry/unlocking and administrative unlock/lock controls.
+- **Implementation:**
+  - **Concurrency Control:**
+    - Optimistic Locking with `@Version` column on `LeaveRequest` and `LeaveBalance`.
+    - Pessimistic Write Locking (`@Lock(LockModeType.PESSIMISTIC_WRITE)`) in `LeaveRequestRepository` (`findByIdWithPessimisticLock`) and `LeaveBalanceRepository` (`findByIdWithPessimisticLock`, `findByEmployeeAndLeaveTypeAndYearWithPessimisticLock`).
+    - Serialized lifecycle modifications in `LeaveRequestService` (`approveLeaveRequest`, `rejectLeaveRequest`, `cancelLeaveRequest`) and `LeaveBalanceService` (`updateLeaveBalance`, `deleteLeaveBalance`).
+    - Global exception translation for JPA and Spring concurrency exceptions to HTTP 409 Conflict in `GlobalExceptionHandler`.
+  - **Account Security Lockout:**
+    - Schema migration `022-add-user-account-locking.yaml` adding `account_non_locked`, `failed_login_attempts`, and `lock_expires_at` to `users` table, and seeding `USER_LOCK_MANAGE` permission to `ADMIN` and `SECURITY_OFFICER` roles.
+    - Configured thresholds in `application.properties`: `app.security.lockout.max-failed-attempts=5` and `app.security.lockout.duration-minutes=15`.
+    - Automated lock enforcement in `LoginTrackingService` with `ACCOUNT_LOCKED` security event audit.
+    - Automated duration-based unlocking in `CustomUserDetailsService` upon credential verification.
+    - Administrative self-service REST endpoints in `UserController` and `UserService` (`PUT /api/users/{id}/unlock`, `PUT /api/users/{id}/lock`, `GET /api/users?locked=true`).
+    - Spring Security `LockedException` mapping to HTTP 401 Unauthorized with "Account Locked" error details in `GlobalExceptionHandler`.
+- **API:**
+  - `PUT /api/users/{id}/unlock` (Admin / Security Officer with `USER_LOCK_MANAGE`)
+  - `PUT /api/users/{id}/lock` (Admin / Security Officer with `USER_LOCK_MANAGE`)
+  - `GET /api/users?locked=true` (Admin with `USER_LOCK_MANAGE`)
+  - `GET /api/users/{id}` (Admin / Self with `USER_LOCK_MANAGE` or employee owner)
+- **Test:**
+  - `LeaveRequestServiceConcurrencyIntegrationTest` (5 tests):
+    - `testConcurrentLeaveApprovalsThrowsOptimisticLockException`: Parallel approval attempts serialize; exactly one succeeds and the other fails on lock conflict.
+    - `testConcurrentLeaveApplicationsThrowsOptimisticLockException`: Overlapping parallel leave creation requests are serialized and rejected.
+    - `testConcurrentLeaveCancellationsDoesNotDoubleRefund`: Parallel cancellations serialize without double-refunding annual leave days.
+    - `testPessimisticLockDirectRepositoryQueries`: Direct repository query execution with pessimistic write locks.
+    - `testConcurrentBalanceUpdatesSerializedWithPessimisticLock`: Parallel balance modifications are safely serialized.
+  - `AccountLockoutIntegrationTest` (8 tests):
+    - Consecutive failed logins trigger account lockout and record `ACCOUNT_LOCKED` security event.
+    - Login attempts on a locked account return HTTP 401 with "Account Locked".
+    - Successful login resets failed attempts counter to 0.
+    - Expired lockout automatically unlocks account on subsequent login.
+    - Admin with `USER_LOCK_MANAGE` can manually unlock an account.
+    - Admin with `USER_LOCK_MANAGE` can administratively lock an account.
+    - Non-privileged employee is forbidden (HTTP 403) from manual lock/unlock.
+    - Admin can query users filtered by locked status.
+- **Status:** **DONE**
+
 
 
 

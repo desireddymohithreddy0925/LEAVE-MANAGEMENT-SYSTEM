@@ -168,5 +168,6 @@ databaseChangeLog:
       file: changes/021-add-security-management-permissions.yaml
       relativeToChangelogFile: true
 
-
-
+  - include:
+      file: changes/022-add-user-account-locking.yaml
+      relativeToChangelogFile: true

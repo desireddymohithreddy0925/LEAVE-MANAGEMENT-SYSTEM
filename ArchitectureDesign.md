@@ -1806,3 +1806,35 @@ Actuator
 SLF4J/Logback
 
 That is the architecture I would use for my project—production-style, secure, modular, testable, and still manageable as a single Spring Boot application.
+
+---
+
+# 26. Concurrency Locking & Account Lockout Architecture
+
+### A. Database Concurrency Locking
+1. **Optimistic Locking (`@Version`)**:
+   - `LeaveRequest` and `LeaveBalance` entities include a `@Version private Long version;` column managed automatically by Hibernate.
+   - Prevents lost updates and race conditions during simultaneous modifications.
+2. **Pessimistic Locking (`@Lock(LockModeType.PESSIMISTIC_WRITE)`)**:
+   - High-contention operations (leave request approval, rejection, cancellation, and manual balance updates/deletions) utilize pessimistic write locks (`SELECT ... FOR UPDATE` via `findByIdWithPessimisticLock`).
+   - Serializes approval/rejection decisions to prevent double-approvals, invalid status transitions, or double-refunds of balance days.
+3. **HTTP 409 Conflict Translation**:
+   - `GlobalExceptionHandler` intercepts JPA and Spring Data concurrency exceptions (`ObjectOptimisticLockingFailureException`, `OptimisticLockException`, `PessimisticLockingFailureException`, `CannotAcquireLockException`) and maps them to HTTP 409 Conflict with descriptive guidance for clients to retry.
+
+### B. User Account Security Lockout
+1. **Brute-Force & Credential Stuffing Defense**:
+   - The `users` table maintains `account_non_locked` (boolean), `failed_login_attempts` (integer), and `lock_expires_at` (timestamp).
+   - Configured via `application.properties`:
+     - `app.security.lockout.max-failed-attempts=5`
+     - `app.security.lockout.duration-minutes=15`
+2. **Automated Lockout & Auto-Unlock Lifecycle**:
+   - `LoginTrackingService` tracks consecutive failed login attempts per account. Upon reaching 5 consecutive failures, the account is automatically locked for 15 minutes, and an `ACCOUNT_LOCKED` security event is persisted.
+   - Upon successful authentication, failed attempts are reset to 0.
+   - `CustomUserDetailsService` inspects lockout status during authentication; if the lockout duration has expired, the account is automatically unlocked and cleared.
+3. **Administrative Lock Management**:
+   - Dedicated admin endpoints:
+     - `PUT /api/users/{id}/unlock`: Manually unlock an account and reset failed counters.
+     - `PUT /api/users/{id}/lock`: Administratively lock an account indefinitely.
+     - `GET /api/users?locked=true`: Query users filtered by locked status.
+   - Protected by granular permission `USER_LOCK_MANAGE` assigned to `ADMIN` and `SECURITY_OFFICER` roles.
+   - All manual lock/unlock operations emit audit logs and `ACCOUNT_UNLOCKED`/`ACCOUNT_LOCKED` security events with reviewer and target metadata.

@@ -57,4 +57,16 @@ public interface LeaveBalanceRepository
             @Param("leaveType") LeaveType leaveType,
             @Param("year") Integer year
     );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT lb FROM LeaveBalance lb WHERE lb.id = :id")
+    Optional<LeaveBalance> findByIdWithPessimisticLock(@Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT lb FROM LeaveBalance lb WHERE lb.employee = :employee AND lb.leaveType = :leaveType AND lb.year = :year")
+    Optional<LeaveBalance> findByEmployeeAndLeaveTypeAndYearWithPessimisticLock(
+            @Param("employee") Employee employee,
+            @Param("leaveType") LeaveType leaveType,
+            @Param("year") Integer year
+    );
 }

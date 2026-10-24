@@ -31,6 +31,15 @@ public class User {
     @Column(name = "login_count")
     private Long loginCount = 0L;
 
+    @Column(name = "account_non_locked", nullable = false)
+    private boolean accountNonLocked = true;
+
+    @Column(name = "failed_login_attempts", nullable = false)
+    private int failedLoginAttempts = 0;
+
+    @Column(name = "lock_expires_at")
+    private LocalDateTime lockExpiresAt;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",
@@ -115,5 +124,29 @@ public class User {
 
     public void setLoginCount(Long loginCount) {
         this.loginCount = loginCount;
+    }
+
+    public boolean isAccountNonLocked() {
+        return accountNonLocked;
+    }
+
+    public void setAccountNonLocked(boolean accountNonLocked) {
+        this.accountNonLocked = accountNonLocked;
+    }
+
+    public int getFailedLoginAttempts() {
+        return failedLoginAttempts;
+    }
+
+    public void setFailedLoginAttempts(int failedLoginAttempts) {
+        this.failedLoginAttempts = failedLoginAttempts;
+    }
+
+    public LocalDateTime getLockExpiresAt() {
+        return lockExpiresAt;
+    }
+
+    public void setLockExpiresAt(LocalDateTime lockExpiresAt) {
+        this.lockExpiresAt = lockExpiresAt;
     }
 }

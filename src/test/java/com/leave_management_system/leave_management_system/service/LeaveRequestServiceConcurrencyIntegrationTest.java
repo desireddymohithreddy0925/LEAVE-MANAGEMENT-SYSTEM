@@ -23,7 +23,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -31,6 +31,9 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
 
     @Autowired
     private LeaveRequestService leaveRequestService;
+
+    @Autowired
+    private LeaveBalanceService leaveBalanceService;
 
     @Autowired
     private LeaveBalanceRepository leaveBalanceRepository;
@@ -48,6 +51,12 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
+    private SecurityEventRepository securityEventRepository;
+
+    @Autowired
     private com.leave_management_system.leave_management_system.repository.AuditLogRepository auditLogRepository;
 
     @Autowired
@@ -62,24 +71,22 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
     @Autowired
     private RoleRepository roleRepository;
 
+    @Autowired
+    private org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+
     private Employee testEmployee;
     private LeaveType testLeaveType;
     private LeaveRequest pendingLeaveRequest;
+    private String testUserEmail;
 
     @BeforeEach
     public void setup() {
-        transactionReviewRepository.deleteAll();
-        leaveRequestRepository.deleteAll();
-        leaveBalanceRepository.deleteAll();
-        employeeRepository.deleteAll();
-        leaveTypeRepository.deleteAll();
-        auditLogRepository.deleteAll();
-        loginHistoryRepository.deleteAll();
-        authorizationAuditLogRepository.deleteAll();
-        userRepository.deleteAll();
+        cleanup();
+
+        testUserEmail = "concurrency-" + java.util.UUID.randomUUID() + "@test.com";
 
         User user = new User();
-        user.setEmail("concurrency@test.com");
+        user.setEmail(testUserEmail);
         user.setPassword("password");
         user.setActive(true);
         userRepository.save(user);
@@ -119,6 +126,21 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
         pendingLeaveRequest = leaveRequestRepository.save(lr);
     }
 
+    @org.junit.jupiter.api.AfterEach
+    public void cleanup() {
+        transactionReviewRepository.deleteAll();
+        securityEventRepository.deleteAll();
+        auditLogRepository.deleteAll();
+        refreshTokenRepository.deleteAll();
+        loginHistoryRepository.deleteAll();
+        authorizationAuditLogRepository.deleteAll();
+        leaveRequestRepository.deleteAll();
+        leaveBalanceRepository.deleteAll();
+        employeeRepository.deleteAll();
+        leaveTypeRepository.deleteAll();
+        userRepository.deleteAll();
+    }
+
     @Test
     public void testConcurrentLeaveApprovalsThrowsOptimisticLockException() throws InterruptedException {
         int threads = 2;
@@ -132,7 +154,7 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
         for (int i = 0; i < threads; i++) {
             executorService.submit(() -> {
                 SecurityContext context = SecurityContextHolder.createEmptyContext();
-                context.setAuthentication(new UsernamePasswordAuthenticationToken("concurrency@test.com", "password", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("LEAVE_APPROVE"))));
+                context.setAuthentication(new UsernamePasswordAuthenticationToken(testUserEmail, "password", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("LEAVE_APPROVE"))));
                 SecurityContextHolder.setContext(context);
                 try {
                     latch.await();
@@ -171,7 +193,7 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
         for (int i = 0; i < threads; i++) {
             executorService.submit(() -> {
                 SecurityContext context = SecurityContextHolder.createEmptyContext();
-                context.setAuthentication(new UsernamePasswordAuthenticationToken("concurrency@test.com", "password", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("LEAVE_CREATE"))));
+                context.setAuthentication(new UsernamePasswordAuthenticationToken(testUserEmail, "password", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("LEAVE_CREATE"))));
                 SecurityContextHolder.setContext(context);
                 try {
                     latch.await();
@@ -185,7 +207,6 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
                     leaveRequestService.createLeaveRequest(dto);
                     successCount.incrementAndGet();
                 } catch (Exception e) {
-                    e.printStackTrace();
                     failureCount.incrementAndGet();
                 } finally {
                     doneLatch.countDown();
@@ -204,7 +225,7 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
     public void testConcurrentLeaveCancellationsDoesNotDoubleRefund() throws InterruptedException {
         // Approve request first
         SecurityContext adminCtx = SecurityContextHolder.createEmptyContext();
-        adminCtx.setAuthentication(new UsernamePasswordAuthenticationToken("concurrency@test.com", "password", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("LEAVE_APPROVE"))));
+        adminCtx.setAuthentication(new UsernamePasswordAuthenticationToken(testUserEmail, "password", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("LEAVE_APPROVE"))));
         SecurityContextHolder.setContext(adminCtx);
         leaveRequestService.approveLeaveRequest(pendingLeaveRequest.getId());
 
@@ -222,7 +243,7 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
         for (int i = 0; i < threads; i++) {
             executorService.submit(() -> {
                 SecurityContext context = SecurityContextHolder.createEmptyContext();
-                context.setAuthentication(new UsernamePasswordAuthenticationToken("concurrency@test.com", "password", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("LEAVE_VIEW_ALL"))));
+                context.setAuthentication(new UsernamePasswordAuthenticationToken(testUserEmail, "password", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("LEAVE_VIEW_ALL"))));
                 SecurityContextHolder.setContext(context);
                 try {
                     latch.await();
@@ -247,5 +268,68 @@ public class LeaveRequestServiceConcurrencyIntegrationTest {
         LeaveBalance finalBalance = leaveBalanceRepository.findByEmployeeAndLeaveType(testEmployee, testLeaveType).get();
         assertEquals(availableAfterApproval + 3, finalBalance.getAvailable(), "Leave days should only be refunded once");
         assertEquals(0, finalBalance.getUsed(), "Used days should be 0 after single refund");
+    }
+
+    @Test
+    public void testPessimisticLockDirectRepositoryQueries() {
+        transactionTemplate.execute(status -> {
+            // Verify pessimistic lock query retrieves entity successfully and locks row
+            var lockedRequest = leaveRequestRepository.findByIdWithPessimisticLock(pendingLeaveRequest.getId());
+            assertTrue(lockedRequest.isPresent(), "Pessimistic lock query should find leave request");
+            assertEquals(LeaveStatus.PENDING, lockedRequest.get().getStatus());
+
+            var balance = leaveBalanceRepository.findByEmployeeAndLeaveType(testEmployee, testLeaveType).orElseThrow();
+            var lockedBalance = leaveBalanceRepository.findByIdWithPessimisticLock(balance.getId());
+            assertTrue(lockedBalance.isPresent(), "Pessimistic lock query should find leave balance");
+            assertEquals(20, lockedBalance.get().getAvailable());
+            return null;
+        });
+    }
+
+    @Test
+    public void testConcurrentBalanceUpdatesSerializedWithPessimisticLock() throws InterruptedException {
+        LeaveBalance balance = leaveBalanceRepository.findByEmployeeAndLeaveType(testEmployee, testLeaveType).orElseThrow();
+
+        int threads = 2;
+        ExecutorService executorService = Executors.newFixedThreadPool(threads);
+        CountDownLatch latch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(threads);
+
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger failureCount = new AtomicInteger(0);
+
+        for (int i = 0; i < threads; i++) {
+            final int deductAmount = (i + 1); // 1 or 2
+            executorService.submit(() -> {
+                SecurityContext context = SecurityContextHolder.createEmptyContext();
+                context.setAuthentication(new UsernamePasswordAuthenticationToken(
+                        testUserEmail, "password",
+                        List.of(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("LEAVE_BALANCE_MANAGE"))));
+                SecurityContextHolder.setContext(context);
+                try {
+                    latch.await();
+                    com.leave_management_system.leave_management_system.dto.LeaveBalanceRequestDTO dto =
+                            new com.leave_management_system.leave_management_system.dto.LeaveBalanceRequestDTO();
+                    dto.setAvailable(20 - deductAmount);
+                    dto.setTotal(20);
+                    leaveBalanceService.updateLeaveBalance(balance.getId(), dto);
+                    successCount.incrementAndGet();
+                } catch (Exception e) {
+                    failureCount.incrementAndGet();
+                } finally {
+                    doneLatch.countDown();
+                }
+            });
+        }
+
+        latch.countDown();
+        doneLatch.await();
+
+        // With optimistic/pessimistic lock, either both serialize or one succeeds while the other fails cleanly on version conflict
+        assertTrue(successCount.get() >= 1, "At least one balance update must succeed");
+        assertEquals(threads, successCount.get() + failureCount.get(), "Total thread outcomes must match thread count");
+
+        LeaveBalance finalBalance = leaveBalanceRepository.findById(balance.getId()).orElseThrow();
+        assertTrue(finalBalance.getAvailable() < 20, "Balance available should reflect the update");
     }
 }

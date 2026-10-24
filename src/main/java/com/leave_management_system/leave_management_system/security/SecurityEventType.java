@@ -16,6 +16,8 @@ public final class SecurityEventType {
     public static final String SUSPICIOUS_TOKEN_ACTIVITY = "SUSPICIOUS_TOKEN_ACTIVITY";
     public static final String PRIVILEGE_ESCALATION = "PRIVILEGE_ESCALATION";
     public static final String SUSPICIOUS_IP_ACTIVITY = "SUSPICIOUS_IP_ACTIVITY";
+    public static final String ACCOUNT_LOCKED = "ACCOUNT_LOCKED";
+    public static final String ACCOUNT_UNLOCKED = "ACCOUNT_UNLOCKED";
 
     public static final String ENTITY_TYPE_SECURITY_EVENT = "SECURITY_EVENT";
 

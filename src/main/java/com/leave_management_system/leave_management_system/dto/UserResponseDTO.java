@@ -16,6 +16,9 @@ public class UserResponseDTO {
     private LocalDateTime lastLoginAt;
     private String lastLoginIp;
     private Long loginCount;
+    private boolean accountNonLocked;
+    private int failedLoginAttempts;
+    private LocalDateTime lockExpiresAt;
 
     public static UserResponseDTO fromEntity(User user) {
         if (user == null) {
@@ -25,6 +28,9 @@ public class UserResponseDTO {
         dto.setId(user.getId());
         dto.setEmail(user.getEmail());
         dto.setActive(user.isActive());
+        dto.setAccountNonLocked(user.isAccountNonLocked());
+        dto.setFailedLoginAttempts(user.getFailedLoginAttempts());
+        dto.setLockExpiresAt(user.getLockExpiresAt());
         dto.setLastLoginAt(user.getLastLoginAt());
         dto.setLastLoginIp(user.getLastLoginIp());
         dto.setLoginCount(user.getLoginCount());
@@ -90,5 +96,29 @@ public class UserResponseDTO {
 
     public void setLoginCount(Long loginCount) {
         this.loginCount = loginCount;
+    }
+
+    public boolean isAccountNonLocked() {
+        return accountNonLocked;
+    }
+
+    public void setAccountNonLocked(boolean accountNonLocked) {
+        this.accountNonLocked = accountNonLocked;
+    }
+
+    public int getFailedLoginAttempts() {
+        return failedLoginAttempts;
+    }
+
+    public void setFailedLoginAttempts(int failedLoginAttempts) {
+        this.failedLoginAttempts = failedLoginAttempts;
+    }
+
+    public LocalDateTime getLockExpiresAt() {
+        return lockExpiresAt;
+    }
+
+    public void setLockExpiresAt(LocalDateTime lockExpiresAt) {
+        this.lockExpiresAt = lockExpiresAt;
     }
 }

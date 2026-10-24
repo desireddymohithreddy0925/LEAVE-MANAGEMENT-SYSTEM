@@ -32,6 +32,20 @@ public class LoginTrackingService {
     private final LoginHistoryRepository loginHistoryRepository;
     private final UserRepository userRepository;
 
+    @org.springframework.beans.factory.annotation.Value("${app.security.lockout.max-failed-attempts:5}")
+    private int maxFailedAttempts = 5;
+
+    @org.springframework.beans.factory.annotation.Value("${app.security.lockout.duration-minutes:15}")
+    private int lockoutDurationMinutes = 15;
+
+    @org.springframework.context.annotation.Lazy
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AuditService auditService;
+
+    @org.springframework.context.annotation.Lazy
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.leave_management_system.leave_management_system.security.ClientIpResolver clientIpResolver;
+
     public LoginTrackingService(LoginHistoryRepository loginHistoryRepository, UserRepository userRepository) {
         this.loginHistoryRepository = loginHistoryRepository;
         this.userRepository = userRepository;
@@ -52,6 +66,9 @@ public class LoginTrackingService {
             user.setLastLoginIp(clientIp);
             long count = user.getLoginCount() != null ? user.getLoginCount() : 0L;
             user.setLoginCount(count + 1);
+            user.setFailedLoginAttempts(0);
+            user.setLockExpiresAt(null);
+            user.setAccountNonLocked(true);
             userRepository.save(user);
         });
 
@@ -75,7 +92,26 @@ public class LoginTrackingService {
         LoginHistory history = new LoginHistory();
         history.setEmail(email != null ? email : "unknown");
         if (email != null) {
-            userRepository.findByEmail(email).ifPresent(history::setUser);
+            Optional<User> userOpt = userRepository.findByEmail(email);
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                history.setUser(user);
+                int attempts = user.getFailedLoginAttempts() + 1;
+                user.setFailedLoginAttempts(attempts);
+                if (attempts >= maxFailedAttempts && user.isAccountNonLocked()) {
+                    user.setAccountNonLocked(false);
+                    user.setLockExpiresAt(LocalDateTime.now().plusMinutes(lockoutDurationMinutes));
+                    if (auditService != null) {
+                        auditService.logSecurityEvent(
+                                com.leave_management_system.leave_management_system.security.SecurityEventType.ACCOUNT_LOCKED,
+                                clientIp,
+                                user.getEmail(),
+                                "Account locked after " + attempts + " consecutive failed login attempts. Lockout expires in " + lockoutDurationMinutes + " minutes."
+                        );
+                    }
+                }
+                userRepository.save(user);
+            }
         }
         history.setLoginTime(LocalDateTime.now());
         history.setIpAddress(clientIp);
@@ -180,13 +216,10 @@ public class LoginTrackingService {
             ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             if (attributes != null) {
                 HttpServletRequest request = attributes.getRequest();
-                String ipAddress = request.getHeader("X-Forwarded-For");
-                if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
-                    ipAddress = request.getRemoteAddr();
-                } else if (ipAddress.contains(",")) {
-                    ipAddress = ipAddress.split(",")[0].trim();
+                if (clientIpResolver != null) {
+                    return clientIpResolver.resolveClientIp(request);
                 }
-                return ipAddress;
+                return request.getRemoteAddr();
             }
         } catch (Exception ignored) {
         }

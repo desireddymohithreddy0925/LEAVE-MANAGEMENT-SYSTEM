@@ -138,6 +138,26 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
     }
 
+    @ExceptionHandler(org.springframework.security.authentication.LockedException.class)
+    public ResponseEntity<ErrorResponseDTO> handleLockedException(org.springframework.security.authentication.LockedException exception) {
+        ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.UNAUTHORIZED.value(), "Account Locked",
+                "User account is locked due to multiple failed login attempts. Please try again later or contact an administrator.");
+        return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler({
+            org.springframework.orm.ObjectOptimisticLockingFailureException.class,
+            jakarta.persistence.OptimisticLockException.class,
+            org.springframework.dao.PessimisticLockingFailureException.class,
+            jakarta.persistence.PessimisticLockException.class,
+            org.springframework.dao.CannotAcquireLockException.class
+    })
+    public ResponseEntity<ErrorResponseDTO> handleConcurrencyLockingException(Exception exception) {
+        ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.CONFLICT.value(), "Conflict",
+                "The resource was updated concurrently by another transaction. Please refresh and try again.");
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ErrorResponseDTO> handleAuthenticationException(AuthenticationException exception) {
         ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.UNAUTHORIZED.value(), "Unauthorized", exception.getMessage());
