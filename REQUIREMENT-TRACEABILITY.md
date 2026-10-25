@@ -435,6 +435,14 @@ This document maps the mandatory internship requirements to their specific imple
     - `testConcurrentLeaveCancellationsDoesNotDoubleRefund`: Parallel cancellations serialize without double-refunding annual leave days.
     - `testPessimisticLockDirectRepositoryQueries`: Direct repository query execution with pessimistic write locks.
     - `testConcurrentBalanceUpdatesSerializedWithPessimisticLock`: Parallel balance modifications are safely serialized.
+  - `ConcurrentLeaveApprovalIntegrationTest` (7 HTTP integration tests):
+    - `concurrentSimultaneousApprovals_sameRequest_exactlyOneSucceeds_andBalanceDeductedOnce`: Two concurrent HTTP threads invoke `PUT /api/leave-requests/{id}/approve`; exactly one receives HTTP 200 OK while the other receives HTTP 400/409, and leave balance is deducted only once.
+    - `concurrentSimultaneousApprovals_fiveThreads_exactlyOneSucceeds_othersFailCleanly`: 5 concurrent HTTP threads hit the approval endpoint simultaneously; exactly 1 succeeds and 4 fail cleanly.
+    - `concurrentSimultaneousApprovals_differentHttpMethods_putAndPatch_serializeCleanly`: Concurrent PUT and PATCH approvals serialize cleanly without double balance deduction.
+    - `concurrentApprovalAndCancellation_onSameRequest_maintainsBalanceIntegrity`: Concurrent approval and cancellation preserve balance integrity and invariant total.
+    - `concurrentApprovalAndRejection_onSameRequest_exactlyOneWins`: Concurrent approval and rejection resolve exclusively without inconsistent state.
+    - `concurrentApprovals_overlappingRequestsForSameEmployee_onlyOneApproved`: Two concurrent approval requests on overlapping date ranges for the same employee serialize; only 1 is approved and the other fails with overlap error.
+    - `concurrentApprovals_competingForInsufficientRemainingBalance_onlyOneFits`: Two non-overlapping requests competing for limited remaining balance serialize; only 1 succeeds and the other fails with Insufficient Leave Balance without dipping below zero.
   - `AccountLockoutIntegrationTest` (8 tests):
     - Consecutive failed logins trigger account lockout and record `ACCOUNT_LOCKED` security event.
     - Login attempts on a locked account return HTTP 401 with "Account Locked".

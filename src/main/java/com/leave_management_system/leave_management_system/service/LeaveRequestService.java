@@ -316,10 +316,25 @@ public class LeaveRequestService {
 
         long requestedDays = calculateWorkingDays(leaveRequest.getStartDate(), leaveRequest.getEndDate());
 
+        if (leaveRequest.getEmployee() != null && leaveRequest.getEmployee().getId() != null) {
+            employeeRepository.findByIdWithPessimisticLock(leaveRequest.getEmployee().getId());
+        }
+
         int leaveYear = leaveRequest.getStartDate().getYear();
         LeaveBalance balance = leaveBalanceRepository
                 .findByEmployeeAndLeaveTypeAndYearWithLock(leaveRequest.getEmployee(), leaveRequest.getLeaveType(), leaveYear)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave balance not found for year " + leaveYear));
+
+        // Re-check overlap after acquiring employee and balance locks to prevent concurrent approval race condition
+        if (leaveRequestRepository.hasOverlappingLeaveExcludingId(
+                leaveRequest.getEmployee(),
+                leaveRequest.getId(),
+                leaveRequest.getStartDate(),
+                leaveRequest.getEndDate(),
+                List.of(LeaveStatus.APPROVED))) {
+            throw new IllegalArgumentException(
+                    "Cannot approve: an overlapping leave request is already approved for this employee");
+        }
 
         if (balance.getAvailable() < requestedDays) {
             throw new InsufficientLeaveException("Insufficient leave balance");

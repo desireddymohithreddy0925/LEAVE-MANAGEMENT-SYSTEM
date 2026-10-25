@@ -1811,14 +1811,19 @@ That is the architecture I would use for my project—production-style, secure, 
 
 # 26. Concurrency Locking & Account Lockout Architecture
 
-### A. Database Concurrency Locking
+### A. Database Concurrency Locking & Simultaneous Approval Protection
 1. **Optimistic Locking (`@Version`)**:
    - `LeaveRequest` and `LeaveBalance` entities include a `@Version private Long version;` column managed automatically by Hibernate.
    - Prevents lost updates and race conditions during simultaneous modifications.
 2. **Pessimistic Locking (`@Lock(LockModeType.PESSIMISTIC_WRITE)`)**:
    - High-contention operations (leave request approval, rejection, cancellation, and manual balance updates/deletions) utilize pessimistic write locks (`SELECT ... FOR UPDATE` via `findByIdWithPessimisticLock`).
+   - `EmployeeRepository.findByIdWithPessimisticLock` and `LeaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithPessimisticLock` serialize all concurrent approvals for the same employee.
    - Serializes approval/rejection decisions to prevent double-approvals, invalid status transitions, or double-refunds of balance days.
-3. **HTTP 409 Conflict Translation**:
+3. **Simultaneous Approval Guarantees**:
+   - **Double-Approval Prevention**: Simultaneous requests on the same leave request serialize via row lock; exactly one transaction succeeds (HTTP 200 OK), while the competing transaction receives HTTP 400 Bad Request or HTTP 409 Conflict. Leave balance is deducted strictly once.
+   - **Overlapping Request Approval Protection**: A post-lock re-check of `hasOverlappingLeaveExcludingId` inside the employee/balance lock ensures that two concurrent approval requests on overlapping date ranges cannot both pass; one is approved and the other is safely rejected.
+   - **Balance Competitions**: When multiple requests compete for insufficient remaining balance, the balance lock serializes deductions, ensuring balance never drops below zero and subsequent requests fail cleanly with HTTP 400 Insufficient Leave Balance.
+4. **HTTP 409 Conflict Translation**:
    - `GlobalExceptionHandler` intercepts JPA and Spring Data concurrency exceptions (`ObjectOptimisticLockingFailureException`, `OptimisticLockException`, `PessimisticLockingFailureException`, `CannotAcquireLockException`) and maps them to HTTP 409 Conflict with descriptive guidance for clients to retry.
 
 ### B. User Account Security Lockout
