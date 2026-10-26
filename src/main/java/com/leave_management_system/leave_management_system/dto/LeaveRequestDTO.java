@@ -27,6 +27,8 @@ public class LeaveRequestDTO {
     @Size(max = 500, message = "Reason must not exceed 500 characters")
     private String reason;
 
+    private Boolean requiresDualApproval;
+
     // Getters and Setters
     public Long getEmployeeId() { return employeeId; }
     public void setEmployeeId(Long employeeId) { this.employeeId = employeeId; }
@@ -38,4 +40,6 @@ public class LeaveRequestDTO {
     public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
     public String getReason() { return reason; }
     public void setReason(String reason) { this.reason = reason; }
+    public Boolean getRequiresDualApproval() { return requiresDualApproval; }
+    public void setRequiresDualApproval(Boolean requiresDualApproval) { this.requiresDualApproval = requiresDualApproval; }
 }

@@ -23,10 +23,14 @@ import com.leave_management_system.leave_management_system.exception.Insufficien
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.leave_management_system.leave_management_system.entity.LeaveRequestSignoff;
+import com.leave_management_system.leave_management_system.repository.LeaveRequestSignoffRepository;
+import com.leave_management_system.leave_management_system.dto.LeaveSignoffResponseDTO;
 import com.leave_management_system.leave_management_system.entity.User;
 import com.leave_management_system.leave_management_system.repository.UserRepository;
 import org.springframework.context.annotation.Lazy;
@@ -43,12 +47,22 @@ public class LeaveRequestService {
     private final LeaveTypeRepository leaveTypeRepository;
     private final TransactionReviewService transactionReviewService;
     private final UserRepository userRepository;
+    private final LeaveRequestSignoffRepository leaveRequestSignoffRepository;
 
     public LeaveRequestService(LeaveRequestRepository leaveRequestRepository,
             LeaveBalanceRepository leaveBalanceRepository,
             EmployeeRepository employeeRepository,
             LeaveTypeRepository leaveTypeRepository) {
-        this(leaveRequestRepository, leaveBalanceRepository, employeeRepository, leaveTypeRepository, null, null);
+        this(leaveRequestRepository, leaveBalanceRepository, employeeRepository, leaveTypeRepository, null, null, null);
+    }
+
+    public LeaveRequestService(LeaveRequestRepository leaveRequestRepository,
+            LeaveBalanceRepository leaveBalanceRepository,
+            EmployeeRepository employeeRepository,
+            LeaveTypeRepository leaveTypeRepository,
+            TransactionReviewService transactionReviewService,
+            UserRepository userRepository) {
+        this(leaveRequestRepository, leaveBalanceRepository, employeeRepository, leaveTypeRepository, transactionReviewService, userRepository, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -57,13 +71,15 @@ public class LeaveRequestService {
             EmployeeRepository employeeRepository,
             LeaveTypeRepository leaveTypeRepository,
             @Lazy TransactionReviewService transactionReviewService,
-            @Lazy UserRepository userRepository) {
+            @Lazy UserRepository userRepository,
+            @Lazy LeaveRequestSignoffRepository leaveRequestSignoffRepository) {
         this.leaveRequestRepository = leaveRequestRepository;
         this.leaveBalanceRepository = leaveBalanceRepository;
         this.employeeRepository = employeeRepository;
         this.leaveTypeRepository = leaveTypeRepository;
         this.transactionReviewService = transactionReviewService;
         this.userRepository = userRepository;
+        this.leaveRequestSignoffRepository = leaveRequestSignoffRepository;
     }
 
     private User resolveCurrentActor() {
@@ -86,6 +102,37 @@ public class LeaveRequestService {
         } catch (Exception ignored) {
         }
         return "system";
+    }
+
+    private boolean isCallerAdmin(Authentication auth) {
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
+
+    private boolean isCallerHr(Authentication auth) {
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_HR"));
+    }
+
+    private boolean isCallerManager(Authentication auth, Employee applicant) {
+        if (auth == null || applicant == null) return false;
+        if (applicant.getManager() != null && applicant.getManager().getUser() != null) {
+            if (applicant.getManager().getUser().getEmail().equals(auth.getName())) {
+                return true;
+            }
+        }
+        return auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_MANAGER"));
+    }
+
+    private void recordSignoff(LeaveRequest leaveRequest, String role, User approver, String status, String comments) {
+        if (leaveRequestSignoffRepository != null && approver != null) {
+            LeaveRequestSignoff signoff = new LeaveRequestSignoff(leaveRequest, role, approver, status, comments);
+            leaveRequestSignoffRepository.save(signoff);
+            if (leaveRequest.getSignoffs() == null) {
+                leaveRequest.setSignoffs(new java.util.ArrayList<>());
+            }
+            leaveRequest.getSignoffs().add(signoff);
+        }
     }
 
     @Transactional
@@ -119,7 +166,7 @@ public class LeaveRequestService {
                 employee,
                 dto.getStartDate(),
                 dto.getEndDate(),
-                List.of(LeaveStatus.PENDING, LeaveStatus.APPROVED));
+                List.of(LeaveStatus.PENDING, LeaveStatus.PARTIALLY_APPROVED, LeaveStatus.APPROVED));
         if (hasOverlap) {
             throw new IllegalArgumentException("Leave request overlaps with an existing pending or approved leave");
         }
@@ -147,6 +194,9 @@ public class LeaveRequestService {
         leaveRequest.setEndDate(dto.getEndDate());
         leaveRequest.setReason(dto.getReason());
         leaveRequest.setStatus(LeaveStatus.PENDING);
+        if (dto.getRequiresDualApproval() != null) {
+            leaveRequest.setRequiresDualApproval(dto.getRequiresDualApproval());
+        }
         LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
         if (transactionReviewService != null) {
             transactionReviewService.recordLeaveRequest(saved, resolveCurrentActor(), resolveCurrentActorEmail());
@@ -291,9 +341,8 @@ public class LeaveRequestService {
     public LeaveResponseDTO approveLeaveRequest(Long id) {
         LeaveRequest leaveRequest = findLeaveRequestWithLock(id);
 
-        // Protect against double deduction by ensuring only PENDING requests can be
-        // approved.
-        if (leaveRequest.getStatus() != LeaveStatus.PENDING) {
+        // Protect against double deduction by ensuring only PENDING or PARTIALLY_APPROVED requests can be approved.
+        if (leaveRequest.getStatus() != LeaveStatus.PENDING && leaveRequest.getStatus() != LeaveStatus.PARTIALLY_APPROVED) {
             throw new IllegalArgumentException("Only pending requests can be approved");
         }
 
@@ -302,6 +351,62 @@ public class LeaveRequestService {
                     "Leave request cannot span across multiple calendar years. Please submit separate requests for each year.");
         }
 
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        User actor = resolveCurrentActor();
+        boolean isAdmin = isCallerAdmin(auth);
+
+        // If dual approval is NOT required OR caller is ADMIN (admin direct-approve override):
+        if (!leaveRequest.isRequiresDualApproval() || isAdmin) {
+            return finalizeFullApproval(leaveRequest, actor, "ADMIN");
+        }
+
+        boolean isHr = isCallerHr(auth);
+        boolean isMgr = isCallerManager(auth, leaveRequest.getEmployee());
+
+        String signoffRole;
+        if (isMgr && !"APPROVED".equals(leaveRequest.getManagerApprovalStatus())) {
+            signoffRole = "MANAGER";
+        } else if (isHr && !"APPROVED".equals(leaveRequest.getHrApprovalStatus())) {
+            signoffRole = "HR";
+        } else if (isMgr) {
+            signoffRole = "MANAGER";
+        } else if (isHr) {
+            signoffRole = "HR";
+        } else {
+            return finalizeFullApproval(leaveRequest, actor, "APPROVER");
+        }
+
+        if ("MANAGER".equals(signoffRole)) {
+            if ("APPROVED".equals(leaveRequest.getManagerApprovalStatus())) {
+                throw new IllegalArgumentException("Manager has already approved this leave request");
+            }
+            leaveRequest.setManagerApprovalStatus("APPROVED");
+            leaveRequest.setManagerApprovedBy(actor);
+            leaveRequest.setManagerApprovedAt(LocalDateTime.now());
+            recordSignoff(leaveRequest, "MANAGER", actor, "APPROVED", "Approved by Manager");
+        } else if ("HR".equals(signoffRole)) {
+            if ("APPROVED".equals(leaveRequest.getHrApprovalStatus())) {
+                throw new IllegalArgumentException("HR has already approved this leave request");
+            }
+            leaveRequest.setHrApprovalStatus("APPROVED");
+            leaveRequest.setHrApprovedBy(actor);
+            leaveRequest.setHrApprovedAt(LocalDateTime.now());
+            recordSignoff(leaveRequest, "HR", actor, "APPROVED", "Approved by HR");
+        }
+
+        boolean managerApproved = "APPROVED".equals(leaveRequest.getManagerApprovalStatus());
+        boolean hrApproved = "APPROVED".equals(leaveRequest.getHrApprovalStatus());
+
+        if (managerApproved && hrApproved) {
+            return finalizeFullApproval(leaveRequest, actor, signoffRole);
+        } else {
+            leaveRequest.setStatus(LeaveStatus.PARTIALLY_APPROVED);
+            LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
+            return LeaveResponseDTO.fromEntity(saved);
+        }
+    }
+
+    private LeaveResponseDTO finalizeFullApproval(LeaveRequest leaveRequest, User actor, String approverRole) {
         // Ensure no other APPROVED leave request overlaps with this one (excluding itself)
         boolean hasApprovedOverlap = leaveRequestRepository.hasOverlappingLeaveExcludingId(
                 leaveRequest.getEmployee(),
@@ -346,6 +451,20 @@ public class LeaveRequestService {
         leaveBalanceRepository.save(balance);
 
         leaveRequest.setStatus(LeaveStatus.APPROVED);
+        if (leaveRequest.isRequiresDualApproval() && actor != null && "ADMIN".equals(approverRole)) {
+            if (!"APPROVED".equals(leaveRequest.getManagerApprovalStatus())) {
+                leaveRequest.setManagerApprovalStatus("APPROVED");
+                leaveRequest.setManagerApprovedBy(actor);
+                leaveRequest.setManagerApprovedAt(LocalDateTime.now());
+            }
+            if (!"APPROVED".equals(leaveRequest.getHrApprovalStatus())) {
+                leaveRequest.setHrApprovalStatus("APPROVED");
+                leaveRequest.setHrApprovedBy(actor);
+                leaveRequest.setHrApprovedAt(LocalDateTime.now());
+            }
+            recordSignoff(leaveRequest, "ADMIN", actor, "APPROVED", "Approved by Admin override");
+        }
+
         LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
         if (transactionReviewService != null) {
             transactionReviewService.recordLeaveApproval(saved, resolveCurrentActor(), resolveCurrentActorEmail());
@@ -366,8 +485,21 @@ public class LeaveRequestService {
 
         LeaveRequest leaveRequest = findLeaveRequestWithLock(id);
 
-        if (leaveRequest.getStatus() != LeaveStatus.PENDING) {
+        if (leaveRequest.getStatus() != LeaveStatus.PENDING && leaveRequest.getStatus() != LeaveStatus.PARTIALLY_APPROVED) {
             throw new IllegalArgumentException("Only pending requests can be rejected");
+        }
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        User actor = resolveCurrentActor();
+        String role = isCallerAdmin(auth) ? "ADMIN" : (isCallerHr(auth) ? "HR" : "MANAGER");
+
+        if (leaveRequest.isRequiresDualApproval()) {
+            if ("HR".equals(role)) {
+                leaveRequest.setHrApprovalStatus("REJECTED");
+            } else if ("MANAGER".equals(role)) {
+                leaveRequest.setManagerApprovalStatus("REJECTED");
+            }
+            recordSignoff(leaveRequest, role, actor, "REJECTED", rejectionReason.trim());
         }
 
         leaveRequest.setStatus(LeaveStatus.REJECTED);
@@ -385,7 +517,9 @@ public class LeaveRequestService {
     public LeaveResponseDTO cancelLeaveRequest(Long id) {
         LeaveRequest leaveRequest = findLeaveRequestWithLock(id);
 
-        if (leaveRequest.getStatus() != LeaveStatus.PENDING && leaveRequest.getStatus() != LeaveStatus.APPROVED) {
+        if (leaveRequest.getStatus() != LeaveStatus.PENDING 
+                && leaveRequest.getStatus() != LeaveStatus.PARTIALLY_APPROVED 
+                && leaveRequest.getStatus() != LeaveStatus.APPROVED) {
             if (leaveRequest.getStatus() == LeaveStatus.REJECTED) {
                 throw new IllegalArgumentException("Cannot cancel a rejected leave request");
             }
@@ -418,6 +552,18 @@ public class LeaveRequestService {
             transactionReviewService.recordLeaveCancellation(saved, wasApproved, resolveCurrentActor(), resolveCurrentActorEmail());
         }
         return LeaveResponseDTO.fromEntity(saved);
+    }
+
+    @PreAuthorize("@securityService.canViewLeaveRequest(authentication, #id)")
+    public java.util.List<LeaveSignoffResponseDTO> getLeaveRequestSignoffs(Long id) {
+        LeaveRequest leaveRequest = leaveRequestRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
+        if (leaveRequestSignoffRepository != null) {
+            return leaveRequestSignoffRepository.findByLeaveRequestId(id).stream()
+                    .map(LeaveSignoffResponseDTO::fromEntity)
+                    .collect(java.util.stream.Collectors.toList());
+        }
+        return java.util.Collections.emptyList();
     }
 
     public void deleteLeaveRequest(Long id) {

@@ -1,0 +1,98 @@
+databaseChangeLog:
+  - changeSet:
+      id: 023-add-multi-approver-signoff
+      author: antigravity
+      changes:
+        - addColumn:
+            tableName: leave_requests
+            columns:
+              - column:
+                  name: requires_dual_approval
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: manager_approval_status
+                  type: varchar(30)
+                  defaultValue: 'PENDING'
+              - column:
+                  name: manager_approved_by
+                  type: bigint
+                  constraints:
+                    foreignKeyName: fk_leave_req_mgr_user
+                    references: users(id)
+              - column:
+                  name: manager_approved_at
+                  type: timestamp
+              - column:
+                  name: hr_approval_status
+                  type: varchar(30)
+                  defaultValue: 'PENDING'
+              - column:
+                  name: hr_approved_by
+                  type: bigint
+                  constraints:
+                    foreignKeyName: fk_leave_req_hr_user
+                    references: users(id)
+              - column:
+                  name: hr_approved_at
+                  type: timestamp
+
+        - createTable:
+            tableName: leave_request_signoffs
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: leave_request_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_signoff_leave_request
+                    references: leave_requests(id)
+                    deleteCascade: true
+              - column:
+                  name: approver_role
+                  type: varchar(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: approver_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_signoff_approver
+                    references: users(id)
+              - column:
+                  name: status
+                  type: varchar(30)
+                  defaultValue: 'PENDING'
+                  constraints:
+                    nullable: false
+              - column:
+                  name: comments
+                  type: varchar(500)
+              - column:
+                  name: signed_at
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+
+        - createIndex:
+            indexName: idx_signoff_leave_request
+            tableName: leave_request_signoffs
+            columns:
+              - column:
+                  name: leave_request_id
+
+        - createIndex:
+            indexName: idx_signoff_approver
+            tableName: leave_request_signoffs
+            columns:
+              - column:
+                  name: approver_id

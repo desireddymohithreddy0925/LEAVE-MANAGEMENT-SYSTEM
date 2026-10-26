@@ -44,6 +44,32 @@ public class LeaveRequest {
     @Column(name = "applied_at")
     private LocalDateTime appliedAt;
 
+    @Column(name = "requires_dual_approval", nullable = false)
+    private boolean requiresDualApproval = false;
+
+    @Column(name = "manager_approval_status", length = 30)
+    private String managerApprovalStatus = "PENDING";
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "manager_approved_by")
+    private User managerApprovedBy;
+
+    @Column(name = "manager_approved_at")
+    private LocalDateTime managerApprovedAt;
+
+    @Column(name = "hr_approval_status", length = 30)
+    private String hrApprovalStatus = "PENDING";
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "hr_approved_by")
+    private User hrApprovedBy;
+
+    @Column(name = "hr_approved_at")
+    private LocalDateTime hrApprovedAt;
+
+    @OneToMany(mappedBy = "leaveRequest", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<LeaveRequestSignoff> signoffs = new java.util.ArrayList<>();
+
     @Version
     private Long version;
 
@@ -133,5 +159,69 @@ public class LeaveRequest {
 
     public void setVersion(Long version) {
         this.version = version;
+    }
+
+    public boolean isRequiresDualApproval() {
+        return requiresDualApproval;
+    }
+
+    public void setRequiresDualApproval(boolean requiresDualApproval) {
+        this.requiresDualApproval = requiresDualApproval;
+    }
+
+    public String getManagerApprovalStatus() {
+        return managerApprovalStatus;
+    }
+
+    public void setManagerApprovalStatus(String managerApprovalStatus) {
+        this.managerApprovalStatus = managerApprovalStatus;
+    }
+
+    public User getManagerApprovedBy() {
+        return managerApprovedBy;
+    }
+
+    public void setManagerApprovedBy(User managerApprovedBy) {
+        this.managerApprovedBy = managerApprovedBy;
+    }
+
+    public LocalDateTime getManagerApprovedAt() {
+        return managerApprovedAt;
+    }
+
+    public void setManagerApprovedAt(LocalDateTime managerApprovedAt) {
+        this.managerApprovedAt = managerApprovedAt;
+    }
+
+    public String getHrApprovalStatus() {
+        return hrApprovalStatus;
+    }
+
+    public void setHrApprovalStatus(String hrApprovalStatus) {
+        this.hrApprovalStatus = hrApprovalStatus;
+    }
+
+    public User getHrApprovedBy() {
+        return hrApprovedBy;
+    }
+
+    public void setHrApprovedBy(User hrApprovedBy) {
+        this.hrApprovedBy = hrApprovedBy;
+    }
+
+    public LocalDateTime getHrApprovedAt() {
+        return hrApprovedAt;
+    }
+
+    public void setHrApprovedAt(LocalDateTime hrApprovedAt) {
+        this.hrApprovedAt = hrApprovedAt;
+    }
+
+    public java.util.List<LeaveRequestSignoff> getSignoffs() {
+        return signoffs;
+    }
+
+    public void setSignoffs(java.util.List<LeaveRequestSignoff> signoffs) {
+        this.signoffs = signoffs;
     }
 }

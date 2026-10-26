@@ -171,3 +171,8 @@ databaseChangeLog:
   - include:
       file: changes/022-add-user-account-locking.yaml
       relativeToChangelogFile: true
+
+  - include:
+      file: changes/023-add-multi-approver-signoff.yaml
+      relativeToChangelogFile: true
+

@@ -1843,3 +1843,35 @@ That is the architecture I would use for my project—production-style, secure, 
      - `GET /api/users?locked=true`: Query users filtered by locked status.
    - Protected by granular permission `USER_LOCK_MANAGE` assigned to `ADMIN` and `SECURITY_OFFICER` roles.
    - All manual lock/unlock operations emit audit logs and `ACCOUNT_UNLOCKED`/`ACCOUNT_LOCKED` security events with reviewer and target metadata.
+
+---
+
+# 27. Dual Parallel Concurrent Approval Workflow (Manager + HR)
+
+### A. Parallel Multi-Approver Architecture
+1. **Configurable Dual Approval**:
+   - `LeaveRequest` supports `requiresDualApproval` (boolean). When false, the system executes the single-approver approval workflow for 100% backward compatibility.
+   - When `requiresDualApproval = true`, the request mandates concurrent sign-offs from both **Manager** and **HR** in any order.
+2. **State Machine & Lifecycle**:
+   - **Initial State**: `PENDING` (`managerApprovalStatus = PENDING`, `hrApprovalStatus = PENDING`).
+   - **First Sign-off (Manager or HR)**:
+     - The sign-off is persisted in `leave_request_signoffs`.
+     - Respective status column (`manager_approval_status` or `hr_approval_status`) is set to `APPROVED` with approver foreign key and timestamp.
+     - Leave request transitions to `PARTIALLY_APPROVED`.
+     - **Leave balance is NOT deducted** at this intermediate stage to prevent unearned deductions.
+   - **Second Sign-off**:
+     - The second approver's sign-off is recorded.
+     - Both approvals are satisfied; the request transitions to `APPROVED`.
+     - Row locks on employee and balance are acquired via `findByIdWithPessimisticLock` and `findByEmployeeAndLeaveTypeAndYearWithLock`.
+     - Balance is deducted exactly once (`used` incremented, `available` decremented).
+   - **Administrative Override**:
+     - `ADMIN` role maintains super-approval authority. An admin can approve directly, immediately transitioning the request to `APPROVED`, marking both manager and HR sign-offs as approved, and deducting balance in a single atomic transaction.
+3. **Rejection & Cancellation**:
+   - **Rejection**: Either Manager or HR can reject a request in `PENDING` or `PARTIALLY_APPROVED` state. Status becomes `REJECTED`, signoff is recorded with rejection reason, and leave balance remains completely untouched.
+   - **Cancellation**: Employees can cancel their own requests in `PENDING` or `PARTIALLY_APPROVED` state without balance deduction or refund complications.
+4. **Overlap Protection**:
+   - `hasOverlappingLeave` and `checkOverlap` include `LeaveStatus.PARTIALLY_APPROVED` in active status validation (`PENDING`, `PARTIALLY_APPROVED`, `APPROVED`), preventing employees from submitting overlapping requests while an approval is pending.
+5. **High-Concurrency Resilience & Retry**:
+   - Under simultaneous concurrent approvals from Manager and HR in parallel threads, pessimistic locks serialize row updates. Any optimistic lock version collision is transparently resolved via controller-level exponential backoff retry (up to 3 attempts), ensuring both approvers receive HTTP 200 OK and balance is deducted strictly once.
+6. **Audit & Query Endpoints**:
+   - `GET /api/leave-requests/{id}/signoffs`: Returns complete audit trail of sign-offs for any leave request, including approver role, decision status, comments, and timestamps.

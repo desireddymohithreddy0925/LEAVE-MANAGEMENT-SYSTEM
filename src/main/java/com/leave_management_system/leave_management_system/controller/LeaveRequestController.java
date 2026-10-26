@@ -192,6 +192,25 @@ public class LeaveRequestController {
             @ApiResponse(responseCode = "404", description = "Leave request not found")
     })
     public LeaveResponseDTO approveLeaveRequest(@PathVariable Long id) {
+        int maxAttempts = 3;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return leaveRequestService.approveLeaveRequest(id);
+            } catch (org.springframework.orm.ObjectOptimisticLockingFailureException |
+                     jakarta.persistence.OptimisticLockException |
+                     org.springframework.dao.PessimisticLockingFailureException |
+                     jakarta.persistence.PessimisticLockException ex) {
+                if (attempt == maxAttempts) {
+                    throw ex;
+                }
+                try {
+                    Thread.sleep(40L * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw ex;
+                }
+            }
+        }
         return leaveRequestService.approveLeaveRequest(id);
     }
 
@@ -225,5 +244,16 @@ public class LeaveRequestController {
     })
     public LeaveResponseDTO cancelLeaveRequest(@PathVariable Long id) {
         return leaveRequestService.cancelLeaveRequest(id);
+    }
+
+    @PreAuthorize("@securityService.canViewLeaveRequest(authentication, #id)")
+    @GetMapping("/{id:\\d+}/signoffs")
+    @Operation(summary = "Get leave request signoffs", description = "Returns the list of concurrent approval signoffs for a leave request.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successfully retrieved signoffs"),
+            @ApiResponse(responseCode = "404", description = "Leave request not found")
+    })
+    public java.util.List<com.leave_management_system.leave_management_system.dto.LeaveSignoffResponseDTO> getLeaveRequestSignoffs(@PathVariable Long id) {
+        return leaveRequestService.getLeaveRequestSignoffs(id);
     }
 }

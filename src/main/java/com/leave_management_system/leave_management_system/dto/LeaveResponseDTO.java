@@ -16,6 +16,14 @@ public class LeaveResponseDTO {
     private String rejectionReason;
     private LocalDateTime appliedAt;
     private Long requestedDays;
+    private boolean requiresDualApproval;
+    private String managerApprovalStatus;
+    private String managerApprovedByEmail;
+    private LocalDateTime managerApprovedAt;
+    private String hrApprovalStatus;
+    private String hrApprovedByEmail;
+    private LocalDateTime hrApprovedAt;
+    private java.util.List<LeaveSignoffResponseDTO> signoffs = new java.util.ArrayList<>();
 
     public static LeaveResponseDTO fromEntity(LeaveRequest request) {
         if (request == null) return null;
@@ -30,6 +38,22 @@ public class LeaveResponseDTO {
         dto.setRejectionReason(request.getRejectionReason());
         dto.setAppliedAt(request.getAppliedAt());
         dto.setRequestedDays(calculateWorkingDays(request.getStartDate(), request.getEndDate()));
+        dto.setRequiresDualApproval(request.isRequiresDualApproval());
+        dto.setManagerApprovalStatus(request.getManagerApprovalStatus());
+        if (request.getManagerApprovedBy() != null) {
+            dto.setManagerApprovedByEmail(request.getManagerApprovedBy().getEmail());
+        }
+        dto.setManagerApprovedAt(request.getManagerApprovedAt());
+        dto.setHrApprovalStatus(request.getHrApprovalStatus());
+        if (request.getHrApprovedBy() != null) {
+            dto.setHrApprovedByEmail(request.getHrApprovedBy().getEmail());
+        }
+        dto.setHrApprovedAt(request.getHrApprovedAt());
+        if (request.getSignoffs() != null) {
+            dto.setSignoffs(request.getSignoffs().stream()
+                    .map(LeaveSignoffResponseDTO::fromEntity)
+                    .collect(java.util.stream.Collectors.toList()));
+        }
         return dto;
     }
 
@@ -68,4 +92,20 @@ public class LeaveResponseDTO {
     public void setAppliedAt(LocalDateTime appliedAt) { this.appliedAt = appliedAt; }
     public Long getRequestedDays() { return requestedDays; }
     public void setRequestedDays(Long requestedDays) { this.requestedDays = requestedDays; }
+    public boolean isRequiresDualApproval() { return requiresDualApproval; }
+    public void setRequiresDualApproval(boolean requiresDualApproval) { this.requiresDualApproval = requiresDualApproval; }
+    public String getManagerApprovalStatus() { return managerApprovalStatus; }
+    public void setManagerApprovalStatus(String managerApprovalStatus) { this.managerApprovalStatus = managerApprovalStatus; }
+    public String getManagerApprovedByEmail() { return managerApprovedByEmail; }
+    public void setManagerApprovedByEmail(String managerApprovedByEmail) { this.managerApprovedByEmail = managerApprovedByEmail; }
+    public LocalDateTime getManagerApprovedAt() { return managerApprovedAt; }
+    public void setManagerApprovedAt(LocalDateTime managerApprovedAt) { this.managerApprovedAt = managerApprovedAt; }
+    public String getHrApprovalStatus() { return hrApprovalStatus; }
+    public void setHrApprovalStatus(String hrApprovalStatus) { this.hrApprovalStatus = hrApprovalStatus; }
+    public String getHrApprovedByEmail() { return hrApprovedByEmail; }
+    public void setHrApprovedByEmail(String hrApprovedByEmail) { this.hrApprovedByEmail = hrApprovedByEmail; }
+    public LocalDateTime getHrApprovedAt() { return hrApprovedAt; }
+    public void setHrApprovedAt(LocalDateTime hrApprovedAt) { this.hrApprovedAt = hrApprovedAt; }
+    public java.util.List<LeaveSignoffResponseDTO> getSignoffs() { return signoffs; }
+    public void setSignoffs(java.util.List<LeaveSignoffResponseDTO> signoffs) { this.signoffs = signoffs; }
 }

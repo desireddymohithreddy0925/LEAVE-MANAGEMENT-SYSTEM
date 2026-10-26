@@ -454,6 +454,33 @@ This document maps the mandatory internship requirements to their specific imple
     - Admin can query users filtered by locked status.
 - **Status:** **DONE**
 
+### 27. Dual Parallel Concurrent Approval Workflow (Manager + HR)
+- **Requirement:** Support concurrent parallel multi-approver workflow for leave requests requiring dual authorization (Manager + HR). Both reviewers can approve independently in any sequence. The request transitions to `PARTIALLY_APPROVED` upon the first sign-off without deducting balance; only after both reviewers sign off does the request transition to `APPROVED` and deduct balance from annual quota. Support administrative super-approval override, sign-off auditing, rejection/cancellation during partial approval, overlap detection, and retry protection under parallel race conditions.
+- **Implementation:**
+  - Liquibase migration `023-add-multi-approver-signoff.yaml` adding `requires_dual_approval`, `manager_approval_status`, `manager_approved_by`, `manager_approved_at`, `hr_approval_status`, `hr_approved_by`, `hr_approved_at` to `leave_requests`, and creating `leave_request_signoffs` table with foreign key cascade.
+  - Domain entities: `LeaveStatus.PARTIALLY_APPROVED`, `LeaveRequestSignoff`, and one-to-many relationship in `LeaveRequest`.
+  - Repositories: `LeaveRequestSignoffRepository` with `findByLeaveRequestId` and `findByLeaveRequestIdAndApproverRole`.
+  - DTOs: `LeaveSignoffResponseDTO`, `LeaveRequestDTO` with `requiresDualApproval`, `LeaveResponseDTO` with dual sign-off metadata and list of sign-offs.
+  - Service: `LeaveRequestService.approveLeaveRequest()` handles parallel sign-offs for Manager and HR independently, tracks role-specific status, transitions to `PARTIALLY_APPROVED` on first sign-off (without balance deduction), and calls `finalizeFullApproval()` on second sign-off (or on Admin direct approval) to atomically lock row/employee/balance and deduct days. Rejections and cancellations are supported in `PARTIALLY_APPROVED` state.
+  - Controller: `LeaveRequestController.approveLeaveRequest()` equipped with exponential backoff retry on concurrency lock collisions. Endpoint `GET /api/leave-requests/{id}/signoffs` exposes full sign-off audit trail.
+- **API:**
+  - `PUT/PATCH /api/leave-requests/{id}/approve` (Manager, HR, Admin)
+  - `PUT/PATCH /api/leave-requests/{id}/reject` (Manager, HR, Admin)
+  - `PUT/PATCH /api/leave-requests/{id}/cancel` (Employee, Admin, HR)
+  - `GET /api/leave-requests/{id}/signoffs` (Manager, HR, Admin, applicant)
+  - `POST /api/leave-requests` (with `requiresDualApproval: true`)
+- **Test:**
+  - `DualConcurrentApprovalIntegrationTest` (8 tests):
+    - `testDualApproval_managerThenHr_transitionsToApprovedAndDeductsBalance`: Manager approves first (status `PARTIALLY_APPROVED`, balance untouched, 1 signoff recorded) -> HR approves second (status `APPROVED`, balance deducted by 3 days, 2 signoffs recorded).
+    - `testDualApproval_hrThenManager_transitionsToApprovedAndDeductsBalance`: HR approves first (status `PARTIALLY_APPROVED`, balance untouched) -> Manager approves second (status `APPROVED`, balance deducted).
+    - `testDualApproval_adminDirectOverride_immediatelyApprovedAndDeducted`: Admin approves directly, bypassing requirement for both individual approvals, transitioning immediately to `APPROVED` and deducting balance.
+    - `testDualApproval_concurrentSimultaneousApprovals_bothThreadsSucceed_statusApproved_balanceDeductedOnce`: Manager and HR approve at the exact same millisecond in parallel threads; both receive HTTP 200 OK, request reaches `APPROVED`, and balance is deducted strictly once.
+    - `testDualApproval_duplicateSignoff_sameRole_returns400BadRequest`: Attempting to sign off twice as Manager returns HTTP 400 Bad Request with descriptive error.
+    - `testDualApproval_rejectAfterManagerPartialApproval_rejectsAndLeavesBalanceUntouched`: Rejection after partial approval transitions request to `REJECTED` and preserves balance.
+    - `testDualApproval_cancelAfterPartialApproval_cancelsCleanlyWithoutModifyingBalance`: Employee can cancel partially approved request without balance penalty.
+    - `testDualApproval_overlapDetection_blocksOverlappingRequestWhenPartiallyApproved`: Active partially approved requests block subsequent overlapping applications.
+- **Status:** **DONE**
+
 
 
 

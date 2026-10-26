@@ -5,6 +5,8 @@ public enum LeaveStatus {
 
     PENDING,
 
+    PARTIALLY_APPROVED,
+
     APPROVED,
 
     REJECTED,
