@@ -443,6 +443,12 @@ This document maps the mandatory internship requirements to their specific imple
     - `concurrentApprovalAndRejection_onSameRequest_exactlyOneWins`: Concurrent approval and rejection resolve exclusively without inconsistent state.
     - `concurrentApprovals_overlappingRequestsForSameEmployee_onlyOneApproved`: Two concurrent approval requests on overlapping date ranges for the same employee serialize; only 1 is approved and the other fails with overlap error.
     - `concurrentApprovals_competingForInsufficientRemainingBalance_onlyOneFits`: Two non-overlapping requests competing for limited remaining balance serialize; only 1 succeeds and the other fails with Insufficient Leave Balance without dipping below zero.
+  - `ConcurrentLeaveApplicationIntegrationTest` (5 HTTP integration tests):
+    - `concurrentSimultaneousApplications_sameEmployee_identicalDates_exactlyOneSucceeds_otherFailsWithOverlap`: Simultaneous duplicate submissions (e.g. double-click) serialize on employee pessimistic lock; exactly 1 succeeds and the duplicate fails with overlap (HTTP 400/409).
+    - `concurrentSimultaneousApplications_sameEmployee_differentLeaveTypes_overlappingDates_exactlyOneSucceeds`: Simultaneous requests on overlapping dates across different leave types (Annual vs Sick) serialize on employee lock, preventing bypass of overlap validation.
+    - `concurrentSimultaneousApplications_sameEmployee_nonOverlappingDates_bothSucceed`: Simultaneous non-overlapping applications from the same employee both succeed cleanly.
+    - `concurrentSimultaneousApplications_differentEmployees_sameDates_bothSucceedInParallel`: Simultaneous applications from distinct employees lock independent rows and execute with full parallel throughput.
+    - `concurrentSimultaneousApplications_fiveThreads_sameDates_exactlyOneSucceeds`: 5 parallel threads submitting the same leave request serialize cleanly; exactly 1 is persisted.
   - `AccountLockoutIntegrationTest` (8 tests):
     - Consecutive failed logins trigger account lockout and record `ACCOUNT_LOCKED` security event.
     - Login attempts on a locked account return HTTP 401 with "Account Locked".

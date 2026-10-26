@@ -73,6 +73,25 @@ public class LeaveRequestController {
                             });
         }
 
+        int maxAttempts = 3;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return leaveRequestService.createLeaveRequest(dto);
+            } catch (org.springframework.orm.ObjectOptimisticLockingFailureException |
+                     jakarta.persistence.OptimisticLockException |
+                     org.springframework.dao.PessimisticLockingFailureException |
+                     jakarta.persistence.PessimisticLockException ex) {
+                if (attempt == maxAttempts) {
+                    throw ex;
+                }
+                try {
+                    Thread.sleep(30L * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw ex;
+                }
+            }
+        }
         return leaveRequestService.createLeaveRequest(dto);
     }
 

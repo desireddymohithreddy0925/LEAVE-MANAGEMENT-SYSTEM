@@ -1811,19 +1811,26 @@ That is the architecture I would use for my project—production-style, secure, 
 
 # 26. Concurrency Locking & Account Lockout Architecture
 
-### A. Database Concurrency Locking & Simultaneous Approval Protection
+### A. Database Concurrency Locking: Simultaneous Application & Approval Protection
 1. **Optimistic Locking (`@Version`)**:
    - `LeaveRequest` and `LeaveBalance` entities include a `@Version private Long version;` column managed automatically by Hibernate.
    - Prevents lost updates and race conditions during simultaneous modifications.
 2. **Pessimistic Locking (`@Lock(LockModeType.PESSIMISTIC_WRITE)`)**:
-   - High-contention operations (leave request approval, rejection, cancellation, and manual balance updates/deletions) utilize pessimistic write locks (`SELECT ... FOR UPDATE` via `findByIdWithPessimisticLock`).
-   - `EmployeeRepository.findByIdWithPessimisticLock` and `LeaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithPessimisticLock` serialize all concurrent approvals for the same employee.
+   - High-contention operations (leave request creation, approval, rejection, cancellation, and manual balance updates/deletions) utilize pessimistic write locks (`SELECT ... FOR UPDATE` via `findByIdWithPessimisticLock`).
+   - `EmployeeRepository.findByIdWithPessimisticLock` and `LeaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithLock` serialize all concurrent submissions and approvals for the same employee.
    - Serializes approval/rejection decisions to prevent double-approvals, invalid status transitions, or double-refunds of balance days.
-3. **Simultaneous Approval Guarantees**:
+3. **Simultaneous Leave Application Guarantees**:
+   - **Pessimistic Employee Row Locking**: `createLeaveRequest` acquires a row lock on the target employee (`findEmployeeWithLock`), serializing all concurrent leave applications for that employee.
+   - **Double-Submit / Double-Click Defense**: Simultaneous identical submissions from double-clicking or multiple browser tabs serialize; the first acquires the lock and persists the request, and the second evaluates `hasOverlappingLeave` under the lock, immediately detecting the overlap and cleanly returning HTTP 400 Bad Request.
+   - **Cross-LeaveType Overlap Protection**: Two simultaneous applications for the same employee with *different* leave types (e.g., Annual Leave vs. Sick Leave) on overlapping dates are serialized on the employee lock, preventing concurrent bypass of interval overlap checks.
+   - **Independent Non-Overlapping Concurrency**: Multiple non-overlapping requests from the same employee serialize safely and both succeed (HTTP 200/201).
+   - **High-Throughput Parallel Applications**: Applications from different employees lock distinct employee rows, executing in parallel without contention.
+   - **Controller Concurrency Retry**: `LeaveRequestController.createLeaveRequest` provides automatic exponential backoff retry on transient lock collisions.
+4. **Simultaneous Approval Guarantees**:
    - **Double-Approval Prevention**: Simultaneous requests on the same leave request serialize via row lock; exactly one transaction succeeds (HTTP 200 OK), while the competing transaction receives HTTP 400 Bad Request or HTTP 409 Conflict. Leave balance is deducted strictly once.
    - **Overlapping Request Approval Protection**: A post-lock re-check of `hasOverlappingLeaveExcludingId` inside the employee/balance lock ensures that two concurrent approval requests on overlapping date ranges cannot both pass; one is approved and the other is safely rejected.
    - **Balance Competitions**: When multiple requests compete for insufficient remaining balance, the balance lock serializes deductions, ensuring balance never drops below zero and subsequent requests fail cleanly with HTTP 400 Insufficient Leave Balance.
-4. **HTTP 409 Conflict Translation**:
+5. **HTTP 409 Conflict Translation**:
    - `GlobalExceptionHandler` intercepts JPA and Spring Data concurrency exceptions (`ObjectOptimisticLockingFailureException`, `OptimisticLockException`, `PessimisticLockingFailureException`, `CannotAcquireLockException`) and maps them to HTTP 409 Conflict with descriptive guidance for clients to retry.
 
 ### B. User Account Security Lockout

@@ -135,6 +135,12 @@ public class LeaveRequestService {
         }
     }
 
+    private Employee findEmployeeWithLock(Long id) {
+        return employeeRepository.findByIdWithPessimisticLock(id)
+                .or(() -> employeeRepository.findById(id))
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+    }
+
     @Transactional
     @PreAuthorize("hasAuthority('LEAVE_CREATE')")
     @com.leave_management_system.leave_management_system.aspect.AuditAction(action = "LEAVE_APPLIED", entityType = "LeaveRequest")
@@ -148,8 +154,7 @@ public class LeaveRequestService {
                     "Leave request cannot span across multiple calendar years. Please submit separate requests for each year.");
         }
 
-        Employee employee = employeeRepository.findById(dto.getEmployeeId())
-                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+        Employee employee = findEmployeeWithLock(dto.getEmployeeId());
         if (!"ACTIVE".equals(employee.getStatus())) {
             throw new IllegalStateException("Employee is not active");
         }
@@ -160,8 +165,7 @@ public class LeaveRequestService {
             throw new IllegalArgumentException("This leave type is not active");
         }
 
-        // Overlap detection: check if there's any pending or approved leave for these
-        // dates.
+        // Overlap detection under pessimistic employee lock to prevent concurrent application race conditions
         boolean hasOverlap = leaveRequestRepository.hasOverlappingLeave(
                 employee,
                 dto.getStartDate(),
