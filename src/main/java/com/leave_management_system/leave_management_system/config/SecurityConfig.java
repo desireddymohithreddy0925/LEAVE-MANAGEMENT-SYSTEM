@@ -4,6 +4,7 @@ import com.leave_management_system.leave_management_system.exception.CustomAcces
 import com.leave_management_system.leave_management_system.exception.CustomAuthenticationEntryPoint;
 import com.leave_management_system.leave_management_system.security.CustomUserDetailsService;
 import com.leave_management_system.leave_management_system.security.JwtAuthenticationFilter;
+import com.leave_management_system.leave_management_system.security.idempotency.IdempotencyFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -24,15 +25,18 @@ public class SecurityConfig {
 
     private final CustomUserDetailsService userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final IdempotencyFilter idempotencyFilter;
     private final CustomAuthenticationEntryPoint authenticationEntryPoint;
     private final CustomAccessDeniedHandler accessDeniedHandler;
 
     public SecurityConfig(CustomUserDetailsService userDetailsService,
                           JwtAuthenticationFilter jwtAuthenticationFilter,
+                          IdempotencyFilter idempotencyFilter,
                           CustomAuthenticationEntryPoint authenticationEntryPoint,
                           CustomAccessDeniedHandler accessDeniedHandler) {
         this.userDetailsService = userDetailsService;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.idempotencyFilter = idempotencyFilter;
         this.authenticationEntryPoint = authenticationEntryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
     }
@@ -90,6 +94,7 @@ public class SecurityConfig {
 
         http.authenticationProvider(authenticationProvider());
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterAfter(idempotencyFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }

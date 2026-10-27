@@ -176,3 +176,7 @@ databaseChangeLog:
       file: changes/023-add-multi-approver-signoff.yaml
       relativeToChangelogFile: true
 
+  - include:
+      file: changes/024-add-idempotency-keys.yaml
+      relativeToChangelogFile: true
+

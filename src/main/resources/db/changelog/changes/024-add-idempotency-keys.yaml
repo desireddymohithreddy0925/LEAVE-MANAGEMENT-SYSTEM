@@ -1,0 +1,75 @@
+databaseChangeLog:
+  - changeSet:
+      id: 024-add-idempotency-keys
+      author: antigravity
+      changes:
+        - createTable:
+            tableName: idempotency_keys
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: idempotency_key
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: user_email
+                  type: varchar(255)
+                  defaultValue: 'anonymous'
+                  constraints:
+                    nullable: false
+              - column:
+                  name: request_path
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: request_method
+                  type: varchar(10)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: request_hash
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: response_status
+                  type: int
+              - column:
+                  name: response_body
+                  type: clob
+              - column:
+                  name: created_at
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: expires_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+
+        - addUniqueConstraint:
+            tableName: idempotency_keys
+            columnNames: idempotency_key, user_email
+            constraintName: uk_idempotency_key_user
+
+        - createIndex:
+            indexName: idx_idempotency_expires_at
+            tableName: idempotency_keys
+            columns:
+              - column:
+                  name: expires_at

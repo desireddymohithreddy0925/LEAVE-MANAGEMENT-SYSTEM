@@ -1882,3 +1882,95 @@ That is the architecture I would use for my project—production-style, secure, 
    - Under simultaneous concurrent approvals from Manager and HR in parallel threads, pessimistic locks serialize row updates. Any optimistic lock version collision is transparently resolved via controller-level exponential backoff retry (up to 3 attempts), ensuring both approvers receive HTTP 200 OK and balance is deducted strictly once.
 6. **Audit & Query Endpoints**:
    - `GET /api/leave-requests/{id}/signoffs`: Returns complete audit trail of sign-offs for any leave request, including approver role, decision status, comments, and timestamps.
+
+---
+
+# 28. HTTP Header-Based Idempotency Architecture (`Idempotency-Key`)
+
+### A. Idempotency Model & Stripe/IETF Compliance
+1. **Header-Based Mechanism**:
+   - Clients supply the `Idempotency-Key: <unique-uuid>` HTTP header on mutating operations (`POST`, `PUT`, `PATCH`, `DELETE`), including:
+     - `POST /api/leave-requests`: Creation of leave applications
+     - `PUT /api/leave-requests/{id}/approve`: Approvals
+     - `PUT /api/leave-requests/{id}/reject`: Rejections
+     - `PUT /api/leave-requests/{id}/cancel`: Cancellations
+     - Any mutating REST endpoint across the LMS API.
+   - Non-mutating methods (`GET`, `HEAD`, `OPTIONS`) bypass idempotency evaluation as they are safe and inherently idempotent.
+   - Requests without an `Idempotency-Key` header bypass idempotency filtering and execute normally for full backward compatibility.
+2. **Deterministic Payload Hashing**:
+   - For every request bearing `Idempotency-Key`, a cryptographic SHA-256 fingerprint is calculated:
+     $$\text{requestHash} = \text{SHA-256}(\text{HTTP\_METHOD} + ":" + \text{URI} + (?\text{QUERY}) + ":" + \text{USER\_EMAIL} + ":" + \text{SHA-256}(\text{BODY}))$$
+   - Scoping by `USER_EMAIL` ensures complete user/caller isolation: two distinct users may independently generate the same client-side key without collision.
+3. **Database Schema & Key Persistence (`idempotency_keys`)**:
+   - Liquibase ChangeSet `024-add-idempotency-keys`:
+     - `id` (bigint, PK)
+     - `idempotency_key` (varchar 255, NOT NULL)
+     - `user_email` (varchar 255, NOT NULL, default 'anonymous')
+     - `request_path` (varchar 255, NOT NULL)
+     - `request_method` (varchar 10, NOT NULL)
+     - `request_hash` (varchar 64, NOT NULL)
+     - `status` (varchar 30, NOT NULL: `IN_PROGRESS`, `COMPLETED`, `FAILED`)
+     - `response_status` (int, nullable)
+     - `response_body` (clob, nullable)
+     - `created_at` (timestamp, NOT NULL)
+     - `expires_at` (timestamp, NOT NULL, 24-hour TTL)
+     - Unique constraint: `uk_idempotency_key_user` on `(idempotency_key, user_email)`
+     - Index: `idx_idempotency_expires_at` on `(expires_at)`
+4. **Execution Flow & Lifecycle State Machine**:
+   - **First Execution**:
+     - Key is atomically inserted with status `IN_PROGRESS` in an isolated `REQUIRES_NEW` transaction.
+     - Request body is buffered via `CachedBodyHttpServletRequest` for repeatable reading by Jackson.
+     - Response is captured via `ContentCachingResponseWrapper`.
+     - Upon completion (<500 status), record is updated to `COMPLETED` with cached status code and response payload. Response includes header `Idempotency-Key: <key>`.
+     - If the downstream execution throws an unhandled 5xx exception, the record is transitioned to `FAILED`, allowing safe retry by the client.
+   - **Replay of Cached Response**:
+     - If a request with an existing `COMPLETED` key is received and `requestHash` matches, the filter short-circuits execution.
+     - Returns cached HTTP status and body directly with response headers:
+       - `Idempotency-Key: <key>`
+       - `Idempotency-Replayed: true`
+     - Downstream controller and database layers are NEVER executed; duplicate leave applications, double deductions, or status transition errors are strictly prevented.
+   - **Payload Mismatch Detection**:
+     - If an existing `COMPLETED` key is re-sent with altered parameters or body, the filter returns `409 Conflict`:
+       `{"status": 409, "error": "Conflict", "message": "Idempotency key payload mismatch: Request parameters do not match the original request for this key."}`
+   - **In-Flight Concurrent Collision Defense**:
+     - If a concurrent duplicate request arrives while the original is still `IN_PROGRESS`, the competing request receives `409 Conflict`:
+       `{"status": 409, "error": "Conflict", "message": "A request with this idempotency key is currently in progress. Please retry shortly."}`
+     - Enforced via database-level unique constraint `uk_idempotency_key_user`.
+
+---
+
+## 25. Concurrency Control & Race-Condition Testing Architecture
+
+### 1. Concurrency Defense Mechanisms
+To guarantee strict ACID invariants, prevent lost updates, eliminate balance double deductions, and protect against overlapping leaves during high-concurrency requests, the system implements a layered concurrency model:
+
+1. **Pessimistic Locking (`PESSIMISTIC_WRITE`)**:
+   - `Employee`: `employeeRepository.findByIdWithPessimisticLock(id)` locks the employee record, serializing all leave applications and profile updates.
+   - `LeaveBalance`: `leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYearWithLock(...)` issues a `SELECT ... FOR UPDATE` row-level lock on the specific employee-type-year balance record.
+   - `LeaveRequest`: `leaveRequestRepository.findByIdWithLock(id)` locks the leave request during approval, rejection, or cancellation transitions.
+
+2. **Ordered Dual Locking & Deadlock Prevention**:
+   - Every mutating leave workflow acquires locks in a strict global hierarchy:
+     $$\text{Employee} \longrightarrow \text{LeaveBalance} \longrightarrow \text{LeaveRequest}$$
+   - This strict lock ordering guarantees circular wait conditions cannot occur, preventing database deadlocks even under massive concurrent thread storms.
+
+3. **In-Flight Idempotency Locking**:
+   - Unique database constraint `uk_idempotency_key_user` on `(idempotency_key, user_email)` ensures that parallel requests using identical client keys are serialized atomically, with concurrent in-flight requests cleanly returning `409 Conflict`.
+
+### 2. Multi-Threaded Race-Condition Test Suite (`RaceConditionIntegrationTest`)
+The LMS features an enterprise-grade multi-threaded integration test suite verifying 12 distinct concurrency attack vectors and edge cases:
+
+| # | Concurrency Test Scenario | Concurrency Primitive | Invariant Validated |
+|---|---------------------------|-----------------------|---------------------|
+| 1 | **Balance Depletion Storm** | 10 Threads, `CountDownLatch` | Exactly 1 of 10 concurrent approvals succeeds on a single request; balance deducted exactly once. |
+| 2 | **Approve vs. Reject Race** | 2 Threads, simultaneous latch | Exactly 1 operation wins; balance adjusted if and only if Approve won; no corrupted intermediate state. |
+| 3 | **Approve vs. Cancel Race** | 2 Threads, simultaneous latch | Exactly 1 operation wins; balance adjusted if Approved, untouched if Cancelled. |
+| 4 | **Reject vs. Cancel Race** | 2 Threads, simultaneous latch | Exactly 1 wins; balance remains untouched on both paths. |
+| 5 | **Concurrent Idempotent Submissions** | 5 Threads, same `Idempotency-Key` | Exactly 1 leave request created in database; concurrent collisions return `409 Conflict`; sequential retry returns cached `201 Created` with `Idempotency-Replayed: true`. |
+| 6 | **Scarce Balance Application Storm** | 10 Threads, limited balance | Exactly 1 application succeeds; balance never goes negative; overdraft attempts rejected with `InsufficientLeaveException`. |
+| 7 | **Mixed Roles Race** | Admin Approve vs. Employee Cancel | Role-based authorization and state machine transitions remain consistent under simultaneous execution. |
+| 8 | **Write-Skew Defense** | 2 Employees, identical dates & balances | Approvals execute concurrently on separate balances; each balance is deducted independently to 0 without cross-interference or deadlock. |
+| 9 | **Re-Application After Cancellation** | Immediate re-application post-cancel | Cancellation refund completes before new application; no double refunds or over-allocations. |
+| 10 | **Concurrent Multi-Cancellation Storm** | 3 Threads, Approved request | Exactly 1 cancellation succeeds; balance refunded once; subsequent cancellations fail cleanly. |
+| 11 | **Distinct Request Approval Exhaustion** | 4 Threads racing across 2 requests | Both requests approved concurrently; employee's total balance exhausted cleanly to zero. |
+| 12 | **Phantom Read Guard** | Concurrent 5-day Approve & 3-day Apply | The fundamental accounting invariant $(\text{available} + \text{used} = \text{total})$ holds at every microsecond; zero balance leakage. |
