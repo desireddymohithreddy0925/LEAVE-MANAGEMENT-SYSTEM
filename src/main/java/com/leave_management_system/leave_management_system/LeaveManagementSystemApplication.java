@@ -2,8 +2,10 @@ package com.leave_management_system.leave_management_system;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
+@EnableScheduling
 // Tells Spring Boot that this is the main application class
 // and automatically enables component scanning and configuration.
 

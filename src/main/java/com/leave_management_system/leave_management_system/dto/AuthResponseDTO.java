@@ -6,7 +6,8 @@ public class AuthResponseDTO {
     private String refreshToken;
     private UserResponseDTO user;
 
-    public AuthResponseDTO() {}
+    public AuthResponseDTO() {
+    }
 
     public AuthResponseDTO(String accessToken, String refreshToken, UserResponseDTO user) {
         this.accessToken = accessToken;

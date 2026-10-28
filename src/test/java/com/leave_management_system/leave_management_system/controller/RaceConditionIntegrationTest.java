@@ -1,6 +1,5 @@
 package com.leave_management_system.leave_management_system.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.leave_management_system.leave_management_system.dto.LeaveRequestDTO;
@@ -25,7 +24,6 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
@@ -38,21 +36,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * state transitions, balance accounting, and uniqueness invariants hold when multiple
  * threads race against the same shared resources simultaneously.</p>
  *
- * <h3>Race-Condition Scenarios Covered:</h3>
- * <ol>
- *   <li>Balance depletion: 10 concurrent approvals on same request — exactly 1 wins</li>
- *   <li>Approve + Reject race on same PENDING request</li>
- *   <li>Approve + Cancel race on same PENDING request</li>
- *   <li>Reject + Cancel race on same PENDING request</li>
- *   <li>Concurrent idempotent submissions with the same Idempotency-Key (5 threads)</li>
- *   <li>High-concurrency (10 threads) application storm with scarce balance</li>
- *   <li>Mixed actors: admin approve vs employee cancel simultaneously</li>
- *   <li>Write-skew: two employees drain their individual balances simultaneously</li>
- *   <li>Concurrent re-application after cancellation refund — no double-refund</li>
- *   <li>3 concurrent cancellations of an APPROVED request — balance refunded once</li>
- *   <li>Concurrent approval of 2 distinct requests exhausts balance to zero</li>
- *   <li>Phantom-read guard: balance invariant enforced under pessimistic lock</li>
- * </ol>
+ * <p>Strict Quality Gates Enforced:
+ * <ul>
+ *   <li>Every unexpected HTTP status fails the test.</li>
+ *   <li>Every worker thread exception fails the test.</li>
+ *   <li>Timeouts fail the test immediately.</li>
+ *   <li>Final leave-request status, leave balances, audit logs, and sign-offs are asserted.</li>
+ * </ul>
+ * </p>
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -68,6 +59,7 @@ public class RaceConditionIntegrationTest {
     @Autowired private LeaveTypeRepository leaveTypeRepository;
     @Autowired private LeaveBalanceRepository leaveBalanceRepository;
     @Autowired private LeaveRequestRepository leaveRequestRepository;
+    @Autowired private LeaveRequestSignoffRepository leaveRequestSignoffRepository;
     @Autowired private RefreshTokenRepository refreshTokenRepository;
     @Autowired private SecurityEventRepository securityEventRepository;
     @Autowired private AuditLogRepository auditLogRepository;
@@ -86,6 +78,10 @@ public class RaceConditionIntegrationTest {
     private String employee1Token;
     private Employee employee2;
     private String employee2Token;
+    private Employee managerEmployee;
+    private String managerToken;
+    private Employee hrEmployee;
+    private String hrToken;
     private LeaveType annualLeaveType;
     private LeaveBalance employee1Balance;
     private LeaveBalance employee2Balance;
@@ -103,14 +99,22 @@ public class RaceConditionIntegrationTest {
                 .orElseGet(() -> roleRepository.save(new Role("ADMIN")));
         Role empRole = roleRepository.findByName("EMPLOYEE")
                 .orElseGet(() -> roleRepository.save(new Role("EMPLOYEE")));
+        Role mgrRole = roleRepository.findByName("MANAGER")
+                .orElseGet(() -> roleRepository.save(new Role("MANAGER")));
+        Role hrRole = roleRepository.findByName("HR")
+                .orElseGet(() -> roleRepository.save(new Role("HR")));
 
         for (String name : List.of("LEAVE_APPROVE","LEAVE_REJECT","LEAVE_CANCEL",
                 "LEAVE_VIEW_ALL","LEAVE_BALANCE_MANAGE","LEAVE_CREATE")) {
             Permission p = permissionRepository.findByName(name)
                     .orElseGet(() -> permissionRepository.save(new Permission(name, name)));
             adminRole.getPermissions().add(p);
+            mgrRole.getPermissions().add(p);
+            hrRole.getPermissions().add(p);
         }
         roleRepository.save(adminRole);
+        roleRepository.save(mgrRole);
+        roleRepository.save(hrRole);
 
         for (String name : List.of("LEAVE_CREATE","LEAVE_CANCEL")) {
             Permission p = permissionRepository.findByName(name)
@@ -119,6 +123,7 @@ public class RaceConditionIntegrationTest {
         }
         roleRepository.save(empRole);
 
+        // Admin
         adminUser = new User();
         adminUser.setEmail("race-admin-" + UUID.randomUUID() + "@test.com");
         adminUser.setPassword(passwordEncoder.encode("Admin@1234"));
@@ -128,6 +133,39 @@ public class RaceConditionIntegrationTest {
         adminUser = userRepository.save(adminUser);
         adminToken = jwtUtils.generateTokenFromUsername(adminUser.getEmail());
 
+        // Manager
+        User mgrUser = new User();
+        mgrUser.setEmail("race-mgr-" + UUID.randomUUID() + "@test.com");
+        mgrUser.setPassword(passwordEncoder.encode("Mgr@1234"));
+        mgrUser.setActive(true);
+        mgrUser.setAccountNonLocked(true);
+        mgrUser.setRoles(Set.of(mgrRole));
+        mgrUser = userRepository.save(mgrUser);
+        managerToken = jwtUtils.generateTokenFromUsername(mgrUser.getEmail());
+        managerEmployee = new Employee();
+        managerEmployee.setFirstName("Mark"); managerEmployee.setLastName("Manager");
+        managerEmployee.setEmployeeCode("MGR_" + System.currentTimeMillis() % 100000);
+        managerEmployee.setPhone("5555555555"); managerEmployee.setStatus("ACTIVE");
+        managerEmployee.setSalary(new BigDecimal("90000.00")); managerEmployee.setUser(mgrUser);
+        managerEmployee = employeeRepository.save(managerEmployee);
+
+        // HR
+        User hrUser = new User();
+        hrUser.setEmail("race-hr-" + UUID.randomUUID() + "@test.com");
+        hrUser.setPassword(passwordEncoder.encode("Hr@1234"));
+        hrUser.setActive(true);
+        hrUser.setAccountNonLocked(true);
+        hrUser.setRoles(Set.of(hrRole));
+        hrUser = userRepository.save(hrUser);
+        hrToken = jwtUtils.generateTokenFromUsername(hrUser.getEmail());
+        hrEmployee = new Employee();
+        hrEmployee.setFirstName("Helen"); hrEmployee.setLastName("HR");
+        hrEmployee.setEmployeeCode("HR_" + System.currentTimeMillis() % 100000);
+        hrEmployee.setPhone("7777777777"); hrEmployee.setStatus("ACTIVE");
+        hrEmployee.setSalary(new BigDecimal("85000.00")); hrEmployee.setUser(hrUser);
+        hrEmployee = employeeRepository.save(hrEmployee);
+
+        // Employee 1 (reports to manager)
         User empUser1 = new User();
         empUser1.setEmail("race-emp1-" + UUID.randomUUID() + "@test.com");
         empUser1.setPassword(passwordEncoder.encode("Emp@1234"));
@@ -141,8 +179,10 @@ public class RaceConditionIntegrationTest {
         employee1.setEmployeeCode("RACE1_" + System.currentTimeMillis() % 100000);
         employee1.setPhone("1111111111"); employee1.setStatus("ACTIVE");
         employee1.setSalary(new BigDecimal("50000.00")); employee1.setUser(empUser1);
+        employee1.setManager(managerEmployee);
         employee1 = employeeRepository.save(employee1);
 
+        // Employee 2
         User empUser2 = new User();
         empUser2.setEmail("race-emp2-" + UUID.randomUUID() + "@test.com");
         empUser2.setPassword(passwordEncoder.encode("Emp@1234"));
@@ -169,6 +209,7 @@ public class RaceConditionIntegrationTest {
 
     @AfterEach
     public void cleanup() {
+        leaveRequestSignoffRepository.deleteAll();
         transactionReviewRepository.deleteAll();
         securityEventRepository.deleteAll();
         auditLogRepository.deleteAll();
@@ -207,6 +248,12 @@ public class RaceConditionIntegrationTest {
         return objectMapper.writeValueAsString(dto);
     }
 
+    private void assertNoWorkerExceptions(List<Throwable> exceptions) {
+        if (!exceptions.isEmpty()) {
+            fail("Worker thread threw unexpected exception: " + exceptions.get(0).getMessage(), exceptions.get(0));
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     //  TEST 1 – 10 concurrent approvals on one PENDING request: exactly 1 wins
     // ═══════════════════════════════════════════════════════════════════════
@@ -223,6 +270,7 @@ public class RaceConditionIntegrationTest {
         CountDownLatch start = new CountDownLatch(1), done = new CountDownLatch(threads);
         AtomicInteger ok = new AtomicInteger(), fail = new AtomicInteger();
         List<Integer> codes = Collections.synchronizedList(new ArrayList<>());
+        List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<>());
 
         for (int i = 0; i < threads; i++) {
             ex.submit(() -> {
@@ -233,18 +281,37 @@ public class RaceConditionIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)).andReturn();
                     int s = r.getResponse().getStatus(); codes.add(s);
                     if (s == 200) ok.incrementAndGet(); else fail.incrementAndGet();
-                } catch (Exception e) { fail.incrementAndGet(); } finally { done.countDown(); }
+                } catch (Throwable e) { exceptions.add(e); } finally { done.countDown(); }
             });
         }
         start.countDown();
         assertTrue(done.await(15, TimeUnit.SECONDS), "10-thread approval storm timed out");
         ex.shutdown();
 
+        assertNoWorkerExceptions(exceptions);
+        // Only 200 (winner) and 400/409 (insufficient balance or concurrent conflict) are valid
+        for (int code : codes) {
+            assertTrue(code == 200 || code == 400 || code == 409, "Unexpected HTTP status code: " + code);
+        }
+
         assertEquals(1, ok.get(), "Exactly 1 of 10 approvals must succeed. Codes: " + codes);
-        assertEquals(LeaveStatus.APPROVED, leaveRequestRepository.findById(lr.getId()).orElseThrow().getStatus());
+        assertEquals(9, fail.get(), "9 approvals must fail cleanly. Codes: " + codes);
+
+        // 1. Assert final LeaveRequest
+        LeaveRequest finalReq = leaveRequestRepository.findById(lr.getId()).orElseThrow();
+        assertEquals(LeaveStatus.APPROVED, finalReq.getStatus());
+
+        // 2. Assert final LeaveBalance
         LeaveBalance b = leaveBalanceRepository.findById(employee1Balance.getId()).orElseThrow();
-        assertEquals(0, b.getAvailable(), "Balance must reach 0 (deducted once). Available: " + b.getAvailable());
+        assertEquals(0, b.getAvailable(), "Balance must reach 0 (deducted once)");
         assertEquals(3, b.getUsed(), "Used must be 3");
+        assertEquals(3, b.getAvailable() + b.getUsed(), "Invariant: available + used == total");
+
+        // 3. Assert Audit Log: exactly 1 LEAVE_APPROVED audit entry exists
+        long approveAudits = auditLogRepository.findAll().stream()
+                .filter(a -> "LEAVE_APPROVED".equals(a.getAction()))
+                .count();
+        assertEquals(1, approveAudits, "Exactly 1 LEAVE_APPROVED audit log must be recorded without duplicates");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -259,6 +326,7 @@ public class RaceConditionIntegrationTest {
         CountDownLatch start = new CountDownLatch(1), done = new CountDownLatch(2);
         AtomicInteger ok = new AtomicInteger();
         List<String> outcomes = Collections.synchronizedList(new ArrayList<>());
+        List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<>());
 
         new Thread(() -> {
             try {
@@ -269,7 +337,7 @@ public class RaceConditionIntegrationTest {
                 int s = r.getResponse().getStatus();
                 if (s == 200) { ok.incrementAndGet(); outcomes.add("APPROVE_WIN"); }
                 else outcomes.add("APPROVE_LOSE:" + s);
-            } catch (Exception e) { outcomes.add("APPROVE_EX"); } finally { done.countDown(); }
+            } catch (Throwable e) { exceptions.add(e); } finally { done.countDown(); }
         }, "race-approve").start();
 
         new Thread(() -> {
@@ -281,24 +349,30 @@ public class RaceConditionIntegrationTest {
                 int s = r.getResponse().getStatus();
                 if (s == 200) { ok.incrementAndGet(); outcomes.add("REJECT_WIN"); }
                 else outcomes.add("REJECT_LOSE:" + s);
-            } catch (Exception e) { outcomes.add("REJECT_EX"); } finally { done.countDown(); }
+            } catch (Throwable e) { exceptions.add(e); } finally { done.countDown(); }
         }, "race-reject").start();
 
         start.countDown();
         assertTrue(done.await(10, TimeUnit.SECONDS), "Approve+Reject race timed out");
 
+        assertNoWorkerExceptions(exceptions);
         assertEquals(1, ok.get(), "Exactly one must win. Outcomes: " + outcomes);
+
         LeaveRequest saved = leaveRequestRepository.findById(lr.getId()).orElseThrow();
         assertTrue(saved.getStatus() == LeaveStatus.APPROVED || saved.getStatus() == LeaveStatus.REJECTED,
                 "Must be APPROVED or REJECTED, not: " + saved.getStatus());
+
         LeaveBalance b = leaveBalanceRepository.findById(employee1Balance.getId()).orElseThrow();
         if (saved.getStatus() == LeaveStatus.APPROVED) {
             assertEquals(initAvail - 3, b.getAvailable(), "Balance -3 when APPROVE wins");
             assertEquals(3, b.getUsed());
+            assertEquals(1, auditLogRepository.findAll().stream().filter(a -> "LEAVE_APPROVED".equals(a.getAction())).count());
         } else {
             assertEquals(initAvail, b.getAvailable(), "Balance untouched when REJECT wins");
             assertEquals(0, b.getUsed());
+            assertEquals(1, auditLogRepository.findAll().stream().filter(a -> "LEAVE_REJECTED".equals(a.getAction())).count());
         }
+        assertEquals(initAvail, b.getAvailable() + b.getUsed(), "Invariant holds");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -313,6 +387,7 @@ public class RaceConditionIntegrationTest {
         CountDownLatch start = new CountDownLatch(1), done = new CountDownLatch(2);
         AtomicInteger ok = new AtomicInteger();
         List<String> outcomes = Collections.synchronizedList(new ArrayList<>());
+        List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<>());
 
         new Thread(() -> {
             try {
@@ -323,7 +398,7 @@ public class RaceConditionIntegrationTest {
                 int s = r.getResponse().getStatus();
                 if (s == 200) { ok.incrementAndGet(); outcomes.add("APPROVE_WIN"); }
                 else outcomes.add("APPROVE_LOSE:" + s);
-            } catch (Exception e) { outcomes.add("APPROVE_EX"); } finally { done.countDown(); }
+            } catch (Throwable e) { exceptions.add(e); } finally { done.countDown(); }
         }, "race-approve").start();
 
         new Thread(() -> {
@@ -335,22 +410,30 @@ public class RaceConditionIntegrationTest {
                 int s = r.getResponse().getStatus();
                 if (s == 200) { ok.incrementAndGet(); outcomes.add("CANCEL_WIN"); }
                 else outcomes.add("CANCEL_LOSE:" + s);
-            } catch (Exception e) { outcomes.add("CANCEL_EX"); } finally { done.countDown(); }
+            } catch (Throwable e) { exceptions.add(e); } finally { done.countDown(); }
         }, "race-cancel").start();
 
         start.countDown();
         assertTrue(done.await(10, TimeUnit.SECONDS), "Approve+Cancel race timed out");
 
+        assertNoWorkerExceptions(exceptions);
         assertEquals(1, ok.get(), "Exactly one must win. Outcomes: " + outcomes);
+
         LeaveRequest saved = leaveRequestRepository.findById(lr.getId()).orElseThrow();
         assertTrue(saved.getStatus() == LeaveStatus.APPROVED || saved.getStatus() == LeaveStatus.CANCELLED,
                 "Must be APPROVED or CANCELLED, not: " + saved.getStatus());
+
         LeaveBalance b = leaveBalanceRepository.findById(employee1Balance.getId()).orElseThrow();
         if (saved.getStatus() == LeaveStatus.APPROVED) {
             assertEquals(initAvail - 2, b.getAvailable(), "Balance -2 when APPROVE wins");
+            assertEquals(2, b.getUsed());
+            assertEquals(1, auditLogRepository.findAll().stream().filter(a -> "LEAVE_APPROVED".equals(a.getAction())).count());
         } else {
             assertEquals(initAvail, b.getAvailable(), "Balance untouched when CANCEL wins from PENDING");
+            assertEquals(0, b.getUsed());
+            assertEquals(1, auditLogRepository.findAll().stream().filter(a -> "LEAVE_CANCELLED".equals(a.getAction())).count());
         }
+        assertEquals(initAvail, b.getAvailable() + b.getUsed());
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -365,6 +448,7 @@ public class RaceConditionIntegrationTest {
         CountDownLatch start = new CountDownLatch(1), done = new CountDownLatch(2);
         AtomicInteger ok = new AtomicInteger();
         List<String> outcomes = Collections.synchronizedList(new ArrayList<>());
+        List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<>());
 
         new Thread(() -> {
             try {
@@ -375,7 +459,7 @@ public class RaceConditionIntegrationTest {
                 int s = r.getResponse().getStatus();
                 if (s == 200) { ok.incrementAndGet(); outcomes.add("REJECT_WIN"); }
                 else outcomes.add("REJECT_LOSE:" + s);
-            } catch (Exception e) { outcomes.add("REJECT_EX"); } finally { done.countDown(); }
+            } catch (Throwable e) { exceptions.add(e); } finally { done.countDown(); }
         }, "race-reject").start();
 
         new Thread(() -> {
@@ -387,13 +471,15 @@ public class RaceConditionIntegrationTest {
                 int s = r.getResponse().getStatus();
                 if (s == 200) { ok.incrementAndGet(); outcomes.add("CANCEL_WIN"); }
                 else outcomes.add("CANCEL_LOSE:" + s);
-            } catch (Exception e) { outcomes.add("CANCEL_EX"); } finally { done.countDown(); }
+            } catch (Throwable e) { exceptions.add(e); } finally { done.countDown(); }
         }, "race-cancel").start();
 
         start.countDown();
         assertTrue(done.await(10, TimeUnit.SECONDS), "Reject+Cancel race timed out");
 
+        assertNoWorkerExceptions(exceptions);
         assertEquals(1, ok.get(), "Exactly one must win. Outcomes: " + outcomes);
+
         LeaveBalance b = leaveBalanceRepository.findById(employee1Balance.getId()).orElseThrow();
         assertEquals(initAvail, b.getAvailable(), "Balance must always be untouched for REJECT/CANCEL on PENDING");
         assertEquals(0, b.getUsed());
@@ -413,6 +499,7 @@ public class RaceConditionIntegrationTest {
         CountDownLatch start = new CountDownLatch(1), done = new CountDownLatch(threads);
         AtomicInteger ok = new AtomicInteger(), conflicts = new AtomicInteger(), errors = new AtomicInteger();
         List<Integer> codes = Collections.synchronizedList(new ArrayList<>());
+        List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<>());
 
         for (int i = 0; i < threads; i++) {
             ex.submit(() -> {
@@ -427,19 +514,20 @@ public class RaceConditionIntegrationTest {
                     if (s == 200 || s == 201) ok.incrementAndGet();
                     else if (s == 409) conflicts.incrementAndGet();
                     else errors.incrementAndGet();
-                } catch (Exception e) { errors.incrementAndGet(); } finally { done.countDown(); }
+                } catch (Throwable e) { exceptions.add(e); } finally { done.countDown(); }
             });
         }
         start.countDown();
         assertTrue(done.await(15, TimeUnit.SECONDS), "Idempotent race timed out");
         ex.shutdown();
 
+        assertNoWorkerExceptions(exceptions);
         assertEquals(0, errors.get(), "No unexpected error responses. Codes: " + codes);
         assertTrue(ok.get() >= 1, "At least one request must succeed. Codes: " + codes);
         assertEquals(threads, ok.get() + conflicts.get(), "All responses must be success or 409 in-progress conflict. Codes: " + codes);
+
         List<LeaveRequest> reqs = leaveRequestRepository.findByEmployee(employee1);
-        assertEquals(1, reqs.size(),
-                "Exactly 1 leave request must exist in DB despite 5 concurrent idempotent submissions. Found: " + reqs.size());
+        assertEquals(1, reqs.size(), "Strictly 1 leave request created");
 
         // Subsequent sequential call with the same key must return the cached 201/200 response with Idempotency-Replayed
         MvcResult replayResult = mockMvc.perform(post("/api/leave-requests")
@@ -451,8 +539,7 @@ public class RaceConditionIntegrationTest {
         int replayStatus = replayResult.getResponse().getStatus();
         assertTrue(replayStatus == 200 || replayStatus == 201, "Replayed request must succeed: " + replayStatus);
         assertEquals("true", replayResult.getResponse().getHeader("Idempotency-Replayed"));
-        assertEquals(1, leaveRequestRepository.findByEmployee(employee1).size(),
-                "Still exactly 1 leave request after replay");
+        assertEquals(1, leaveRequestRepository.findByEmployee(employee1).size());
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -471,6 +558,7 @@ public class RaceConditionIntegrationTest {
         CountDownLatch start = new CountDownLatch(1), done = new CountDownLatch(threads);
         AtomicInteger ok = new AtomicInteger(), fail = new AtomicInteger();
         List<Integer> codes = Collections.synchronizedList(new ArrayList<>());
+        List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<>());
 
         for (int i = 0; i < threads; i++) {
             ex.submit(() -> {
@@ -482,19 +570,25 @@ public class RaceConditionIntegrationTest {
                             .content(leaveRequestPayload(employee1, s, e))).andReturn();
                     int st = r.getResponse().getStatus(); codes.add(st);
                     if (st == 200 || st == 201) ok.incrementAndGet(); else fail.incrementAndGet();
-                } catch (Exception ex2) { fail.incrementAndGet(); } finally { done.countDown(); }
+                } catch (Throwable ex2) { exceptions.add(ex2); } finally { done.countDown(); }
             });
         }
         start.countDown();
         assertTrue(done.await(20, TimeUnit.SECONDS), "High-concurrency storm timed out");
         ex.shutdown();
 
+        assertNoWorkerExceptions(exceptions);
+        // Valid responses: 201 Created (winner) or 400/409 (overlapping leave / scarce balance / concurrency conflict)
+        for (int c : codes) {
+            assertTrue(c == 201 || c == 400 || c == 409, "Unexpected status code in application storm: " + c);
+        }
+
         assertEquals(1, ok.get(), "Exactly 1 of 10 must succeed with scarce balance. Codes: " + codes);
         assertEquals(9, fail.get(), "9 must be rejected. Codes: " + codes);
+
         LeaveBalance b = leaveBalanceRepository.findById(employee1Balance.getId()).orElseThrow();
         assertTrue(b.getAvailable() >= 0, "Balance must never go negative. Available: " + b.getAvailable());
-        assertEquals(1, leaveRequestRepository.findByEmployee(employee1).size(),
-                "Exactly 1 request must be persisted");
+        assertEquals(1, leaveRequestRepository.findByEmployee(employee1).size());
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -510,6 +604,7 @@ public class RaceConditionIntegrationTest {
         CountDownLatch start = new CountDownLatch(1), done = new CountDownLatch(2);
         AtomicInteger ok = new AtomicInteger();
         List<String> outcomes = Collections.synchronizedList(new ArrayList<>());
+        List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<>());
 
         new Thread(() -> {
             try {
@@ -520,7 +615,7 @@ public class RaceConditionIntegrationTest {
                 int s = r.getResponse().getStatus();
                 if (s == 200) { ok.incrementAndGet(); outcomes.add("ADMIN_APPROVE_WIN"); }
                 else outcomes.add("ADMIN_APPROVE_LOSE:" + s);
-            } catch (Exception e) { outcomes.add("ADMIN_APPROVE_EX"); } finally { done.countDown(); }
+            } catch (Throwable e) { exceptions.add(e); } finally { done.countDown(); }
         }, "admin-approve").start();
 
         new Thread(() -> {
@@ -532,16 +627,19 @@ public class RaceConditionIntegrationTest {
                 int s = r.getResponse().getStatus();
                 if (s == 200) { ok.incrementAndGet(); outcomes.add("EMP_CANCEL_WIN"); }
                 else outcomes.add("EMP_CANCEL_LOSE:" + s);
-            } catch (Exception e) { outcomes.add("EMP_CANCEL_EX"); } finally { done.countDown(); }
+            } catch (Throwable e) { exceptions.add(e); } finally { done.countDown(); }
         }, "emp-cancel").start();
 
         start.countDown();
         assertTrue(done.await(10, TimeUnit.SECONDS), "Mixed-actors race timed out");
 
+        assertNoWorkerExceptions(exceptions);
         assertEquals(1, ok.get(), "Exactly one must win. Outcomes: " + outcomes);
+
         LeaveRequest saved = leaveRequestRepository.findById(lr.getId()).orElseThrow();
         assertTrue(saved.getStatus() == LeaveStatus.APPROVED || saved.getStatus() == LeaveStatus.CANCELLED,
                 "Must be APPROVED or CANCELLED, not: " + saved.getStatus());
+
         LeaveBalance b = leaveBalanceRepository.findById(employee1Balance.getId()).orElseThrow();
         if (saved.getStatus() == LeaveStatus.APPROVED) {
             assertTrue(b.getAvailable() < initAvail, "Balance must decrease when APPROVE wins");
@@ -570,6 +668,7 @@ public class RaceConditionIntegrationTest {
         CountDownLatch start = new CountDownLatch(1), done = new CountDownLatch(2);
         AtomicInteger ok = new AtomicInteger(), fail = new AtomicInteger();
         List<Integer> codes = Collections.synchronizedList(new ArrayList<>());
+        List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<>());
 
         ex.submit(() -> {
             try {
@@ -579,7 +678,7 @@ public class RaceConditionIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)).andReturn();
                 int st = r.getResponse().getStatus(); codes.add(st);
                 if (st == 200) ok.incrementAndGet(); else fail.incrementAndGet();
-            } catch (Exception ex2) { fail.incrementAndGet(); } finally { done.countDown(); }
+            } catch (Throwable ex2) { exceptions.add(ex2); } finally { done.countDown(); }
         });
         ex.submit(() -> {
             try {
@@ -589,14 +688,16 @@ public class RaceConditionIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)).andReturn();
                 int st = r.getResponse().getStatus(); codes.add(st);
                 if (st == 200) ok.incrementAndGet(); else fail.incrementAndGet();
-            } catch (Exception ex2) { fail.incrementAndGet(); } finally { done.countDown(); }
+            } catch (Throwable ex2) { exceptions.add(ex2); } finally { done.countDown(); }
         });
 
         start.countDown();
         assertTrue(done.await(10, TimeUnit.SECONDS), "Write-skew scenario timed out");
         ex.shutdown();
 
+        assertNoWorkerExceptions(exceptions);
         assertEquals(2, ok.get(), "Both distinct employees must succeed. Codes: " + codes);
+
         assertEquals(0, leaveBalanceRepository.findById(employee1Balance.getId()).orElseThrow().getAvailable(),
                 "Employee1 balance must be 0");
         assertEquals(0, leaveBalanceRepository.findById(employee2Balance.getId()).orElseThrow().getAvailable(),
@@ -628,6 +729,7 @@ public class RaceConditionIntegrationTest {
         CountDownLatch start = new CountDownLatch(1), done = new CountDownLatch(2);
         AtomicInteger ok = new AtomicInteger(), fail = new AtomicInteger();
         List<Integer> codes = Collections.synchronizedList(new ArrayList<>());
+        List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<>());
 
         for (int i = 0; i < 2; i++) {
             ex.submit(() -> {
@@ -639,13 +741,14 @@ public class RaceConditionIntegrationTest {
                             .content(leaveRequestPayload(employee1, rs, re))).andReturn();
                     int st = r.getResponse().getStatus(); codes.add(st);
                     if (st == 200 || st == 201) ok.incrementAndGet(); else fail.incrementAndGet();
-                } catch (Exception ex2) { fail.incrementAndGet(); } finally { done.countDown(); }
+                } catch (Throwable ex2) { exceptions.add(ex2); } finally { done.countDown(); }
             });
         }
         start.countDown();
         assertTrue(done.await(10, TimeUnit.SECONDS), "Re-application race timed out");
         ex.shutdown();
 
+        assertNoWorkerExceptions(exceptions);
         assertEquals(1, ok.get(), "Exactly 1 re-application must succeed. Codes: " + codes);
         assertEquals(1, fail.get(), "The competing re-application must fail. Codes: " + codes);
 
@@ -681,6 +784,7 @@ public class RaceConditionIntegrationTest {
         CountDownLatch start = new CountDownLatch(1), done = new CountDownLatch(threads);
         AtomicInteger ok = new AtomicInteger(), fail = new AtomicInteger();
         List<Integer> codes = Collections.synchronizedList(new ArrayList<>());
+        List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<>());
 
         for (int i = 0; i < threads; i++) {
             ex.submit(() -> {
@@ -691,20 +795,33 @@ public class RaceConditionIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)).andReturn();
                     int s = r.getResponse().getStatus(); codes.add(s);
                     if (s == 200) ok.incrementAndGet(); else fail.incrementAndGet();
-                } catch (Exception e) { fail.incrementAndGet(); } finally { done.countDown(); }
+                } catch (Throwable e) { exceptions.add(e); } finally { done.countDown(); }
             });
         }
         start.countDown();
         assertTrue(done.await(10, TimeUnit.SECONDS), "3-thread cancellation race timed out");
         ex.shutdown();
 
+        assertNoWorkerExceptions(exceptions);
+        for (int code : codes) {
+            assertTrue(code == 200 || code == 400 || code == 409, "Unexpected cancellation status: " + code);
+        }
+
         assertEquals(1, ok.get(), "Exactly 1 of 3 cancellations must succeed. Codes: " + codes);
         assertEquals(2, fail.get(), "Remaining 2 must be rejected. Codes: " + codes);
+
         LeaveBalance b = leaveBalanceRepository.findById(employee1Balance.getId()).orElseThrow();
         assertEquals(availBeforeApproval, b.getAvailable(),
                 "Balance must be refunded exactly once back to initial available amount. Available: " + b.getAvailable());
         assertEquals(0, b.getUsed(), "Used days must return to 0");
         assertEquals(LeaveStatus.CANCELLED, leaveRequestRepository.findById(lr.getId()).orElseThrow().getStatus());
+
+        // Assert transaction review recorded exactly once for cancellation
+        assertEquals(1, transactionReviewRepository.findAll().stream()
+                .filter(r -> r.getTransactionType() == TransactionType.LEAVE_CANCELLATION)
+                .count(), "Exactly 1 LEAVE_CANCELLATION transaction review committed");
+        assertTrue(auditLogRepository.findAll().stream().anyMatch(a -> "LEAVE_CANCELLED".equals(a.getAction())),
+                "Audit log must record LEAVE_CANCELLED action");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -721,12 +838,12 @@ public class RaceConditionIntegrationTest {
         LeaveRequest reqA = createPendingRequest(employee1, LocalDate.of(2027,6,2), LocalDate.of(2027,6,4));
         LeaveRequest reqB = createPendingRequest(employee1, LocalDate.of(2027,6,7), LocalDate.of(2027,6,9));
 
-        // 4 threads: 2 race on reqA, 2 race on reqB
         int threads = 4;
         ExecutorService ex = Executors.newFixedThreadPool(threads);
         CountDownLatch start = new CountDownLatch(1), done = new CountDownLatch(threads);
         AtomicInteger ok = new AtomicInteger(), fail = new AtomicInteger();
         List<String> outcomes = Collections.synchronizedList(new ArrayList<>());
+        List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<>());
 
         Runnable approveA = () -> {
             try {
@@ -737,7 +854,7 @@ public class RaceConditionIntegrationTest {
                 int s = r.getResponse().getStatus();
                 if (s == 200) { ok.incrementAndGet(); outcomes.add("A:OK"); }
                 else { fail.incrementAndGet(); outcomes.add("A:FAIL:" + s); }
-            } catch (Exception e) { fail.incrementAndGet(); outcomes.add("A:EX"); } finally { done.countDown(); }
+            } catch (Throwable e) { exceptions.add(e); } finally { done.countDown(); }
         };
         Runnable approveB = () -> {
             try {
@@ -748,7 +865,7 @@ public class RaceConditionIntegrationTest {
                 int s = r.getResponse().getStatus();
                 if (s == 200) { ok.incrementAndGet(); outcomes.add("B:OK"); }
                 else { fail.incrementAndGet(); outcomes.add("B:FAIL:" + s); }
-            } catch (Exception e) { fail.incrementAndGet(); outcomes.add("B:EX"); } finally { done.countDown(); }
+            } catch (Throwable e) { exceptions.add(e); } finally { done.countDown(); }
         };
 
         ex.submit(approveA); ex.submit(approveA);
@@ -758,12 +875,13 @@ public class RaceConditionIntegrationTest {
         assertTrue(done.await(15, TimeUnit.SECONDS), "Distinct-request approval race timed out");
         ex.shutdown();
 
+        assertNoWorkerExceptions(exceptions);
         assertEquals(2, ok.get(), "Exactly 2 of 4 approvals must succeed (one per request). Outcomes: " + outcomes);
         assertEquals(2, fail.get(), "Duplicate approvals must fail. Outcomes: " + outcomes);
-        assertEquals(LeaveStatus.APPROVED, leaveRequestRepository.findById(reqA.getId()).orElseThrow().getStatus(),
-                "Request A must be APPROVED");
-        assertEquals(LeaveStatus.APPROVED, leaveRequestRepository.findById(reqB.getId()).orElseThrow().getStatus(),
-                "Request B must be APPROVED");
+
+        assertEquals(LeaveStatus.APPROVED, leaveRequestRepository.findById(reqA.getId()).orElseThrow().getStatus());
+        assertEquals(LeaveStatus.APPROVED, leaveRequestRepository.findById(reqB.getId()).orElseThrow().getStatus());
+
         LeaveBalance b = leaveBalanceRepository.findById(employee1Balance.getId()).orElseThrow();
         assertEquals(0, b.getAvailable(), "Balance must be exhausted to 0. Available: " + b.getAvailable());
         assertEquals(6, b.getUsed(), "Used must be 6");
@@ -776,7 +894,6 @@ public class RaceConditionIntegrationTest {
     @Test
     public void phantomReadGuard_concurrentApprovalAndApplication_balanceInvariantNeverViolated()
             throws Exception {
-        // 5 days exactly — approval consumes all 5; concurrent 3-day application must fail
         employee1Balance.setTotal(5); employee1Balance.setAvailable(5); employee1Balance.setUsed(0);
         leaveBalanceRepository.save(employee1Balance);
 
@@ -784,6 +901,7 @@ public class RaceConditionIntegrationTest {
 
         CountDownLatch start = new CountDownLatch(1), done = new CountDownLatch(2);
         List<String> outcomes = Collections.synchronizedList(new ArrayList<>());
+        List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<>());
 
         // Thread A: Approve 5-day request (consumes all balance)
         new Thread(() -> {
@@ -793,7 +911,7 @@ public class RaceConditionIntegrationTest {
                         .header("Authorization","Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)).andReturn();
                 outcomes.add("APPROVE:" + r.getResponse().getStatus());
-            } catch (Exception e) { outcomes.add("APPROVE:EX"); } finally { done.countDown(); }
+            } catch (Throwable e) { exceptions.add(e); } finally { done.countDown(); }
         }, "approve-big").start();
 
         // Thread B: Apply for 3 days next week (would overdraft if lock missing)
@@ -805,19 +923,80 @@ public class RaceConditionIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(leaveRequestPayload(employee1, LocalDate.of(2027,6,21), LocalDate.of(2027,6,23)))).andReturn();
                 outcomes.add("APPLY:" + r.getResponse().getStatus());
-            } catch (Exception e) { outcomes.add("APPLY:EX"); } finally { done.countDown(); }
+            } catch (Throwable e) { exceptions.add(e); } finally { done.countDown(); }
         }, "apply-3day").start();
 
         start.countDown();
         assertTrue(done.await(10, TimeUnit.SECONDS), "Phantom-read guard test timed out");
 
+        assertNoWorkerExceptions(exceptions);
+
         // Core invariant: available + used must always == total; no negatives
         LeaveBalance b = leaveBalanceRepository.findById(employee1Balance.getId()).orElseThrow();
-        assertTrue(b.getAvailable() >= 0,
-                "Balance must never go negative. Available: " + b.getAvailable() + " Outcomes: " + outcomes);
-        assertTrue(b.getUsed() <= 5,
-                "Used must never exceed total (5). Used: " + b.getUsed() + " Outcomes: " + outcomes);
-        assertEquals(5, b.getAvailable() + b.getUsed(),
-                "Balance invariant (available + used = total=5) must hold. Outcomes: " + outcomes);
+        assertTrue(b.getAvailable() >= 0, "Balance must never go negative. Available: " + b.getAvailable());
+        assertTrue(b.getUsed() <= 5, "Used must never exceed total (5). Used: " + b.getUsed());
+        assertEquals(5, b.getAvailable() + b.getUsed(), "Balance invariant (available + used = total=5) must hold.");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  TEST 13 – Dual Approval Concurrent Sign-offs
+    // ═══════════════════════════════════════════════════════════════════════
+
+    @Test
+    public void dualApprovalConcurrentSignoffs_managerAndHrSimultaneous_bothRecordedProperly() throws Exception {
+        LeaveRequest dualReq = new LeaveRequest();
+        dualReq.setEmployee(employee1);
+        dualReq.setLeaveType(annualLeaveType);
+        dualReq.setStartDate(LocalDate.of(2027, 7, 5));
+        dualReq.setEndDate(LocalDate.of(2027, 7, 7));
+        dualReq.setStatus(LeaveStatus.PENDING);
+        dualReq.setReason("Dual approval concurrent race");
+        dualReq.setRequiresDualApproval(true);
+        dualReq = leaveRequestRepository.save(dualReq);
+
+        CountDownLatch start = new CountDownLatch(1), done = new CountDownLatch(2);
+        List<Integer> codes = Collections.synchronizedList(new ArrayList<>());
+        List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<>());
+        final Long reqId = dualReq.getId();
+
+        // Thread 1: Manager approves
+        new Thread(() -> {
+            try {
+                start.await();
+                MvcResult r = mockMvc.perform(put("/api/leave-requests/" + reqId + "/approve")
+                        .header("Authorization", "Bearer " + managerToken)
+                        .contentType(MediaType.APPLICATION_JSON)).andReturn();
+                codes.add(r.getResponse().getStatus());
+            } catch (Throwable t) { exceptions.add(t); } finally { done.countDown(); }
+        }, "mgr-signoff").start();
+
+        // Thread 2: HR approves
+        new Thread(() -> {
+            try {
+                start.await();
+                MvcResult r = mockMvc.perform(put("/api/leave-requests/" + reqId + "/approve")
+                        .header("Authorization", "Bearer " + hrToken)
+                        .contentType(MediaType.APPLICATION_JSON)).andReturn();
+                codes.add(r.getResponse().getStatus());
+            } catch (Throwable t) { exceptions.add(t); } finally { done.countDown(); }
+        }, "hr-signoff").start();
+
+        start.countDown();
+        assertTrue(done.await(10, TimeUnit.SECONDS), "Dual approval race timed out");
+
+        assertNoWorkerExceptions(exceptions);
+        for (int c : codes) {
+            assertEquals(200, c, "Both manager and HR approvals must succeed with 200 OK");
+        }
+
+        // Final request must be fully APPROVED
+        LeaveRequest finalReq = leaveRequestRepository.findById(reqId).orElseThrow();
+        assertEquals(LeaveStatus.APPROVED, finalReq.getStatus(), "Both signoffs must result in final APPROVED status");
+
+        // Assert sign-off records in leaveRequestSignoffRepository
+        List<LeaveRequestSignoff> signoffs = leaveRequestSignoffRepository.findByLeaveRequestId(finalReq.getId());
+        assertEquals(2, signoffs.size(), "Exactly 2 signoff records (Manager and HR) must be persisted");
+        assertTrue(signoffs.stream().anyMatch(s -> "MANAGER".equals(s.getApproverRole()) && "APPROVED".equals(s.getStatus())));
+        assertTrue(signoffs.stream().anyMatch(s -> "HR".equals(s.getApproverRole()) && "APPROVED".equals(s.getStatus())));
     }
 }

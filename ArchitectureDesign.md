@@ -1889,7 +1889,7 @@ That is the architecture I would use for my project—production-style, secure, 
 
 ### A. Idempotency Model & Stripe/IETF Compliance
 1. **Header-Based Mechanism**:
-   - Clients supply the `Idempotency-Key: <unique-uuid>` HTTP header on mutating operations (`POST`, `PUT`, `PATCH`, `DELETE`), including:
+   - Clients supply the `Idempotency-Key: <unique-ascii-key>` HTTP header on mutating operations (`POST`, `PUT`, `PATCH`, `DELETE`), including:
      - `POST /api/leave-requests`: Creation of leave applications
      - `PUT /api/leave-requests/{id}/approve`: Approvals
      - `PUT /api/leave-requests/{id}/reject`: Rejections
@@ -1897,12 +1897,15 @@ That is the architecture I would use for my project—production-style, secure, 
      - Any mutating REST endpoint across the LMS API.
    - Non-mutating methods (`GET`, `HEAD`, `OPTIONS`) bypass idempotency evaluation as they are safe and inherently idempotent.
    - Requests without an `Idempotency-Key` header bypass idempotency filtering and execute normally for full backward compatibility.
-2. **Deterministic Payload Hashing**:
+2. **Input Validation & Resource Protection**:
+   - **Key Format & Length Validation**: Validated against `^[\\x21-\\x7E]{1,255}$` (1 to 255 printable ASCII characters without whitespace). Invalid keys return `400 Bad Request`.
+   - **Configurable Maximum Body Size**: Enforces `idempotency.max-body-size-bytes` (default 1MB / 1,048,576 bytes). `CachedBodyHttpServletRequest` validates `Content-Length` header upfront and limits stream byte consumption before buffering in memory, throwing `413 Payload Too Large` (`PayloadTooLargeException`) if exceeded.
+3. **Deterministic Payload Hashing**:
    - For every request bearing `Idempotency-Key`, a cryptographic SHA-256 fingerprint is calculated:
      $$\text{requestHash} = \text{SHA-256}(\text{HTTP\_METHOD} + ":" + \text{URI} + (?\text{QUERY}) + ":" + \text{USER\_EMAIL} + ":" + \text{SHA-256}(\text{BODY}))$$
    - Scoping by `USER_EMAIL` ensures complete user/caller isolation: two distinct users may independently generate the same client-side key without collision.
-3. **Database Schema & Key Persistence (`idempotency_keys`)**:
-   - Liquibase ChangeSet `024-add-idempotency-keys`:
+4. **Database Schema & Key Persistence (`idempotency_keys`)**:
+   - Liquibase ChangeSet `024-add-idempotency-keys` and `025-add-idempotency-response-headers`:
      - `id` (bigint, PK)
      - `idempotency_key` (varchar 255, NOT NULL)
      - `user_email` (varchar 255, NOT NULL, default 'anonymous')
@@ -1912,23 +1915,28 @@ That is the architecture I would use for my project—production-style, secure, 
      - `status` (varchar 30, NOT NULL: `IN_PROGRESS`, `COMPLETED`, `FAILED`)
      - `response_status` (int, nullable)
      - `response_body` (clob, nullable)
+     - `content_type` (varchar 255, nullable)
+     - `response_headers` (clob, nullable JSON of captured headers)
      - `created_at` (timestamp, NOT NULL)
      - `expires_at` (timestamp, NOT NULL, 24-hour TTL)
      - Unique constraint: `uk_idempotency_key_user` on `(idempotency_key, user_email)`
      - Index: `idx_idempotency_expires_at` on `(expires_at)`
-4. **Execution Flow & Lifecycle State Machine**:
+5. **Execution Flow & Lifecycle State Machine**:
    - **First Execution**:
      - Key is atomically inserted with status `IN_PROGRESS` in an isolated `REQUIRES_NEW` transaction.
      - Request body is buffered via `CachedBodyHttpServletRequest` for repeatable reading by Jackson.
      - Response is captured via `ContentCachingResponseWrapper`.
-     - Upon completion (<500 status), record is updated to `COMPLETED` with cached status code and response payload. Response includes header `Idempotency-Key: <key>`.
-     - If the downstream execution throws an unhandled 5xx exception, the record is transitioned to `FAILED`, allowing safe retry by the client.
-   - **Replay of Cached Response**:
+     - Upon completion (<500 status), record is updated to `COMPLETED` with status code, response body, `content_type`, and serialized response headers (excluding hop-by-hop headers). Response includes header `Idempotency-Key: <key>`.
+   - **Replay of Cached Response (High-Fidelity Replay)**:
      - If a request with an existing `COMPLETED` key is received and `requestHash` matches, the filter short-circuits execution.
-     - Returns cached HTTP status and body directly with response headers:
+     - Replays exact original HTTP status code, body, `Content-Type`, and preserved response headers with additional header:
        - `Idempotency-Key: <key>`
        - `Idempotency-Replayed: true`
      - Downstream controller and database layers are NEVER executed; duplicate leave applications, double deductions, or status transition errors are strictly prevented.
+   - **Failure & Retry Policy**:
+     - Authentication (`401 Unauthorized`), Authorization (`403 Forbidden`), and Validation (`400 Bad Request`) failures do not lock the key and permit immediate client retries with the same or corrected payload.
+     - If business transaction fails before commit, the idempotency record is removed or marked `FAILED`, allowing retry.
+     - Completed business transactions return the cached replay, preventing duplicate leave requests, duplicate approvals, or balance deductions.
    - **Payload Mismatch Detection**:
      - If an existing `COMPLETED` key is re-sent with altered parameters or body, the filter returns `409 Conflict`:
        `{"status": 409, "error": "Conflict", "message": "Idempotency key payload mismatch: Request parameters do not match the original request for this key."}`
@@ -1936,6 +1944,10 @@ That is the architecture I would use for my project—production-style, secure, 
      - If a concurrent duplicate request arrives while the original is still `IN_PROGRESS`, the competing request receives `409 Conflict`:
        `{"status": 409, "error": "Conflict", "message": "A request with this idempotency key is currently in progress. Please retry shortly."}`
      - Enforced via database-level unique constraint `uk_idempotency_key_user`.
+6. **Expiry & Background Cleanup**:
+   - Keys expire after 24 hours (`expires_at`).
+   - `IdempotencyCleanupScheduler` runs periodically (`@Scheduled` hourly by default) calling `IdempotencyService.cleanupExpiredKeys()` via bulk deletion `deleteExpiredKeys(LocalDateTime.now())`.
+   - Expired keys can be safely reused for brand-new operations; concurrent reuse during expiry cleanup is protected by transaction boundaries.
 
 ---
 
@@ -1953,24 +1965,31 @@ To guarantee strict ACID invariants, prevent lost updates, eliminate balance dou
    - Every mutating leave workflow acquires locks in a strict global hierarchy:
      $$\text{Employee} \longrightarrow \text{LeaveBalance} \longrightarrow \text{LeaveRequest}$$
    - This strict lock ordering guarantees circular wait conditions cannot occur, preventing database deadlocks even under massive concurrent thread storms.
+   - Lock timeout configured via `DEFAULT_LOCK_TIMEOUT=15000` to prevent indefinite blocking under high contention.
 
 3. **In-Flight Idempotency Locking**:
    - Unique database constraint `uk_idempotency_key_user` on `(idempotency_key, user_email)` ensures that parallel requests using identical client keys are serialized atomically, with concurrent in-flight requests cleanly returning `409 Conflict`.
 
 ### 2. Multi-Threaded Race-Condition Test Suite (`RaceConditionIntegrationTest`)
-The LMS features an enterprise-grade multi-threaded integration test suite verifying 12 distinct concurrency attack vectors and edge cases:
+The LMS features an enterprise-grade multi-threaded integration test suite enforcing strict quality gates:
+- **Strict Quality Gates**:
+  - Every unexpected HTTP status fails the test.
+  - Every worker exception fails the test (`assertNoWorkerExceptions`).
+  - Timeouts fail the test immediately (`done.await(timeout, TimeUnit.SECONDS)`).
+  - Explicit assertions over final leave request status, leave balance accounting $(available + used == total)$, audit log records (`AuditLogRepository`), sign-off records (`LeaveRequestSignoffRepository`), and transaction reviews (`TransactionReviewRepository`).
 
-| # | Concurrency Test Scenario | Concurrency Primitive | Invariant Validated |
-|---|---------------------------|-----------------------|---------------------|
-| 1 | **Balance Depletion Storm** | 10 Threads, `CountDownLatch` | Exactly 1 of 10 concurrent approvals succeeds on a single request; balance deducted exactly once. |
-| 2 | **Approve vs. Reject Race** | 2 Threads, simultaneous latch | Exactly 1 operation wins; balance adjusted if and only if Approve won; no corrupted intermediate state. |
-| 3 | **Approve vs. Cancel Race** | 2 Threads, simultaneous latch | Exactly 1 operation wins; balance adjusted if Approved, untouched if Cancelled. |
+| # | Concurrency Test Scenario | Concurrency Primitive | Quality Gate & Invariant Validated |
+|---|---------------------------|-----------------------|-------------------------------------|
+| 1 | **Balance Depletion Storm** | 10 Threads, `CountDownLatch` | Exactly 1 of 10 concurrent approvals succeeds on a single request; balance deducted exactly once; competing requests fail cleanly with 400/409. |
+| 2 | **Approve vs. Reject Race** | 2 Threads, simultaneous latch | Exactly 1 operation wins; balance adjusted if and only if Approve won; no corrupted intermediate state; audit trail asserted. |
+| 3 | **Approve vs. Cancel Race** | 2 Threads, simultaneous latch | Exactly 1 operation wins; balance adjusted if Approved, untouched if Cancelled; audit log verified. |
 | 4 | **Reject vs. Cancel Race** | 2 Threads, simultaneous latch | Exactly 1 wins; balance remains untouched on both paths. |
 | 5 | **Concurrent Idempotent Submissions** | 5 Threads, same `Idempotency-Key` | Exactly 1 leave request created in database; concurrent collisions return `409 Conflict`; sequential retry returns cached `201 Created` with `Idempotency-Replayed: true`. |
-| 6 | **Scarce Balance Application Storm** | 10 Threads, limited balance | Exactly 1 application succeeds; balance never goes negative; overdraft attempts rejected with `InsufficientLeaveException`. |
+| 6 | **Scarce Balance Application Storm** | 10 Threads, limited balance | Exactly 1 application succeeds; balance never goes negative; overdraft attempts rejected with 400/409. |
 | 7 | **Mixed Roles Race** | Admin Approve vs. Employee Cancel | Role-based authorization and state machine transitions remain consistent under simultaneous execution. |
 | 8 | **Write-Skew Defense** | 2 Employees, identical dates & balances | Approvals execute concurrently on separate balances; each balance is deducted independently to 0 without cross-interference or deadlock. |
 | 9 | **Re-Application After Cancellation** | Immediate re-application post-cancel | Cancellation refund completes before new application; no double refunds or over-allocations. |
-| 10 | **Concurrent Multi-Cancellation Storm** | 3 Threads, Approved request | Exactly 1 cancellation succeeds; balance refunded once; subsequent cancellations fail cleanly. |
+| 10 | **Concurrent Multi-Cancellation Storm** | 3 Threads, Approved request | Exactly 1 cancellation succeeds; balance refunded once; transaction review recorded once; competing attempts rejected. |
 | 11 | **Distinct Request Approval Exhaustion** | 4 Threads racing across 2 requests | Both requests approved concurrently; employee's total balance exhausted cleanly to zero. |
 | 12 | **Phantom Read Guard** | Concurrent 5-day Approve & 3-day Apply | The fundamental accounting invariant $(\text{available} + \text{used} = \text{total})$ holds at every microsecond; zero balance leakage. |
+| 13 | **Multi-Approver Dual Sign-off Race** | Concurrent Manager + HR Sign-offs | Concurrent sign-offs serialize safely; both roles recorded in `leave_request_signoffs`; balance deducted strictly once. |

@@ -36,6 +36,13 @@ public class IdempotencyKey {
     @Column(name = "response_body")
     private String responseBody;
 
+    @Column(name = "content_type", length = 255)
+    private String contentType;
+
+    @Lob
+    @Column(name = "response_headers")
+    private String responseHeaders;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -127,6 +134,22 @@ public class IdempotencyKey {
 
     public void setResponseBody(String responseBody) {
         this.responseBody = responseBody;
+    }
+
+    public String getContentType() {
+        return contentType;
+    }
+
+    public void setContentType(String contentType) {
+        this.contentType = contentType;
+    }
+
+    public String getResponseHeaders() {
+        return responseHeaders;
+    }
+
+    public void setResponseHeaders(String responseHeaders) {
+        this.responseHeaders = responseHeaders;
     }
 
     public LocalDateTime getCreatedAt() {

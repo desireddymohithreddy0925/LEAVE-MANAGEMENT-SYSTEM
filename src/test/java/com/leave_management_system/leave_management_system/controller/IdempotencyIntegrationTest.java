@@ -8,6 +8,7 @@ import com.leave_management_system.leave_management_system.entity.*;
 import com.leave_management_system.leave_management_system.repository.*;
 import com.leave_management_system.leave_management_system.security.JwtUtils;
 import com.leave_management_system.leave_management_system.security.idempotency.IdempotencyFilter;
+import com.leave_management_system.leave_management_system.security.idempotency.IdempotencyService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,7 @@ import org.springframework.web.context.WebApplicationContext;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -69,6 +71,12 @@ public class IdempotencyIntegrationTest {
     private IdempotencyKeyRepository idempotencyKeyRepository;
 
     @Autowired
+    private IdempotencyService idempotencyService;
+
+    @Autowired
+    private IdempotencyFilter idempotencyFilter;
+
+    @Autowired
     private RefreshTokenRepository refreshTokenRepository;
 
     @Autowired
@@ -103,6 +111,9 @@ public class IdempotencyIntegrationTest {
     private Employee managerEmployee;
     private String managerToken;
 
+    private Employee noPermEmployee;
+    private String noPermToken;
+
     private LeaveType annualLeaveType;
 
     @BeforeEach
@@ -130,6 +141,8 @@ public class IdempotencyIntegrationTest {
         mgrRole.getPermissions().addAll(permissions);
         roleRepository.save(mgrRole);
 
+        Role emptyRole = roleRepository.findByName("GUEST").orElseGet(() -> roleRepository.save(new Role("GUEST")));
+
         // 2. Setup Leave Types
         LeaveType lt = new LeaveType();
         lt.setName("Idempotency Annual " + UUID.randomUUID().toString().substring(0, 5));
@@ -148,24 +161,24 @@ public class IdempotencyIntegrationTest {
 
         Employee emp1 = new Employee();
         emp1.setFirstName("John");
-        emp1.setLastName("Idemp");
-        emp1.setEmployeeCode("IDEMP_1_" + System.currentTimeMillis() % 10000);
-        emp1.setPhone("9876543201");
+        emp1.setLastName("Doe");
+        emp1.setEmployeeCode("IDEMP_EMP1_" + System.currentTimeMillis() % 100000);
+        emp1.setPhone("1234567890");
         emp1.setStatus("ACTIVE");
-        emp1.setSalary(new BigDecimal("70000.00"));
+        emp1.setSalary(new BigDecimal("60000.00"));
         emp1.setUser(savedUser1);
         employee1 = employeeRepository.save(emp1);
+        employee1Token = "Bearer " + jwtUtils.generateTokenFromUsername(user1.getEmail());
 
-        LeaveBalance lb1 = new LeaveBalance();
-        lb1.setEmployee(employee1);
-        lb1.setLeaveType(annualLeaveType);
-        lb1.setYear(2026);
-        lb1.setTotal(30);
-        lb1.setUsed(0);
-        lb1.setAvailable(30);
-        leaveBalanceRepository.save(lb1);
-
-        employee1Token = "Bearer " + jwtUtils.generateTokenFromUsername(savedUser1.getEmail());
+        // Employee 1 Leave Balance
+        LeaveBalance bal1 = new LeaveBalance();
+        bal1.setEmployee(employee1);
+        bal1.setLeaveType(annualLeaveType);
+        bal1.setYear(2026);
+        bal1.setTotal(30);
+        bal1.setUsed(0);
+        bal1.setAvailable(30);
+        leaveBalanceRepository.save(bal1);
 
         // 4. Setup Employee 2
         User user2 = new User();
@@ -178,24 +191,23 @@ public class IdempotencyIntegrationTest {
 
         Employee emp2 = new Employee();
         emp2.setFirstName("Jane");
-        emp2.setLastName("Idemp");
-        emp2.setEmployeeCode("IDEMP_2_" + (System.currentTimeMillis() + 1) % 10000);
-        emp2.setPhone("9876543202");
+        emp2.setLastName("Smith");
+        emp2.setEmployeeCode("IDEMP_EMP2_" + System.currentTimeMillis() % 100000);
+        emp2.setPhone("0987654321");
         emp2.setStatus("ACTIVE");
-        emp2.setSalary(new BigDecimal("75000.00"));
+        emp2.setSalary(new BigDecimal("70000.00"));
         emp2.setUser(savedUser2);
         employee2 = employeeRepository.save(emp2);
+        employee2Token = "Bearer " + jwtUtils.generateTokenFromUsername(user2.getEmail());
 
-        LeaveBalance lb2 = new LeaveBalance();
-        lb2.setEmployee(employee2);
-        lb2.setLeaveType(annualLeaveType);
-        lb2.setYear(2026);
-        lb2.setTotal(30);
-        lb2.setUsed(0);
-        lb2.setAvailable(30);
-        leaveBalanceRepository.save(lb2);
-
-        employee2Token = "Bearer " + jwtUtils.generateTokenFromUsername(savedUser2.getEmail());
+        LeaveBalance bal2 = new LeaveBalance();
+        bal2.setEmployee(employee2);
+        bal2.setLeaveType(annualLeaveType);
+        bal2.setYear(2026);
+        bal2.setTotal(30);
+        bal2.setUsed(0);
+        bal2.setAvailable(30);
+        leaveBalanceRepository.save(bal2);
 
         // 5. Setup Manager
         User mgrUser = new User();
@@ -206,20 +218,41 @@ public class IdempotencyIntegrationTest {
         mgrUser.setRoles(Set.of(mgrRole));
         User savedMgrUser = userRepository.save(mgrUser);
 
-        Employee mgrEmp = new Employee();
-        mgrEmp.setFirstName("Manager");
-        mgrEmp.setLastName("Idemp");
-        mgrEmp.setEmployeeCode("IDEMP_MGR_" + (System.currentTimeMillis() + 2) % 10000);
-        mgrEmp.setPhone("9876543203");
-        mgrEmp.setStatus("ACTIVE");
-        mgrEmp.setSalary(new BigDecimal("90000.00"));
-        mgrEmp.setUser(savedMgrUser);
-        managerEmployee = employeeRepository.save(mgrEmp);
+        Employee mgr = new Employee();
+        mgr.setFirstName("Boss");
+        mgr.setLastName("Man");
+        mgr.setEmployeeCode("IDEMP_MGR_" + System.currentTimeMillis() % 100000);
+        mgr.setPhone("5555555555");
+        mgr.setStatus("ACTIVE");
+        mgr.setSalary(new BigDecimal("90000.00"));
+        mgr.setUser(savedMgrUser);
+        managerEmployee = employeeRepository.save(mgr);
+        managerToken = "Bearer " + jwtUtils.generateTokenFromUsername(mgrUser.getEmail());
 
         employee1.setManager(managerEmployee);
         employee1 = employeeRepository.save(employee1);
 
-        managerToken = "Bearer " + jwtUtils.generateTokenFromUsername(savedMgrUser.getEmail());
+        // 6. Setup No-Perm Employee (Guest)
+        User noPermUser = new User();
+        noPermUser.setEmail("idemp-noperm-" + UUID.randomUUID() + "@test.com");
+        noPermUser.setPassword(passwordEncoder.encode("Pass123!"));
+        noPermUser.setActive(true);
+        noPermUser.setAccountNonLocked(true);
+        noPermUser.setRoles(Set.of(emptyRole));
+        User savedNoPermUser = userRepository.save(noPermUser);
+
+        Employee noPerm = new Employee();
+        noPerm.setFirstName("No");
+        noPerm.setLastName("Perm");
+        noPerm.setEmployeeCode("IDEMP_NOP_" + System.currentTimeMillis() % 100000);
+        noPerm.setPhone("4444444444");
+        noPerm.setStatus("ACTIVE");
+        noPerm.setSalary(new BigDecimal("30000.00"));
+        noPerm.setUser(savedNoPermUser);
+        noPermEmployee = employeeRepository.save(noPerm);
+        noPermToken = "Bearer " + jwtUtils.generateTokenFromUsername(noPermUser.getEmail());
+
+        idempotencyFilter.setMaxBodySizeBytes(1048576L); // Reset default 1MB
     }
 
     @AfterEach
@@ -237,7 +270,12 @@ public class IdempotencyIntegrationTest {
         authorizationAuditLogRepository.deleteAll();
         transactionReviewRepository.deleteAll();
         userRepository.deleteAll();
+        idempotencyFilter.setMaxBodySizeBytes(1048576L);
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 1. RESPONSE REPLAY FULL FIDELITY & REGRESSION TESTS
+    // ─────────────────────────────────────────────────────────────────────────
 
     @Test
     public void testFirstRequestWithIdempotencyKey_SucceedsAndRecordsKey() throws Exception {
@@ -275,17 +313,17 @@ public class IdempotencyIntegrationTest {
     }
 
     @Test
-    public void testReplayingIdenticalRequest_ReturnsCachedResponseWithReplayedHeader() throws Exception {
-        String key = "key-replay-" + UUID.randomUUID();
+    public void testResponseReplay_PreservesStatusBodyContentTypeAndRelevantHeaders() throws Exception {
+        String key = "key-full-fidelity-" + UUID.randomUUID();
 
         LeaveRequestDTO dto = new LeaveRequestDTO();
         dto.setEmployeeId(employee1.getId());
         dto.setLeaveTypeId(annualLeaveType.getId());
         dto.setStartDate(LocalDate.of(2026, 11, 10));
         dto.setEndDate(LocalDate.of(2026, 11, 12));
-        dto.setReason("Medical checkup");
+        dto.setReason("Full fidelity check");
 
-        // First execution
+        // 1. First Execution
         MvcResult firstResult = mockMvc.perform(post("/api/leave-requests")
                         .header("Authorization", employee1Token)
                         .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, key)
@@ -294,11 +332,12 @@ public class IdempotencyIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
 
+        int firstStatus = firstResult.getResponse().getStatus();
+        String firstBody = firstResult.getResponse().getContentAsString();
+        String firstContentType = firstResult.getResponse().getContentType();
         assertNull(firstResult.getResponse().getHeader(IdempotencyFilter.IDEMPOTENCY_REPLAYED_HEADER));
-        LeaveResponseDTO firstResponse = objectMapper.readValue(firstResult.getResponse().getContentAsString(), LeaveResponseDTO.class);
-        assertNotNull(firstResponse.getId());
 
-        // Replay identical request with same key
+        // 2. Replay execution with identical request and key
         MvcResult replayedResult = mockMvc.perform(post("/api/leave-requests")
                         .header("Authorization", employee1Token)
                         .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, key)
@@ -307,16 +346,15 @@ public class IdempotencyIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
 
+        // 3. Strict regression comparisons
+        assertEquals(firstStatus, replayedResult.getResponse().getStatus(), "HTTP status must match exactly");
+        assertEquals(firstBody, replayedResult.getResponse().getContentAsString(), "HTTP body must match exactly");
+        assertTrue(replayedResult.getResponse().getContentType().contains("application/json"), "Content-Type must be preserved");
         assertEquals(key, replayedResult.getResponse().getHeader(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER));
         assertEquals("true", replayedResult.getResponse().getHeader(IdempotencyFilter.IDEMPOTENCY_REPLAYED_HEADER));
 
-        LeaveResponseDTO replayedResponse = objectMapper.readValue(replayedResult.getResponse().getContentAsString(), LeaveResponseDTO.class);
-        assertEquals(firstResponse.getId(), replayedResponse.getId());
-        assertEquals(firstResponse.getReason(), replayedResponse.getReason());
-
-        // Verify only 1 leave request exists in DB (not duplicated, no overlapping leave error!)
-        List<LeaveRequest> requests = leaveRequestRepository.findByEmployee(employee1);
-        assertEquals(1, requests.size());
+        // 4. Ensure no duplicate records created in DB
+        assertEquals(1, leaveRequestRepository.findByEmployee(employee1).size());
     }
 
     @Test
@@ -356,15 +394,11 @@ public class IdempotencyIntegrationTest {
 
         String body = mismatchResult.getResponse().getContentAsString();
         assertTrue(body.contains("Idempotency key payload mismatch"));
-
-        // Verify only 1 leave request exists in DB
-        List<LeaveRequest> requests = leaveRequestRepository.findByEmployee(employee1);
-        assertEquals(1, requests.size());
+        assertEquals(1, leaveRequestRepository.findByEmployee(employee1).size());
     }
 
     @Test
     public void testIdempotentApprovals_SafeRetryWithoutDoubleApprovalOrError() throws Exception {
-        // Create a leave request
         LeaveRequest req = new LeaveRequest();
         req.setEmployee(employee1);
         req.setLeaveType(annualLeaveType);
@@ -395,6 +429,203 @@ public class IdempotencyIntegrationTest {
 
         assertEquals("true", secondApproval.getResponse().getHeader(IdempotencyFilter.IDEMPOTENCY_REPLAYED_HEADER));
         assertEquals(approveKey, secondApproval.getResponse().getHeader(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER));
+
+        // Verify balance deducted only once (3 working days deducted: 30 - 3 = 27)
+        LeaveBalance b = leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(employee1, annualLeaveType, 2026).orElseThrow();
+        assertEquals(27, b.getAvailable());
+        assertEquals(3, b.getUsed());
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 2. FAILURE AND RETRY HANDLING TESTS
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    public void testAuthenticationFailure_PermitsRetry_DoesNotLockKey() throws Exception {
+        String key = "key-auth-fail-" + UUID.randomUUID();
+
+        LeaveRequestDTO dto = new LeaveRequestDTO();
+        dto.setEmployeeId(employee1.getId());
+        dto.setLeaveTypeId(annualLeaveType.getId());
+        dto.setStartDate(LocalDate.of(2026, 11, 5));
+        dto.setEndDate(LocalDate.of(2026, 11, 6));
+        dto.setReason("Auth retry test");
+
+        // 1. Submit request with INVALID token -> 401 Unauthorized
+        mockMvc.perform(post("/api/leave-requests")
+                        .header("Authorization", "Bearer invalid.expired.token")
+                        .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isUnauthorized());
+
+        // 2. Client refreshes token and retries with the SAME Idempotency-Key
+        MvcResult retryResult = mockMvc.perform(post("/api/leave-requests")
+                        .header("Authorization", employee1Token)
+                        .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        assertEquals(key, retryResult.getResponse().getHeader(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER));
+        assertNull(retryResult.getResponse().getHeader(IdempotencyFilter.IDEMPOTENCY_REPLAYED_HEADER));
+
+        // Exactly 1 leave request created
+        assertEquals(1, leaveRequestRepository.findByEmployee(employee1).size());
+    }
+
+    @Test
+    public void testAuthorizationFailure_PermitsRetry_DoesNotLockKey() throws Exception {
+        String key = "key-authz-fail-" + UUID.randomUUID();
+
+        LeaveRequestDTO dto = new LeaveRequestDTO();
+        dto.setEmployeeId(employee1.getId());
+        dto.setLeaveTypeId(annualLeaveType.getId());
+        dto.setStartDate(LocalDate.of(2026, 11, 9));
+        dto.setEndDate(LocalDate.of(2026, 11, 10));
+        dto.setReason("Authz retry test");
+
+        // 1. Guest user without LEAVE_CREATE permission -> 403 Forbidden
+        mockMvc.perform(post("/api/leave-requests")
+                        .header("Authorization", noPermToken)
+                        .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isForbidden());
+
+        // 2. Authorized user submits using the SAME key -> succeeds
+        MvcResult retryResult = mockMvc.perform(post("/api/leave-requests")
+                        .header("Authorization", employee1Token)
+                        .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        assertEquals(key, retryResult.getResponse().getHeader(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER));
+        assertEquals(1, leaveRequestRepository.findByEmployee(employee1).size());
+    }
+
+    @Test
+    public void testValidationFailure_PermitsRetry_CanCorrectPayload() throws Exception {
+        String key = "key-val-fail-" + UUID.randomUUID();
+
+        // Invalid payload: endDate is before startDate
+        LeaveRequestDTO invalidDto = new LeaveRequestDTO();
+        invalidDto.setEmployeeId(employee1.getId());
+        invalidDto.setLeaveTypeId(annualLeaveType.getId());
+        invalidDto.setStartDate(LocalDate.of(2026, 11, 10));
+        invalidDto.setEndDate(LocalDate.of(2026, 11, 5)); // BEFORE start date!
+        invalidDto.setReason("Invalid dates");
+
+        // 1. Fails with 400 Bad Request
+        mockMvc.perform(post("/api/leave-requests")
+                        .header("Authorization", employee1Token)
+                        .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidDto)))
+                .andExpect(status().isBadRequest());
+
+        assertEquals(0, leaveRequestRepository.findByEmployee(employee1).size(), "No leave request created on 400");
+
+        // 2. Client corrects the dates and retries with the SAME Idempotency-Key
+        LeaveRequestDTO validDto = new LeaveRequestDTO();
+        validDto.setEmployeeId(employee1.getId());
+        validDto.setLeaveTypeId(annualLeaveType.getId());
+        validDto.setStartDate(LocalDate.of(2026, 11, 10));
+        validDto.setEndDate(LocalDate.of(2026, 11, 12)); // Corrected!
+        validDto.setReason("Corrected dates");
+
+        mockMvc.perform(post("/api/leave-requests")
+                        .header("Authorization", employee1Token)
+                        .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validDto)))
+                .andExpect(status().isCreated());
+
+        assertEquals(1, leaveRequestRepository.findByEmployee(employee1).size());
+    }
+
+    @Test
+    public void testRetryingRequestCannotCreateDuplicateLeaveRequestsOrBalanceChanges() throws Exception {
+        String key = "key-prevent-dup-" + UUID.randomUUID();
+
+        LeaveRequestDTO dto = new LeaveRequestDTO();
+        dto.setEmployeeId(employee1.getId());
+        dto.setLeaveTypeId(annualLeaveType.getId());
+        dto.setStartDate(LocalDate.of(2026, 12, 10));
+        dto.setEndDate(LocalDate.of(2026, 12, 11));
+        dto.setReason("Prevent dup test");
+
+        // Initial submission
+        mockMvc.perform(post("/api/leave-requests")
+                        .header("Authorization", employee1Token)
+                        .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated());
+
+        // 3 consecutive retries with identical key
+        for (int i = 0; i < 3; i++) {
+            mockMvc.perform(post("/api/leave-requests")
+                            .header("Authorization", employee1Token)
+                            .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, key)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(dto)))
+                    .andExpect(status().isCreated());
+        }
+
+        // Strict assertion: exactly 1 request created
+        List<LeaveRequest> requests = leaveRequestRepository.findByEmployee(employee1);
+        assertEquals(1, requests.size(), "Retries must strictly never create duplicate leave requests");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 3. INPUT VALIDATION AND RESOURCE LIMITS TESTS
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    public void testInvalidKeyFormat_Returns400BadRequest() throws Exception {
+        LeaveRequestDTO dto = new LeaveRequestDTO();
+        dto.setEmployeeId(employee1.getId());
+        dto.setLeaveTypeId(annualLeaveType.getId());
+        dto.setStartDate(LocalDate.of(2026, 11, 20));
+        dto.setEndDate(LocalDate.of(2026, 11, 21));
+        dto.setReason("Invalid key test");
+
+        // Key with spaces
+        mockMvc.perform(post("/api/leave-requests")
+                        .header("Authorization", employee1Token)
+                        .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, "key with spaces")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+
+        // Key with control/newline character
+        mockMvc.perform(post("/api/leave-requests")
+                        .header("Authorization", employee1Token)
+                        .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, "key\nnewline")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+
+        // Key exceeding 255 chars
+        String longKey = "a".repeat(256);
+        mockMvc.perform(post("/api/leave-requests")
+                        .header("Authorization", employee1Token)
+                        .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, longKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
+
+        // Blank key
+        mockMvc.perform(post("/api/leave-requests")
+                        .header("Authorization", employee1Token)
+                        .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, "   ")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -421,13 +652,35 @@ public class IdempotencyIntegrationTest {
     }
 
     @Test
+    public void testOversizedRequestBody_Returns413PayloadTooLarge() throws Exception {
+        // Configure max limit to 300 bytes
+        idempotencyFilter.setMaxBodySizeBytes(300L);
+
+        LeaveRequestDTO dto = new LeaveRequestDTO();
+        dto.setEmployeeId(employee1.getId());
+        dto.setLeaveTypeId(annualLeaveType.getId());
+        dto.setStartDate(LocalDate.of(2026, 12, 14));
+        dto.setEndDate(LocalDate.of(2026, 12, 15));
+        dto.setReason("Large text: " + "X".repeat(500)); // Will exceed 300 bytes
+
+        mockMvc.perform(post("/api/leave-requests")
+                        .header("Authorization", employee1Token)
+                        .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, "key-oversized-test")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isPayloadTooLarge());
+
+        // Reset
+        idempotencyFilter.setMaxBodySizeBytes(1048576L);
+    }
+
+    @Test
     public void testGetRequests_BypassIdempotencyEvenWithHeader() throws Exception {
         mockMvc.perform(get("/api/leave-requests")
                         .header("Authorization", employee1Token)
                         .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, "key-get-" + UUID.randomUUID()))
                 .andExpect(status().isOk());
 
-        // Idempotency table should NOT store GET requests
         assertEquals(0, idempotencyKeyRepository.count());
     }
 
@@ -471,6 +724,79 @@ public class IdempotencyIntegrationTest {
         assertEquals(2, idempotencyKeyRepository.count());
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // 4. EXPIRY AND CLEANUP TESTS
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    public void testExpiredKeysCleanup_RemovesExpiredRecordsOnly() {
+        LocalDateTime now = LocalDateTime.now();
+
+        // 1. Expired record (expired 2 hours ago)
+        IdempotencyKey expired = new IdempotencyKey(
+                "key-expired-1", "user@test.com", "/api/test", "POST",
+                "hash1", "COMPLETED", now.minusHours(26), now.minusHours(2)
+        );
+        idempotencyKeyRepository.saveAndFlush(expired);
+
+        // 2. Active record (expires in 24 hours)
+        IdempotencyKey active = new IdempotencyKey(
+                "key-active-1", "user@test.com", "/api/test", "POST",
+                "hash2", "COMPLETED", now, now.plusHours(24)
+        );
+        idempotencyKeyRepository.saveAndFlush(active);
+
+        assertEquals(2, idempotencyKeyRepository.count());
+
+        // 3. Run cleanup
+        int deleted = idempotencyService.cleanupExpiredKeys();
+        assertEquals(1, deleted, "Exactly 1 expired record should be deleted");
+
+        // 4. Assert active remains, expired is gone
+        assertEquals(1, idempotencyKeyRepository.count());
+        assertTrue(idempotencyKeyRepository.findByIdempotencyKeyAndUserEmail("key-active-1", "user@test.com").isPresent());
+        assertFalse(idempotencyKeyRepository.findByIdempotencyKeyAndUserEmail("key-expired-1", "user@test.com").isPresent());
+    }
+
+    @Test
+    public void testKeyReuseAfterExpiry_TreatedAsFreshExecution() throws Exception {
+        String key = "key-reuse-after-expiry";
+        LocalDateTime now = LocalDateTime.now();
+
+        // Create an expired record for employee1
+        IdempotencyKey expired = new IdempotencyKey(
+                key, employee1.getUser().getEmail(), "/api/leave-requests", "POST",
+                "oldhash", "COMPLETED", now.minusHours(48), now.minusHours(24)
+        );
+        expired.setResponseStatus(201);
+        expired.setResponseBody("{\"old\":\"body\"}");
+        idempotencyKeyRepository.saveAndFlush(expired);
+
+        LeaveRequestDTO dto = new LeaveRequestDTO();
+        dto.setEmployeeId(employee1.getId());
+        dto.setLeaveTypeId(annualLeaveType.getId());
+        dto.setStartDate(LocalDate.of(2026, 12, 18));
+        dto.setEndDate(LocalDate.of(2026, 12, 19));
+        dto.setReason("Reuse after expiry");
+
+        // Submitting with expired key is treated as NEW execution
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                        .header("Authorization", employee1Token)
+                        .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        // Must NOT be marked as replayed
+        assertNull(result.getResponse().getHeader(IdempotencyFilter.IDEMPOTENCY_REPLAYED_HEADER));
+
+        // Stored key must have NEW expiration in the future
+        IdempotencyKey updatedKey = idempotencyKeyRepository.findByIdempotencyKeyAndUserEmail(key, employee1.getUser().getEmail()).orElseThrow();
+        assertTrue(updatedKey.getExpiresAt().isAfter(LocalDateTime.now()), "New key expiration must be in the future");
+        assertEquals(1, leaveRequestRepository.findByEmployee(employee1).size());
+    }
+
     @Test
     public void testConcurrentRequestsWithSameIdempotencyKey_PreventsDoubleExecution() throws Exception {
         String key = "key-concurrent-" + UUID.randomUUID();
@@ -490,6 +816,7 @@ public class IdempotencyIntegrationTest {
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger conflictCount = new AtomicInteger(0);
         List<Integer> statusCodes = Collections.synchronizedList(new ArrayList<>());
+        List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<>());
 
         for (int i = 0; i < numThreads; i++) {
             executor.submit(() -> {
@@ -509,8 +836,8 @@ public class IdempotencyIntegrationTest {
                     } else if (status == 409) {
                         conflictCount.incrementAndGet();
                     }
-                } catch (Exception e) {
-                    // unexpected
+                } catch (Throwable t) {
+                    exceptions.add(t);
                 } finally {
                     finishLatch.countDown();
                 }
@@ -521,11 +848,9 @@ public class IdempotencyIntegrationTest {
         finishLatch.await(10, TimeUnit.SECONDS);
         executor.shutdown();
 
-        // Exactly 1 leave request must have been created in the database!
+        assertTrue(exceptions.isEmpty(), "No unexpected thread exceptions");
         List<LeaveRequest> requests = leaveRequestRepository.findByEmployee(employee1);
         assertEquals(1, requests.size(), "Strictly one leave request should be created despite concurrent calls with same key");
-
-        // Successes (first execution or replay) + Conflicts (in progress) must equal total threads
         assertEquals(numThreads, successCount.get() + conflictCount.get());
         assertTrue(successCount.get() >= 1, "At least one request must succeed");
     }

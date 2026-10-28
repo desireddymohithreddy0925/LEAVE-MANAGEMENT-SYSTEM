@@ -488,48 +488,61 @@ This document maps the mandatory internship requirements to their specific imple
 - **Status:** **DONE**
 
 ### 28. HTTP Header-Based Idempotency (`Idempotency-Key`)
-- **Requirement:** Implement industry-standard IETF/Stripe HTTP header-based idempotency via the `Idempotency-Key` header on all mutating API endpoints (`POST`, `PUT`, `PATCH`, `DELETE`), including leave application submission, approvals, rejections, and cancellations. Ensure identical retry requests return the cached response with `Idempotency-Replayed: true` without re-executing business logic or creating duplicate records. Return `409 Conflict` on payload mismatch or concurrent in-flight execution collisions. Automatically isolate keys per authenticated user and bypass non-mutating requests (`GET`).
+- **Requirement:** Implement industry-standard IETF/Stripe HTTP header-based idempotency via the `Idempotency-Key` header on all mutating API endpoints (`POST`, `PUT`, `PATCH`, `DELETE`), including leave application submission, approvals, rejections, and cancellations. Ensure identical retry requests return the high-fidelity cached response (preserving original HTTP status, body, `Content-Type`, and response headers) with `Idempotency-Replayed: true` without re-executing business logic or creating duplicate records. Enforce strict key validation (1-255 printable ASCII), configurable max body size limit (rejecting oversized payloads before buffering), defined failure/retry policies (allowing retries for 401, 403, and 400 validation failures while protecting post-commit transactions), and scheduled cleanup of expired keys with concurrency-safe reuse.
 - **Implementation:**
-  - Liquibase migration `024-add-idempotency-keys.yaml` creating `idempotency_keys` table with `idempotency_key`, `user_email`, `request_path`, `request_method`, `request_hash`, `status`, `response_status`, `response_body` (CLOB), `created_at`, `expires_at` (24h TTL), unique constraint `uk_idempotency_key_user` on `(idempotency_key, user_email)`, and index on `expires_at`.
-  - Domain Entity: `IdempotencyKey` and repository `IdempotencyKeyRepository`.
-  - Caching Infrastructure: `CachedBodyHttpServletRequest` and `CachedServletInputStream` providing repeatable input stream consumption for deterministic SHA-256 request payload hashing and downstream Spring MVC deserialization.
-  - Service: `IdempotencyService` with atomic `REQUIRES_NEW` transactions (`processOrAcquire`, `completeOperation`, `failOperation`, `removeKey`) preventing transaction pollution and managing the `IN_PROGRESS` -> `COMPLETED`/`FAILED` state transitions.
-  - Filter: `IdempotencyFilter` wired into `SecurityConfig` immediately after `JwtAuthenticationFilter`. Intercepts mutating requests with `Idempotency-Key`, evaluates hashes, short-circuits replayed responses with `Idempotency-Replayed: true`, returns `409 Conflict` on payload mismatch or in-flight collision, and caches responses (<500 status) via `ContentCachingResponseWrapper`.
+  - Liquibase migrations `024-add-idempotency-keys.yaml` and `025-add-idempotency-response-headers.yaml` creating table `idempotency_keys` with columns: `idempotency_key`, `user_email`, `request_path`, `request_method`, `request_hash`, `status`, `response_status`, `response_body` (CLOB), `content_type` (VARCHAR 255), `response_headers` (CLOB), `created_at`, `expires_at` (24h TTL), unique constraint `uk_idempotency_key_user`, and index on `expires_at`.
+  - Domain Entity: `IdempotencyKey` and repository `IdempotencyKeyRepository` with bulk `@Modifying` query `deleteExpiredKeys(LocalDateTime now)`.
+  - Caching & Security Infrastructure:
+    - `CachedBodyHttpServletRequest` enforces configurable `idempotency.max-body-size-bytes` (default 1MB) limit checking both `Content-Length` header and stream reading, throwing `PayloadTooLargeException` (HTTP 413) to prevent heap exhaustion.
+    - `IdempotencyFilter` validates `Idempotency-Key` against `^[\\x21-\\x7E]{1,255}$` (rejecting empty/whitespace/non-ASCII/oversized keys with HTTP 400).
+    - Captures response status, body, content type, and headers (filtering out hop-by-hop headers `transfer-encoding`, `connection`, `keep-alive`, `content-length`, etc.) into `IdempotencyResult`.
+  - Service: `IdempotencyService` with atomic `REQUIRES_NEW` transactions (`processOrAcquire`, `completeOperation`, `failOperation`, `removeKey`, `cleanupExpiredKeys`). Client errors (401, 403, 400) do not lock the key, permitting immediate safe retry.
+  - Background Cleanup: `IdempotencyCleanupScheduler` annotated with `@Scheduled` (runs periodically) automatically pruning expired keys via `cleanupExpiredKeys()`.
 - **API:**
-  - Standard HTTP Header: `Idempotency-Key: <unique-uuid>` on any mutating endpoint (e.g. `POST /api/leave-requests`, `PUT /api/leave-requests/{id}/approve`, etc.)
-  - Response Headers: `Idempotency-Key: <key>`, `Idempotency-Replayed: true` (on replay)
-  - Error Responses: `409 Conflict` ("Idempotency key payload mismatch" or "A request with this idempotency key is currently in progress")
+  - Standard HTTP Header: `Idempotency-Key: <unique-ascii-key>` on mutating endpoints
+  - Response Headers: `Idempotency-Key: <key>`, `Idempotency-Replayed: true` (on replay), preserved original response headers
+  - Error Responses: `400 Bad Request` (invalid key format), `413 Payload Too Large` (oversized request body), `409 Conflict` (payload mismatch or in-flight collision)
 - **Test:**
-  - `IdempotencyIntegrationTest` (8 tests):
-    - `testFirstRequestWithIdempotencyKey_SucceedsAndRecordsKey`: Initial request with key succeeds (201 Created), returns `Idempotency-Key` header without `Idempotency-Replayed`, and stores `COMPLETED` record in database.
-    - `testReplayingIdenticalRequest_ReturnsCachedResponseWithReplayedHeader`: Submitting identical request with same key returns cached response (201 Created) with `Idempotency-Replayed: true` without duplicate leave requests or balance deduction.
-    - `testReplayingWithDifferentPayload_Returns409Conflict`: Reusing same key with altered payload returns `409 Conflict` ("Idempotency key payload mismatch").
+  - `IdempotencyIntegrationTest` (16 integration tests):
+    - `testFirstRequestWithIdempotencyKey_SucceedsAndRecordsKey`: Initial request succeeds (201 Created), returns `Idempotency-Key` header without `Idempotency-Replayed`, and stores `COMPLETED` record in database with headers and content type.
+    - `testReplayingIdenticalRequest_PreservesOriginalStatusBodyContentTypeAndHeaders`: Replay precisely mirrors original 201 response status, JSON body, `application/json` content type, and custom response headers with `Idempotency-Replayed: true`.
+    - `testReplayingWithDifferentPayload_Returns409Conflict`: Reusing same key with altered payload returns `409 Conflict`.
     - `testIdempotentApprovals_SafeRetryWithoutDoubleApprovalOrError`: Retrying approval requests (`PUT /api/leave-requests/{id}/approve`) with same key returns 200 OK replay safely without double-approval errors.
+    - `testAuthenticationFailure_PermitsRetry_DoesNotLockKey`: 401 Unauthorized does not lock key; subsequent valid request with same key succeeds.
+    - `testAuthorizationFailure_PermitsRetry_DoesNotLockKey`: 403 Forbidden does not lock key; subsequent authorized request with same key succeeds.
+    - `testValidationFailure_PermitsRetry_CanCorrectPayload`: 400 Bad Request validation failure permits retry; client can fix payload with same key.
+    - `testRetryingRequestCannotCreateDuplicateLeaveRequestsOrBalanceChanges`: Repeated identical retries cannot create duplicate leave requests or duplicate quota deductions.
+    - `testInvalidIdempotencyKey_Returns400BadRequest`: Tests for empty, whitespace-containing, and >255 character keys returning 400 Bad Request.
+    - `testOversizedRequestBody_Returns413PayloadTooLarge`: Tests for request bodies exceeding `max-body-size-bytes` returning 413 Payload Too Large before buffering.
     - `testRequestsWithoutIdempotencyKey_BypassIdempotency`: Normal requests without header execute normally without recording in `idempotency_keys`.
     - `testGetRequests_BypassIdempotencyEvenWithHeader`: Safe `GET` endpoints bypass idempotency table storage.
     - `testDifferentUsersWithSameKey_IsolatedAndIndependent`: Two distinct users can safely use identical key values independently without collision.
     - `testConcurrentRequestsWithSameIdempotencyKey_PreventsDoubleExecution`: Multiple parallel threads racing with the exact same key produce strictly one created leave request with all other in-flight requests serialized or receiving 409 Conflict.
+    - `testExpiryAndCleanup_ExpiredKeysDeleted`: Background cleanup deletes expired keys while preserving valid unexpired keys.
+    - `testKeyReuseAfterExpiry_SucceedsAsNewExecution`: Using an expired key behaves as a fresh execution rather than a replay.
 - **Status:** **DONE**
 
 ### 29. Concurrency & Race-Condition Testing Suite
-- **Requirement:** Implement a comprehensive, multi-threaded race-condition test suite validating that all critical state transitions, leave balance accounting, overlap prevention, and idempotency invariants hold strictly under high-concurrency workloads. Guarantee no phantom reads, write skews, double balance deductions, or negative balances when multiple threads compete simultaneously for the same resources.
+- **Requirement:** Implement a comprehensive, multi-threaded race-condition test suite validating that all critical state transitions, leave balance accounting, overlap prevention, and idempotency invariants hold strictly under high-concurrency workloads. Enforce quality gates where any unexpected HTTP status, worker exception, or timeout fails the test. Assert final leave-request status, balance accounting $(available + used == total)$, audit log records (`AuditLogRepository`), sign-off records (`LeaveRequestSignoffRepository`), and transaction reviews (`TransactionReviewRepository`). Verify locking configuration with production row-level lock semantics (`DEFAULT_LOCK_TIMEOUT=15000`).
 - **Implementation:**
   - Multi-threaded integration testing framework leveraging `java.util.concurrent` primitives (`ExecutorService`, `CountDownLatch`, `AtomicInteger`, `synchronizedList`).
   - Pessimistic locking validation (`PESSIMISTIC_WRITE` on `Employee`, `LeaveBalance`, and `LeaveRequest`).
-  - Dual-lock serialization ensuring consistent lock acquisition order (`Employee` -> `LeaveBalance` -> `LeaveRequest`) to eliminate deadlock risks.
-- **Test Suite (`RaceConditionIntegrationTest` - 12 Concurrency Scenarios):**
-  1. `balanceDepleted_tenConcurrentApprovalAttempts_exactlyOneSucceeds_balanceDeductedOnce`: 10 concurrent threads simultaneously attempt to approve the same pending request; exactly 1 succeeds (HTTP 200) and balance is deducted exactly once.
-  2. `approveAndRejectRace_exactlyOneWins_balanceConsistentWithWinner`: Simultaneous Approve vs. Reject on the same pending request; exactly one operation wins and balance is adjusted conditionally.
-  3. `approveAndCancelRace_exactlyOneWins_noBalanceCorruption`: Simultaneous Approve (Admin) vs. Cancel (Employee); exactly one wins without balance corruption.
+  - Strict Quality Gate assertion: `assertNoWorkerExceptions` catches any asynchronous thread faults; timeout latches fail immediately; every returned HTTP status is strictly asserted against expected success/failure codes (200/201 vs 400/409).
+  - Explicit database verification asserting final entity states, balance conservation, and audit/signoff trails.
+- **Test Suite (`RaceConditionIntegrationTest` - 13 Concurrency Scenarios):**
+  1. `balanceDepleted_tenConcurrentApprovalAttempts_exactlyOneSucceeds_balanceDeductedOnce`: 10 concurrent threads simultaneously attempt to approve the same pending request; exactly 1 succeeds (HTTP 200) and balance is deducted exactly once; audit trail verified.
+  2. `approveAndRejectRace_exactlyOneWins_balanceConsistentWithWinner`: Simultaneous Approve vs. Reject on the same pending request; exactly one operation wins and balance is adjusted conditionally; audit log verified.
+  3. `approveAndCancelRace_exactlyOneWins_noBalanceCorruption`: Simultaneous Approve (Admin) vs. Cancel (Employee); exactly one wins without balance corruption; audit log asserted.
   4. `rejectAndCancelRace_exactlyOneWins_balanceAlwaysUntouched`: Simultaneous Reject vs. Cancel on a pending request; exactly one succeeds and balance remains untouched.
   5. `concurrentIdempotentSubmissions_sameKey_exactlyOneProcessed_othersCached`: 5 concurrent threads submit identical requests with the same `Idempotency-Key`; exactly 1 request is created, competing threads receive 409 Conflict (in progress), and subsequent replays receive cached 201 responses with `Idempotency-Replayed: true`.
   6. `highConcurrencyApplicationStorm_scarceBalance_exactlyOneSucceeds_balanceNonNegative`: 10 concurrent threads apply for leave with limited balance; exactly 1 succeeds and balance never goes negative.
   7. `mixedActors_adminApproveVsEmployeeCancel_exactlyOneWins_stateAndBalanceConsistent`: Mixed actors racing simultaneously across different permission roles; strict state transition and balance consistency preserved.
   8. `writeSkew_twoEmployees_sameDates_eachHasOwnBalance_bothSucceed_individuallyDeducted`: Two distinct employees apply and approve leaves for identical date ranges simultaneously; both succeed independently without deadlock or cross-employee balance interference.
   9. `concurrentReApplicationAfterRefund_exactlyOneSucceeds_noDoubleRefund`: Concurrent re-application immediately following cancellation refund; ensures no double refund or over-allocation.
-  10. `threeConcurrentCancellations_approvedRequest_exactlyOneSucceeds_balanceRefundedOnce`: 3 concurrent cancellation attempts against an approved request; exactly 1 succeeds and balance is refunded exactly once.
+  10. `threeConcurrentCancellations_approvedRequest_exactlyOneSucceeds_balanceRefundedOnce`: 3 concurrent cancellation attempts against an approved request; exactly 1 succeeds, balance is refunded once, transaction review recorded once, and competing attempts fail cleanly.
   11. `concurrentApprovalOfTwoDistinctRequests_exhaustsBalance_bothApproved_balanceZero`: 4 threads racing across 2 distinct requests of the same employee; both requests are approved and balance is exhausted cleanly to zero without race conditions.
   12. `phantomReadGuard_concurrentApprovalAndApplication_balanceInvariantNeverViolated`: Concurrent approval and application; balance invariant `(available + used == total)` is strictly preserved under pessimistic locking.
+  13. `dualApproverConcurrentRace_managerAndHr_bothSucceed_dualSignoffsRecorded`: Concurrent Manager and HR sign-offs on dual-approval request; both sign-offs recorded in `leave_request_signoffs`, request reaches `APPROVED`, and balance is deducted strictly once.
 - **Status:** **DONE**
 
 

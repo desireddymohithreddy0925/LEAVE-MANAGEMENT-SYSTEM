@@ -1,0 +1,15 @@
+databaseChangeLog:
+  - changeSet:
+      id: 025-add-idempotency-response-headers
+      author: antigravity
+      changes:
+        - addColumn:
+            tableName: idempotency_keys
+            columns:
+              - column:
+                  name: content_type
+                  type: varchar(255)
+              - column:
+                  name: response_headers
+                  type: clob
+

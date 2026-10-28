@@ -180,3 +180,7 @@ databaseChangeLog:
       file: changes/024-add-idempotency-keys.yaml
       relativeToChangelogFile: true
 
+  - include:
+      file: changes/025-add-idempotency-response-headers.yaml
+      relativeToChangelogFile: true
+
