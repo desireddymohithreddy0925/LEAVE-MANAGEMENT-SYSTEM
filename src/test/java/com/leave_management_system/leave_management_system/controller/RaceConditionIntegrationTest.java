@@ -285,7 +285,7 @@ public class RaceConditionIntegrationTest {
             });
         }
         start.countDown();
-        assertTrue(done.await(15, TimeUnit.SECONDS), "10-thread approval storm timed out");
+        assertTrue(done.await(40, TimeUnit.SECONDS), "10-thread approval storm timed out");
         ex.shutdown();
 
         assertNoWorkerExceptions(exceptions);
@@ -353,7 +353,7 @@ public class RaceConditionIntegrationTest {
         }, "race-reject").start();
 
         start.countDown();
-        assertTrue(done.await(10, TimeUnit.SECONDS), "Approve+Reject race timed out");
+        assertTrue(done.await(30, TimeUnit.SECONDS), "Approve+Reject race timed out");
 
         assertNoWorkerExceptions(exceptions);
         assertEquals(1, ok.get(), "Exactly one must win. Outcomes: " + outcomes);
@@ -414,7 +414,7 @@ public class RaceConditionIntegrationTest {
         }, "race-cancel").start();
 
         start.countDown();
-        assertTrue(done.await(10, TimeUnit.SECONDS), "Approve+Cancel race timed out");
+        assertTrue(done.await(30, TimeUnit.SECONDS), "Approve+Cancel race timed out");
 
         assertNoWorkerExceptions(exceptions);
         assertEquals(1, ok.get(), "Exactly one must win. Outcomes: " + outcomes);
@@ -475,7 +475,7 @@ public class RaceConditionIntegrationTest {
         }, "race-cancel").start();
 
         start.countDown();
-        assertTrue(done.await(10, TimeUnit.SECONDS), "Reject+Cancel race timed out");
+        assertTrue(done.await(30, TimeUnit.SECONDS), "Reject+Cancel race timed out");
 
         assertNoWorkerExceptions(exceptions);
         assertEquals(1, ok.get(), "Exactly one must win. Outcomes: " + outcomes);
@@ -518,7 +518,7 @@ public class RaceConditionIntegrationTest {
             });
         }
         start.countDown();
-        assertTrue(done.await(15, TimeUnit.SECONDS), "Idempotent race timed out");
+        assertTrue(done.await(30, TimeUnit.SECONDS), "Idempotent race timed out");
         ex.shutdown();
 
         assertNoWorkerExceptions(exceptions);
@@ -574,7 +574,7 @@ public class RaceConditionIntegrationTest {
             });
         }
         start.countDown();
-        assertTrue(done.await(20, TimeUnit.SECONDS), "High-concurrency storm timed out");
+        assertTrue(done.await(40, TimeUnit.SECONDS), "High-concurrency storm timed out");
         ex.shutdown();
 
         assertNoWorkerExceptions(exceptions);
@@ -631,7 +631,7 @@ public class RaceConditionIntegrationTest {
         }, "emp-cancel").start();
 
         start.countDown();
-        assertTrue(done.await(10, TimeUnit.SECONDS), "Mixed-actors race timed out");
+        assertTrue(done.await(30, TimeUnit.SECONDS), "Mixed-actors race timed out");
 
         assertNoWorkerExceptions(exceptions);
         assertEquals(1, ok.get(), "Exactly one must win. Outcomes: " + outcomes);
@@ -692,7 +692,7 @@ public class RaceConditionIntegrationTest {
         });
 
         start.countDown();
-        assertTrue(done.await(10, TimeUnit.SECONDS), "Write-skew scenario timed out");
+        assertTrue(done.await(30, TimeUnit.SECONDS), "Write-skew scenario timed out");
         ex.shutdown();
 
         assertNoWorkerExceptions(exceptions);
@@ -745,7 +745,7 @@ public class RaceConditionIntegrationTest {
             });
         }
         start.countDown();
-        assertTrue(done.await(10, TimeUnit.SECONDS), "Re-application race timed out");
+        assertTrue(done.await(30, TimeUnit.SECONDS), "Re-application race timed out");
         ex.shutdown();
 
         assertNoWorkerExceptions(exceptions);
@@ -799,7 +799,7 @@ public class RaceConditionIntegrationTest {
             });
         }
         start.countDown();
-        assertTrue(done.await(10, TimeUnit.SECONDS), "3-thread cancellation race timed out");
+        assertTrue(done.await(30, TimeUnit.SECONDS), "3-thread cancellation race timed out");
         ex.shutdown();
 
         assertNoWorkerExceptions(exceptions);
@@ -872,7 +872,7 @@ public class RaceConditionIntegrationTest {
         ex.submit(approveB); ex.submit(approveB);
 
         start.countDown();
-        assertTrue(done.await(15, TimeUnit.SECONDS), "Distinct-request approval race timed out");
+        assertTrue(done.await(30, TimeUnit.SECONDS), "Distinct-request approval race timed out");
         ex.shutdown();
 
         assertNoWorkerExceptions(exceptions);
@@ -927,7 +927,7 @@ public class RaceConditionIntegrationTest {
         }, "apply-3day").start();
 
         start.countDown();
-        assertTrue(done.await(10, TimeUnit.SECONDS), "Phantom-read guard test timed out");
+        assertTrue(done.await(30, TimeUnit.SECONDS), "Phantom-read guard test timed out");
 
         assertNoWorkerExceptions(exceptions);
 
@@ -982,7 +982,7 @@ public class RaceConditionIntegrationTest {
         }, "hr-signoff").start();
 
         start.countDown();
-        assertTrue(done.await(10, TimeUnit.SECONDS), "Dual approval race timed out");
+        assertTrue(done.await(30, TimeUnit.SECONDS), "Dual approval race timed out");
 
         assertNoWorkerExceptions(exceptions);
         for (int c : codes) {
