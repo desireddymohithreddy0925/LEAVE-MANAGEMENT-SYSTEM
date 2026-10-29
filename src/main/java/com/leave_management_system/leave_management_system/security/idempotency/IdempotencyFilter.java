@@ -23,6 +23,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -178,7 +179,13 @@ public class IdempotencyFilter extends OncePerRequestFilter {
             responseWrapper.setHeader(IDEMPOTENCY_KEY_HEADER, idempotencyKey);
             responseWrapper.copyBodyToResponse();
         } catch (Exception ex) {
-            idempotencyService.failOperation(idempotencyKey, userEmail, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, ex.getMessage());
+            // If the operation already committed and was marked COMPLETED (e.g. downstream business transaction succeeded),
+            // do NOT overwrite it with FAILED if an error occurs during response transmission or socket writing.
+            // This guarantees that any subsequent client retry will safely replay the committed response instead of re-executing.
+            Optional<com.leave_management_system.leave_management_system.entity.IdempotencyKey> existing = idempotencyService.findKey(idempotencyKey, userEmail);
+            if (existing.isEmpty() || !"COMPLETED".equals(existing.get().getStatus())) {
+                idempotencyService.failOperation(idempotencyKey, userEmail, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, ex.getMessage());
+            }
             throw ex;
         }
     }

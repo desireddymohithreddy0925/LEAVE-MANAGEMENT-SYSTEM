@@ -35,13 +35,16 @@ public class IdempotencyService {
         if (existingOpt.isPresent()) {
             IdempotencyKey existing = existingOpt.get();
 
-            // Check if key has expired (e.g. 24h TTL)
+            // 1. If an operation is currently IN_PROGRESS, cleanup or concurrent reuse must NOT delete or replace it
+            if ("IN_PROGRESS".equals(existing.getStatus())) {
+                log.warn("Concurrent in-progress request detected for idempotency key '{}' and user '{}'", key, userEmail);
+                return IdempotencyResult.inProgress();
+            }
+
+            // 2. Check if key has expired (only completed or failed keys can be safely pruned)
             if (existing.getExpiresAt().isBefore(LocalDateTime.now())) {
                 log.info("Idempotency key '{}' expired at {}. Removing expired record.", key, existing.getExpiresAt());
                 removeKey(key, userEmail);
-            } else if ("IN_PROGRESS".equals(existing.getStatus())) {
-                log.warn("Concurrent in-progress request detected for idempotency key '{}' and user '{}'", key, userEmail);
-                return IdempotencyResult.inProgress();
             } else if ("COMPLETED".equals(existing.getStatus())) {
                 if (existing.getRequestHash().equals(requestHash)) {
                     log.info("Replaying cached response for idempotency key '{}' and user '{}'", key, userEmail);

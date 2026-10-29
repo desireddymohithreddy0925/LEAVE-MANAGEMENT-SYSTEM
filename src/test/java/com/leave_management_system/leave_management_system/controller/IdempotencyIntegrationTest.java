@@ -854,4 +854,120 @@ public class IdempotencyIntegrationTest {
         assertEquals(numThreads, successCount.get() + conflictCount.get());
         assertTrue(successCount.get() >= 1, "At least one request must succeed");
     }
+
+    @Test
+    public void testExpiredInProgressKey_CannotBeDeletedByCleanup() {
+        LocalDateTime now = LocalDateTime.now();
+
+        // 1. In-progress record with past expiration (e.g. active long-running transaction)
+        IdempotencyKey inProgressKey = new IdempotencyKey(
+                "key-in-progress-expired", "user1@test.com", "/api/leave-requests", "POST",
+                "hash1", "IN_PROGRESS", now.minusHours(2), now.minusMinutes(30)
+        );
+        idempotencyKeyRepository.saveAndFlush(inProgressKey);
+
+        // 2. Completed record with past expiration
+        IdempotencyKey completedExpiredKey = new IdempotencyKey(
+                "key-completed-expired", "user1@test.com", "/api/leave-requests", "POST",
+                "hash2", "COMPLETED", now.minusHours(48), now.minusHours(24)
+        );
+        idempotencyKeyRepository.saveAndFlush(completedExpiredKey);
+
+        // 3. Trigger cleanup
+        int deleted = idempotencyService.cleanupExpiredKeys();
+        assertEquals(1, deleted, "Cleanup must delete only completed/failed expired records, not IN_PROGRESS");
+
+        // 4. Assert in-progress record is safely preserved
+        assertTrue(idempotencyKeyRepository.findByIdempotencyKeyAndUserEmail("key-in-progress-expired", "user1@test.com").isPresent(),
+                "Active IN_PROGRESS reservation must never be deleted by cleanup");
+        assertFalse(idempotencyKeyRepository.findByIdempotencyKeyAndUserEmail("key-completed-expired", "user1@test.com").isPresent(),
+                "Completed expired record must be deleted");
+    }
+
+    @Test
+    public void testExpiredInProgressKey_ConcurrentReuseCannotDeleteOrReplaceReservation() throws Exception {
+        String key = "key-in-progress-reuse-" + UUID.randomUUID();
+        LocalDateTime now = LocalDateTime.now();
+
+        // Active in-progress reservation whose expiresAt is in the past
+        IdempotencyKey inProgressKey = new IdempotencyKey(
+                key, employee1.getUser().getEmail(), "/api/leave-requests", "POST",
+                "active-hash", "IN_PROGRESS", now.minusHours(2), now.minusMinutes(10)
+        );
+        idempotencyKeyRepository.saveAndFlush(inProgressKey);
+
+        LeaveRequestDTO dto = new LeaveRequestDTO();
+        dto.setEmployeeId(employee1.getId());
+        dto.setLeaveTypeId(annualLeaveType.getId());
+        dto.setStartDate(LocalDate.of(2026, 12, 28));
+        dto.setEndDate(LocalDate.of(2026, 12, 30));
+        dto.setReason("Attempted concurrent reuse while in-progress");
+
+        // Attempting to reuse this key while original operation is still in-progress returns 409 Conflict
+        MvcResult result = mockMvc.perform(post("/api/leave-requests")
+                        .header("Authorization", employee1Token)
+                        .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isConflict())
+                .andReturn();
+
+        assertTrue(result.getResponse().getContentAsString().contains("currently in progress"),
+                "Must reject concurrent reuse with 409 in-progress error");
+
+        // The reservation was NOT replaced or deleted
+        IdempotencyKey preserved = idempotencyKeyRepository
+                .findByIdempotencyKeyAndUserEmail(key, employee1.getUser().getEmail()).orElseThrow();
+        assertEquals("IN_PROGRESS", preserved.getStatus(), "Reservation status must remain IN_PROGRESS");
+        assertEquals("active-hash", preserved.getRequestHash(), "Original reservation hash must not be overwritten");
+        assertEquals(0, leaveRequestRepository.findByEmployee(employee1).size(), "No leave request created");
+    }
+
+    @Test
+    public void testPostCommitFailure_RetryingWithSameKeyDoesNotDuplicateOperation() throws Exception {
+        String key = "key-post-commit-" + UUID.randomUUID();
+
+        LeaveRequestDTO dto = new LeaveRequestDTO();
+        dto.setEmployeeId(employee1.getId());
+        dto.setLeaveTypeId(annualLeaveType.getId());
+        dto.setStartDate(LocalDate.of(2026, 12, 8));
+        dto.setEndDate(LocalDate.of(2026, 12, 10)); // 3 working days (Tuesday - Thursday)
+        dto.setReason("Post commit failure test");
+
+        // 1. Initial request commits successfully (201 Created)
+        MvcResult firstResult = mockMvc.perform(post("/api/leave-requests")
+                        .header("Authorization", employee1Token)
+                        .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        assertNull(firstResult.getResponse().getHeader(IdempotencyFilter.IDEMPOTENCY_REPLAYED_HEADER));
+        String originalBody = firstResult.getResponse().getContentAsString();
+        assertEquals(1, leaveRequestRepository.findByEmployee(employee1).size(), "Exactly 1 leave request created");
+
+        // Verify idempotency record is COMPLETED
+        IdempotencyKey completedKey = idempotencyKeyRepository
+                .findByIdempotencyKeyAndUserEmail(key, employee1.getUser().getEmail()).orElseThrow();
+        assertEquals("COMPLETED", completedKey.getStatus());
+        assertEquals(201, completedKey.getResponseStatus());
+
+        // 2. Client encounters connection timeout / network drop and retries with the SAME Idempotency-Key
+        MvcResult retryResult = mockMvc.perform(post("/api/leave-requests")
+                        .header("Authorization", employee1Token)
+                        .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        // 3. Retry must return exact cached response with Idempotency-Replayed header
+        assertEquals("true", retryResult.getResponse().getHeader(IdempotencyFilter.IDEMPOTENCY_REPLAYED_HEADER));
+        assertEquals(key, retryResult.getResponse().getHeader(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER));
+        assertEquals(originalBody, retryResult.getResponse().getContentAsString());
+
+        // 4. Invariant: Strictly 1 leave request in database (no duplicate operation created)
+        assertEquals(1, leaveRequestRepository.findByEmployee(employee1).size(), "Retrying after commit must not duplicate the operation");
+    }
 }

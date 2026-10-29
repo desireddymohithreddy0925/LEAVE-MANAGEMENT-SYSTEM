@@ -32,15 +32,13 @@ public class IdempotencyKey {
     @Column(name = "response_status")
     private Integer responseStatus;
 
-    @Lob
-    @Column(name = "response_body")
+    @Column(name = "response_body", columnDefinition = "TEXT")
     private String responseBody;
 
     @Column(name = "content_type", length = 255)
     private String contentType;
 
-    @Lob
-    @Column(name = "response_headers")
+    @Column(name = "response_headers", columnDefinition = "TEXT")
     private String responseHeaders;
 
     @Column(name = "created_at", nullable = false)

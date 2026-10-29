@@ -43,7 +43,7 @@ databaseChangeLog:
                   type: varchar(255)
               - column:
                   name: active
-                  type: bit(1)
+                  type: boolean
                   constraints:
                     nullable: false
               - column:

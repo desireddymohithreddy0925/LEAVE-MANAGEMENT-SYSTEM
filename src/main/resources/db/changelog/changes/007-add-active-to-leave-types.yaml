@@ -8,7 +8,7 @@ databaseChangeLog:
             columns:
               - column:
                   name: active
-                  type: bit(1)
+                  type: boolean
                   defaultValueBoolean: true
                   constraints:
                     nullable: false

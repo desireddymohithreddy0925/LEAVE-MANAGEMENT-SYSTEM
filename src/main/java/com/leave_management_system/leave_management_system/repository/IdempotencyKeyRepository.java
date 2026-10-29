@@ -18,6 +18,6 @@ public interface IdempotencyKeyRepository extends JpaRepository<IdempotencyKey, 
     void deleteByExpiresAtBefore(LocalDateTime dateTime);
 
     @Modifying
-    @Query("DELETE FROM IdempotencyKey k WHERE k.expiresAt <= :dateTime")
+    @Query("DELETE FROM IdempotencyKey k WHERE k.expiresAt <= :dateTime AND k.status <> 'IN_PROGRESS'")
     int deleteExpiredKeys(@Param("dateTime") LocalDateTime dateTime);
 }
