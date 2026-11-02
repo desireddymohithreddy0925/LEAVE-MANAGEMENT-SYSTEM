@@ -24,6 +24,9 @@ e2e-test.sh
 *.md
 *.patch
 *.txt
+.env
+.env.*
+!.env.example
 
 # OS metadata
 .DS_Store

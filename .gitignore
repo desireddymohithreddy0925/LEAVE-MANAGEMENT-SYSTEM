@@ -30,5 +30,11 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
+### Environment Variables ###
+.env
+.env.local
+.env.*.local
+!.env.example
+
 ### VS Code ###
 .vscode/

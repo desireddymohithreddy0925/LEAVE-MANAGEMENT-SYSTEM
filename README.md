@@ -13,12 +13,30 @@ This is a complete, enterprise-ready Leave Management System backend built with 
 
 ## Setup & Run Instructions
 
-### 1. Docker Setup (Recommended)
-You can run the entire stack (PostgreSQL + Spring Boot Application) using Docker Compose:
-```bash
-docker-compose up --build
-```
-This will start the database and application using `application-prod.yml` configuration. The application will be available on `http://localhost:8080`.
+### 1. Docker Compose Setup (Recommended)
+You can run the entire production-ready stack (PostgreSQL + Spring Boot Application) using Docker Compose:
+
+1. **(Optional) Configure Environment**:
+   ```bash
+   cp .env.example .env
+   ```
+2. **Start Services**:
+   ```bash
+   docker compose up --build -d
+   ```
+   This builds the hardened multi-stage image, spins up PostgreSQL with a persistent volume and health check, applies all Liquibase schema changes automatically, and runs the application under non-root privileges on `http://localhost:8080`.
+
+3. **Check Container Status & Logs**:
+   ```bash
+   docker compose ps
+   docker compose logs -f app
+   ```
+
+4. **Stop Services**:
+   ```bash
+   docker compose down        # Stops containers, preserves database volume
+   docker compose down -v     # Stops containers and removes database volume (clean reset)
+   ```
 
 ### 2. Local Database Setup (Development)
 If you prefer running locally, start a local PostgreSQL container on port `5432` with the database `leave_management_db`.
