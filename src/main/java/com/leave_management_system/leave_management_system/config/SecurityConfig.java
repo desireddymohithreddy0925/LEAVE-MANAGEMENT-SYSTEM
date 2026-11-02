@@ -88,6 +88,7 @@ public class SecurityConfig {
                 auth.requestMatchers("/api/auth/change-password").authenticated()
                     .requestMatchers("/api/auth/login-history/**", "/api/auth/login-history").authenticated()
                     .requestMatchers("/api/auth/**").permitAll()
+                    .requestMatchers("/actuator/**").permitAll()
                     .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                     .anyRequest().authenticated()
             );

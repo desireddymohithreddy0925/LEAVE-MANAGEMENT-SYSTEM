@@ -45,6 +45,16 @@ jobs:
     - name: Run Tests (Unit and Integration)
       run: ./mvnw test
 
+    - name: Set up Node.js for Postman / Newman Validation
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Run Postman Validation Suite (Newman)
+      run: |
+        chmod +x ./run-postman-tests.sh
+        ./run-postman-tests.sh
+
     - name: Package Application
       run: ./mvnw package -DskipTests
 

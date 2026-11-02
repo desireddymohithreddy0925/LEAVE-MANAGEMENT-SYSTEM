@@ -43,9 +43,29 @@ The application will run on `http://localhost:8080`. Liquibase will automaticall
 Once the application is running, navigate to:
 **[http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)** to view the interactive API documentation and test endpoints directly from the browser.
 
-### Postman Collection
-A comprehensive End-to-End Postman collection is included in this repository: `LMS_E2E_Workflow.postman_collection.json`. 
-You can import this directly into Postman to test the full lifecycle of a leave request.
+### Postman Collection & Automated Newman Validation
+
+A production-grade, 56-request Postman test suite with 102+ automated test assertions (`pm.test`) is included in:
+- Collection: [`postman/Leave_Management_System.postman_collection.json`](file:///Users/desireddymohithreddy/Library/Mobile%20Documents/com~apple~CloudDocs/Leave%20Management%20System/leave-management-system/postman/Leave_Management_System.postman_collection.json) (and synced to root [`postman_collection.json`](file:///Users/desireddymohithreddy/Library/Mobile%20Documents/com~apple~CloudDocs/Leave%20Management%20System/leave-management-system/postman_collection.json))
+- Environment: [`postman/Leave_Management_System.postman_environment.json`](file:///Users/desireddymohithreddy/Library/Mobile%20Documents/com~apple~CloudDocs/Leave%20Management%20System/leave-management-system/postman/Leave_Management_System.postman_environment.json))
+
+#### Automated Execution via Newman CLI
+You can execute the entire test suite against an embedded application instance with a single command:
+```bash
+./run-postman-tests.sh
+```
+This script will:
+1. Detect if the service is running, or start it automatically in the background on an isolated port.
+2. Wait for `/actuator/health` to confirm the application is ready.
+3. Execute Newman against all test folders and validate status codes, payload schemas, header invariants, and dynamic variable propagation.
+4. Export JSON & CLI test execution reports to `target/newman-reports/`.
+
+#### Importing into Postman Desktop
+1. Open Postman.
+2. Click **Import** in the top left.
+3. Select `postman/Leave_Management_System.postman_collection.json` and `postman/Leave_Management_System.postman_environment.json`.
+4. Select the environment **Leave Management System - Local Environment**.
+5. Click **Run Collection** to execute all 56 requests sequentially.
 
 ## Security Design (Production-Ready Platform)
 
