@@ -1,0 +1,32 @@
+# Git and GitHub
+.git
+.gitignore
+.github
+
+# Build artifacts
+target/
+target 2/
+**/* 2*
+
+# IDE configurations
+.idea/
+.vscode/
+*.iml
+
+# Test and tooling artifacts
+node_modules/
+postman/
+run-postman-tests.sh
+e2e-test.sh
+
+# Temporary, markdown, and log files
+*.log
+*.md
+*.patch
+*.txt
+
+# OS metadata
+.DS_Store
+**/.DS_Store
+Thumbs.db
+
