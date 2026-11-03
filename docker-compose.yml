@@ -5,10 +5,11 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USERNAME:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?Error: DB_PASSWORD must be set in .env or environment}"
       POSTGRES_DB: ${DB_NAME:-leave_management_db}
+    # Restrict PostgreSQL port 5432 to host loopback interface only (not exposed publicly)
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -34,12 +35,12 @@ services:
     ports:
       - "${APP_PORT:-8080}:8080"
     environment:
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      - SPRING_PROFILES_ACTIVE=prod
       - DB_URL=jdbc:postgresql://db:5432/${DB_NAME:-leave_management_db}
       - DB_USERNAME=${DB_USERNAME:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-secret}
-      - JWT_SECRET=${JWT_SECRET:-defaultSecretKeyThatIsAtLeast32CharactersLongAndSecure!}
-      - JWT_EXPIRATION=${JWT_EXPIRATION:-86400000}
+      - "DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set in .env or environment}"
+      - "JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env or environment}"
+      - JWT_EXPIRATION=${JWT_EXPIRATION:-900000}
       - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-604800000}
     depends_on:
       db:

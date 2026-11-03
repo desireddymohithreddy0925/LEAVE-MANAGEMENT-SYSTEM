@@ -12,7 +12,28 @@ spring:
     enabled: true
     change-log: classpath:db/changelog/db.changelog-master.yaml
 
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    expirationMs: ${JWT_EXPIRATION:900000}
+    refreshExpirationMs: ${JWT_REFRESH_EXPIRATION:604800000}
+
+jwt:
+  secret: ${JWT_SECRET}
+  expirationMs: ${JWT_EXPIRATION:900000}
+  refreshExpirationMs: ${JWT_REFRESH_EXPIRATION:604800000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
 logging:
   level:
     root: INFO
     com.leave_management_system: INFO
+    org.springframework.security: WARN

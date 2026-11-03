@@ -5,9 +5,15 @@ spring:
     active: ${SPRING_PROFILES_ACTIVE:dev}
 
 # Common JWT configuration defaults (can be overridden in environments)
+app:
+  jwt:
+    secret: ${JWT_SECRET:defaultSecretKeyThatNeedsToBeVeryLongAndSecureEnoughForHS256AlgorithmToBeUsedSafelyAndSecurely}
+    expirationMs: ${JWT_EXPIRATION:900000}
+    refreshExpirationMs: ${JWT_REFRESH_EXPIRATION:604800000}
+
 jwt:
-  secret: ${JWT_SECRET:defaultSecretKeyThatIsAtLeast32CharactersLongAndSecure!}
-  expirationMs: ${JWT_EXPIRATION:86400000}
+  secret: ${JWT_SECRET:defaultSecretKeyThatNeedsToBeVeryLongAndSecureEnoughForHS256AlgorithmToBeUsedSafelyAndSecurely}
+  expirationMs: ${JWT_EXPIRATION:900000}
   refreshExpirationMs: ${JWT_REFRESH_EXPIRATION:604800000}
 
 # Actuator Configuration
@@ -15,10 +21,10 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized
   info:
     app:
       name: Leave Management System

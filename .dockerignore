@@ -1,35 +1,40 @@
-# Git and GitHub
-.git
+# Version control and CI
+.git/
 .gitignore
-.github
+.github/
 
-# Build artifacts
+# Build and compilation outputs
 target/
 target 2/
 **/* 2*
 
-# IDE configurations
+# IDE and editor files
 .idea/
 .vscode/
 *.iml
 
-# Test and tooling artifacts
+# Test suites and testing scripts
 node_modules/
 postman/
 run-postman-tests.sh
 e2e-test.sh
 
-# Temporary, markdown, and log files
-*.log
-*.md
-*.patch
-*.txt
+# Environment secrets (never bundle into images)
 .env
 .env.*
 !.env.example
 
-# OS metadata
+# Top-level documentation and scratch logs
+/*.log
+/*.md
+/*.patch
+/*.txt
+
+# Operating System artifacts
 .DS_Store
 **/.DS_Store
 Thumbs.db
 
+# Explicit inclusion whitelist for required build assets
+!src/**
+!pom.xml

@@ -88,7 +88,8 @@ public class SecurityConfig {
                 auth.requestMatchers("/api/auth/change-password").authenticated()
                     .requestMatchers("/api/auth/login-history/**", "/api/auth/login-history").authenticated()
                     .requestMatchers("/api/auth/**").permitAll()
-                    .requestMatchers("/actuator/**").permitAll()
+                    .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+                    .requestMatchers("/actuator/**").hasRole("ADMIN")
                     .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                     .anyRequest().authenticated()
             );
