@@ -1,17 +1,27 @@
+# ==============================================================================
+# Leave Management System - Production Environment Profile ('prod')
+# ==============================================================================
+# Hardened, zero-trust configuration. Requires all secrets to be supplied via
+# environment variables. Startup will fail if any required credential is missing.
+# ==============================================================================
+
 spring:
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      pool-name: LmsHikariProdPool
   jpa:
-    hibernate:
-      ddl-auto: validate
     show-sql: false
-  liquibase:
-    enabled: true
-    change-log: classpath:db/changelog/db.changelog-master.yaml
 
+# Production JWT Configuration (Mandatory environment injection)
 app:
   jwt:
     secret: ${JWT_SECRET}
@@ -23,6 +33,7 @@ jwt:
   expirationMs: ${JWT_EXPIRATION:900000}
   refreshExpirationMs: ${JWT_REFRESH_EXPIRATION:604800000}
 
+# Hardened Actuator Configuration (Zero public information disclosure)
 management:
   endpoints:
     web:
@@ -32,8 +43,11 @@ management:
     health:
       show-details: never
 
+# Strict Production Logging
 logging:
   level:
     root: INFO
     com.leave_management_system: INFO
     org.springframework.security: WARN
+    org.hibernate: WARN
+    org.hibernate.SQL: ERROR

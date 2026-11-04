@@ -23,6 +23,7 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private final AuditService auditService;
 
     public GlobalExceptionHandler(@Lazy @Autowired(required = false) AuditService auditService) {
@@ -193,6 +194,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponseDTO> handleGenericException(Exception exception) {
+        log.error("Unhandled exception: ", exception);
         ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Internal Server Error", "An unexpected error occurred");
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }

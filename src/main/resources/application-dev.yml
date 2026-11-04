@@ -1,20 +1,34 @@
+# ==============================================================================
+# Leave Management System - Development Environment Profile ('dev')
+# ==============================================================================
+# Optimized for local developer workflow, rapid iterations, and debugging.
+# Active by default when running locally or via `SPRING_PROFILES_ACTIVE=dev`.
+# ==============================================================================
+
 spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/leave_management_db}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
   jpa:
-    hibernate:
-      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
         format_sql: true
-  liquibase:
-    enabled: true
-    change-log: classpath:db/changelog/db.changelog-master.yaml
+        use_sql_comments: true
 
+# Developer-friendly Actuator settings
+management:
+  endpoint:
+    health:
+      show-details: always
+
+# Granular logging for local development
 logging:
   level:
     root: INFO
@@ -22,3 +36,4 @@ logging:
     org.springframework.web: INFO
     org.springframework.security: INFO
     org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql: TRACE

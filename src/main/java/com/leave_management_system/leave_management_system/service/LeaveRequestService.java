@@ -304,6 +304,7 @@ public class LeaveRequestService {
         return leaveRequestRepository.findAll(spec, pageable).map(LeaveResponseDTO::fromEntity);
     }
 
+    @Transactional(readOnly = true)
     @PreAuthorize("@securityService.canViewLeaveRequest(authentication, #id)")
     public LeaveResponseDTO getLeaveRequestById(Long id) {
         LeaveRequest leaveRequest = leaveRequestRepository.findById(id)

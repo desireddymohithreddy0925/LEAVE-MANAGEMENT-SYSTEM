@@ -1,0 +1,50 @@
+# ==============================================================================
+# Leave Management System - Staging Profile ('staging')
+# ==============================================================================
+# Mirrors production architecture for pre-release validation, load testing,
+# and integration testing with staging infrastructure.
+# ==============================================================================
+
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      connection-timeout: 30000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+  jpa:
+    show-sql: false
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    expirationMs: ${JWT_EXPIRATION:900000}
+    refreshExpirationMs: ${JWT_REFRESH_EXPIRATION:604800000}
+
+jwt:
+  secret: ${JWT_SECRET}
+  expirationMs: ${JWT_EXPIRATION:900000}
+  refreshExpirationMs: ${JWT_REFRESH_EXPIRATION:604800000}
+
+# Staging Actuator configuration (authorized inspection)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    root: INFO
+    com.leave_management_system: INFO
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN
+

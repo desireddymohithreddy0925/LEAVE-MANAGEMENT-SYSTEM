@@ -35,13 +35,15 @@ services:
     ports:
       - "${APP_PORT:-8080}:8080"
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
       - DB_URL=jdbc:postgresql://db:5432/${DB_NAME:-leave_management_db}
       - DB_USERNAME=${DB_USERNAME:-postgres}
       - "DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set in .env or environment}"
       - "JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env or environment}"
       - JWT_EXPIRATION=${JWT_EXPIRATION:-900000}
       - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-604800000}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-leave-mgmt-system-master-encryption-key-256-bit}
+      - SECURITY_TRUSTED_PROXIES=${SECURITY_TRUSTED_PROXIES:-127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
     depends_on:
       db:
         condition: service_healthy

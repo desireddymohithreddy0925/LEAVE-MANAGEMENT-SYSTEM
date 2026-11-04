@@ -1,22 +1,59 @@
+# ==============================================================================
+# Leave Management System - Base Configuration (Common Defaults)
+# ==============================================================================
+# This is the base configuration inherited by all profiles (dev, test, staging, prod).
+# Active profile defaults to 'dev' unless overridden via SPRING_PROFILES_ACTIVE.
+# ==============================================================================
+
 spring:
   application:
     name: leave-management-system
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  datasource:
+    driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: true
 
-# Common JWT configuration defaults (can be overridden in environments)
+server:
+  port: ${SERVER_PORT:${APP_PORT:8080}}
+  shutdown: graceful
+
+# --- Application Configuration Properties ('app.*') ---
 app:
   jwt:
     secret: ${JWT_SECRET:defaultSecretKeyThatNeedsToBeVeryLongAndSecureEnoughForHS256AlgorithmToBeUsedSafelyAndSecurely}
-    expirationMs: ${JWT_EXPIRATION:900000}
-    refreshExpirationMs: ${JWT_REFRESH_EXPIRATION:604800000}
+    expirationMs: ${JWT_EXPIRATION:900000}          # 15 minutes
+    refreshExpirationMs: ${JWT_REFRESH_EXPIRATION:604800000} # 7 days
+  security:
+    trusted-proxies: ${SECURITY_TRUSTED_PROXIES:127.0.0.1,::1,0:0:0:0:0:0:0:1}
+    lockout:
+      max-failed-attempts: ${LOCKOUT_MAX_FAILED_ATTEMPTS:5}
+      duration-minutes: ${LOCKOUT_DURATION_MINUTES:15}
+    encryption:
+      key: ${ENCRYPTION_KEY:leave-mgmt-system-master-encryption-key-256-bit}
+  idempotency:
+    max-body-size-bytes: ${IDEMPOTENCY_MAX_BODY_SIZE:1048576}
+    cleanup-rate-ms: ${IDEMPOTENCY_CLEANUP_RATE:3600000}
+    cleanup-initial-delay-ms: ${IDEMPOTENCY_CLEANUP_INITIAL_DELAY:60000}
 
+# Backward compatibility aliases for direct property lookups
 jwt:
   secret: ${JWT_SECRET:defaultSecretKeyThatNeedsToBeVeryLongAndSecureEnoughForHS256AlgorithmToBeUsedSafelyAndSecurely}
   expirationMs: ${JWT_EXPIRATION:900000}
   refreshExpirationMs: ${JWT_REFRESH_EXPIRATION:604800000}
 
-# Actuator Configuration
+idempotency:
+  max-body-size-bytes: ${IDEMPOTENCY_MAX_BODY_SIZE:1048576}
+  cleanup-rate-ms: ${IDEMPOTENCY_CLEANUP_RATE:3600000}
+  cleanup-initial-delay-ms: ${IDEMPOTENCY_CLEANUP_INITIAL_DELAY:60000}
+
+# --- Actuator Endpoints ---
 management:
   endpoints:
     web:
@@ -28,5 +65,14 @@ management:
   info:
     app:
       name: Leave Management System
-      description: API for managing employee leaves
+      description: Production-grade REST API for employee leave management
       version: 1.0.0
+
+# --- OpenAPI / Swagger Documentation ---
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
