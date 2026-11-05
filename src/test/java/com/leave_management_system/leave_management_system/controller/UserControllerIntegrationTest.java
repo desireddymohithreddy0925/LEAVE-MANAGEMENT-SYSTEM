@@ -125,6 +125,7 @@ public class UserControllerIntegrationTest {
     @Test
     void getAllUsers_AsAdmin_Success() throws Exception {
         mockMvc.perform(get("/api/users")
+                .param("size", "100")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(greaterThanOrEqualTo(2))))
@@ -138,6 +139,7 @@ public class UserControllerIntegrationTest {
         User unlockedUser = createUser("unlocked.user", true);
 
         mockMvc.perform(get("/api/users")
+                .param("size", "100")
                 .header("Authorization", "Bearer " + adminToken)
                 .param("locked", "true"))
                 .andExpect(status().isOk())
@@ -152,6 +154,7 @@ public class UserControllerIntegrationTest {
         User unlockedUser = createUser("unlocked.user2", true);
 
         mockMvc.perform(get("/api/users")
+                .param("size", "100")
                 .header("Authorization", "Bearer " + adminToken)
                 .param("locked", "false"))
                 .andExpect(status().isOk())
