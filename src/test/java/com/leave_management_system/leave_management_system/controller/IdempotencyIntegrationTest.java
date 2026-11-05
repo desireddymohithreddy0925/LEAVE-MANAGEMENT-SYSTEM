@@ -95,6 +95,9 @@ public class IdempotencyIntegrationTest {
     private TransactionReviewRepository transactionReviewRepository;
 
     @Autowired
+    private DepartmentRepository departmentRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -262,7 +265,23 @@ public class IdempotencyIntegrationTest {
         leaveRequestRepository.deleteAll();
         leaveBalanceRepository.deleteAll();
         leaveTypeRepository.deleteAll();
+
+        departmentRepository.findAll().forEach(dept -> {
+            if (dept.getManager() != null) {
+                dept.setManager(null);
+                departmentRepository.save(dept);
+            }
+        });
+        employeeRepository.findAll().forEach(emp -> {
+            if (emp.getManager() != null || emp.getDepartment() != null) {
+                emp.setManager(null);
+                emp.setDepartment(null);
+                employeeRepository.save(emp);
+            }
+        });
+
         employeeRepository.deleteAll();
+        departmentRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         securityEventRepository.deleteAll();
         auditLogRepository.deleteAll();

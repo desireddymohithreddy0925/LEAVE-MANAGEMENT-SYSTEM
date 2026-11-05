@@ -83,6 +83,9 @@ public class DualConcurrentApprovalIntegrationTest {
     private TransactionReviewRepository transactionReviewRepository;
 
     @Autowired
+    private DepartmentRepository departmentRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -234,7 +237,23 @@ public class DualConcurrentApprovalIntegrationTest {
         leaveRequestSignoffRepository.deleteAll();
         leaveRequestRepository.deleteAll();
         leaveBalanceRepository.deleteAll();
+
+        departmentRepository.findAll().forEach(dept -> {
+            if (dept.getManager() != null) {
+                dept.setManager(null);
+                departmentRepository.save(dept);
+            }
+        });
+        employeeRepository.findAll().forEach(emp -> {
+            if (emp.getManager() != null || emp.getDepartment() != null) {
+                emp.setManager(null);
+                emp.setDepartment(null);
+                employeeRepository.save(emp);
+            }
+        });
+
         employeeRepository.deleteAll();
+        departmentRepository.deleteAll();
         leaveTypeRepository.deleteAll();
         userRepository.deleteAll();
     }

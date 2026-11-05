@@ -186,4 +186,26 @@ public abstract class BaseE2ETest {
         }
         return d;
     }
+
+    @org.junit.jupiter.api.AfterEach
+    public void tearDownE2E() {
+        leaveRequestRepository.deleteAll();
+        leaveBalanceRepository.deleteAll();
+        departmentRepository.findAll().forEach(dept -> {
+            if (dept.getManager() != null) {
+                dept.setManager(null);
+                departmentRepository.save(dept);
+            }
+        });
+        employeeRepository.findAll().forEach(emp -> {
+            if (emp.getManager() != null || emp.getDepartment() != null) {
+                emp.setManager(null);
+                emp.setDepartment(null);
+                employeeRepository.save(emp);
+            }
+        });
+        employeeRepository.deleteAll();
+        departmentRepository.deleteAll();
+        leaveTypeRepository.deleteAll();
+    }
 }
