@@ -1,5 +1,7 @@
 # Leave Management System
 
+[![CI/CD Pipeline](https://github.com/desireddymohithreddy0925/LEAVE-MANAGEMENT-SYSTEM/actions/workflows/ci.yml/badge.svg)](https://github.com/desireddymohithreddy0925/LEAVE-MANAGEMENT-SYSTEM/actions/workflows/ci.yml)
+
 This is a complete, enterprise-ready Leave Management System backend built with Java and Spring Boot. It handles core employee logic, leave requests, leave balances, and department structures while explicitly enforcing business rules (overlap detection, weekend exclusion, and balance integrity).
 
 ## Tech Stack
@@ -283,3 +285,56 @@ A user is only granted access if they possess the required **Permission** AND sa
 - `PUT /{id}/approve` - Approve a leave request (requires `LEAVE_APPROVE` and manager scope)
 - `PUT /{id}/reject` - Reject a leave request with mandatory reason (requires `LEAVE_REJECT` and manager scope)
 - `PUT /{id}/cancel` - Cancel a leave request (restoring leave balance quota)
+
+---
+
+## CI/CD Pipeline (GitHub Actions)
+
+The repository features an enterprise-grade automated CI/CD pipeline ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) with 5 automated stages executed on every Pull Request and branch push:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       GitHub Actions CI/CD Pipeline                         │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │
+        ┌──────────────────────────────┴──────────────────────────────┐
+        ▼                                                             ▼
+┌──────────────────────────────┐              ┌──────────────────────────────┐
+│   1. Build & Unit/Integ      │              │  2. Postman Contract Tests   │
+│      Maven Compile & Tests   │              │     Newman Automated Suite   │
+│      Surefire Test Artifacts │              │     102+ Assertions          │
+└──────────────┬───────────────┘              └──────────────┬───────────────┘
+               │                                             │
+               ▼                                             │
+┌──────────────────────────────┐                             │
+│ 3. Docker Build & Security   │                             │
+│    Multi-Stage Image (GHA)   │                             │
+│    Non-Root UID 10001 Check  │                             │
+│    Trivy CVE Security Scan   │                             │
+└──────────────┬───────────────┘                             │
+               │                                             │
+               ▼                                             │
+┌──────────────────────────────┐                             │
+│ 4. Docker Compose E2E Cluster│                             │
+│    Postgres + Spring Cluster │                             │
+│    Liquibase Migrations Check│                             │
+│    Persistence Verification  │                             │
+│    24 Automated E2E Checks   │                             │
+└──────────────┬───────────────┘                             │
+               │                                             │
+               └───────────────────────┬─────────────────────┘
+                                       │ (push to main only)
+                                       ▼
+                      ┌──────────────────────────────┐
+                      │ 5. Publish to GHCR           │
+                      │    ghcr.io/repository:latest │
+                      │    ghcr.io/repository:<sha>  │
+                      └──────────────────────────────┘
+```
+
+### Automated Stages:
+1. **Build & Automated Tests**: Compiles code against Java 21 Temurin, runs all JUnit unit & integration tests against a live PostgreSQL 15 service container, and uploads Surefire test reports.
+2. **Postman API Contract Testing**: Automatically starts the application and runs the full Newman test suite (56 requests, 102+ assertions) verifying contract compliance and error handling.
+3. **Docker Build & Security Audit**: Builds the multi-stage production image, verifies runtime non-root execution (`uid=10001(appuser)`), and runs a Trivy vulnerability scan.
+4. **Docker Compose E2E Deployment Validation**: Spins up the container cluster with ephemeral production secrets, runs the 24-check end-to-end deployment verification suite ([`validate-docker-deployment.sh`](validate-docker-deployment.sh)), and archives debug logs on failure.
+5. **Publish to GitHub Container Registry (GHCR)**: Automatically packages and publishes versioned images to GHCR on pushes to `main`.
