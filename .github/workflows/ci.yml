@@ -153,14 +153,15 @@ jobs:
           echo "Non-root user check passed successfully."
 
       - name: Run Trivy Vulnerability Scanner
-        uses: aquasecurity/trivy-action@v0.28.0
-        with:
-          image-ref: leave-management-system:ci
-          format: 'table'
-          exit-code: '0'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --vuln-type os,library \
+            --format table \
+            --exit-code 0 \
+            leave-management-system:ci
 
   # ============================================================================
   # 4. Live Docker Compose End-to-End Deployment Verification
