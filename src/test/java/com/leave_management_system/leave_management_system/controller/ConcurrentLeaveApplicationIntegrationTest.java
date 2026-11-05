@@ -217,8 +217,8 @@ public class ConcurrentLeaveApplicationIntegrationTest {
 
     @Test
     public void concurrentSimultaneousApplications_sameEmployee_identicalDates_exactlyOneSucceeds_otherFailsWithOverlap() throws Exception {
-        LocalDate start = LocalDate.of(2026, 11, 3); // Tuesday
-        LocalDate end = LocalDate.of(2026, 11, 5);   // Thursday (3 days)
+        LocalDate start = LocalDate.now().plusDays(7);
+        LocalDate end = start.plusDays(2);
 
         int threads = 2;
         ExecutorService executor = Executors.newFixedThreadPool(threads);
@@ -293,8 +293,9 @@ public class ConcurrentLeaveApplicationIntegrationTest {
                 LeaveRequestDTO dto = new LeaveRequestDTO();
                 dto.setEmployeeId(employee1.getId());
                 dto.setLeaveTypeId(annualLeaveType.getId());
-                dto.setStartDate(LocalDate.of(2026, 11, 10));
-                dto.setEndDate(LocalDate.of(2026, 11, 12));
+                LocalDate thread1Start = LocalDate.now().plusDays(14);
+                dto.setStartDate(thread1Start);
+                dto.setEndDate(thread1Start.plusDays(2));
                 dto.setReason("Annual leave concurrent test");
 
                 MvcResult res = mockMvc.perform(post("/api/leave-requests")
@@ -324,8 +325,9 @@ public class ConcurrentLeaveApplicationIntegrationTest {
                 LeaveRequestDTO dto = new LeaveRequestDTO();
                 dto.setEmployeeId(employee1.getId());
                 dto.setLeaveTypeId(sickLeaveType.getId());
-                dto.setStartDate(LocalDate.of(2026, 11, 11));
-                dto.setEndDate(LocalDate.of(2026, 11, 13));
+                LocalDate thread2Start = LocalDate.now().plusDays(15);
+                dto.setStartDate(thread2Start);
+                dto.setEndDate(thread2Start.plusDays(2));
                 dto.setReason("Sick leave concurrent overlapping test");
 
                 MvcResult res = mockMvc.perform(post("/api/leave-requests")
@@ -377,8 +379,9 @@ public class ConcurrentLeaveApplicationIntegrationTest {
                 LeaveRequestDTO dto = new LeaveRequestDTO();
                 dto.setEmployeeId(employee1.getId());
                 dto.setLeaveTypeId(annualLeaveType.getId());
-                dto.setStartDate(LocalDate.of(2026, 11, 3));
-                dto.setEndDate(LocalDate.of(2026, 11, 5));
+                LocalDate period1Start = LocalDate.now().plusDays(7);
+                dto.setStartDate(period1Start);
+                dto.setEndDate(period1Start.plusDays(2));
                 dto.setReason("Non-overlapping period 1");
 
                 MvcResult res = mockMvc.perform(post("/api/leave-requests")
@@ -404,8 +407,9 @@ public class ConcurrentLeaveApplicationIntegrationTest {
                 LeaveRequestDTO dto = new LeaveRequestDTO();
                 dto.setEmployeeId(employee1.getId());
                 dto.setLeaveTypeId(annualLeaveType.getId());
-                dto.setStartDate(LocalDate.of(2026, 11, 17));
-                dto.setEndDate(LocalDate.of(2026, 11, 19));
+                LocalDate period2Start = LocalDate.now().plusDays(21);
+                dto.setStartDate(period2Start);
+                dto.setEndDate(period2Start.plusDays(2));
                 dto.setReason("Non-overlapping period 2");
 
                 MvcResult res = mockMvc.perform(post("/api/leave-requests")
@@ -437,8 +441,8 @@ public class ConcurrentLeaveApplicationIntegrationTest {
 
     @Test
     public void concurrentSimultaneousApplications_differentEmployees_sameDates_bothSucceedInParallel() throws Exception {
-        LocalDate start = LocalDate.of(2026, 11, 24);
-        LocalDate end = LocalDate.of(2026, 11, 26);
+        LocalDate start = LocalDate.now().plusDays(35);
+        LocalDate end = start.plusDays(2);
 
         int threads = 2;
         ExecutorService executor = Executors.newFixedThreadPool(threads);
@@ -515,8 +519,8 @@ public class ConcurrentLeaveApplicationIntegrationTest {
 
     @Test
     public void concurrentSimultaneousApplications_fiveThreads_sameDates_exactlyOneSucceeds() throws Exception {
-        LocalDate start = LocalDate.of(2026, 12, 1);
-        LocalDate end = LocalDate.of(2026, 12, 3);
+        LocalDate start = LocalDate.now().plusDays(45);
+        LocalDate end = start.plusDays(2);
 
         int threads = 5;
         ExecutorService executor = Executors.newFixedThreadPool(threads);

@@ -284,8 +284,9 @@ public class IdempotencyIntegrationTest {
         LeaveRequestDTO dto = new LeaveRequestDTO();
         dto.setEmployeeId(employee1.getId());
         dto.setLeaveTypeId(annualLeaveType.getId());
-        dto.setStartDate(LocalDate.of(2026, 11, 2));
-        dto.setEndDate(LocalDate.of(2026, 11, 4));
+        LocalDate baseStart = LocalDate.now().plusDays(10);
+        dto.setStartDate(baseStart);
+        dto.setEndDate(baseStart.plusDays(2));
         dto.setReason("Vacation");
 
         MvcResult result = mockMvc.perform(post("/api/leave-requests")
@@ -319,8 +320,9 @@ public class IdempotencyIntegrationTest {
         LeaveRequestDTO dto = new LeaveRequestDTO();
         dto.setEmployeeId(employee1.getId());
         dto.setLeaveTypeId(annualLeaveType.getId());
-        dto.setStartDate(LocalDate.of(2026, 11, 10));
-        dto.setEndDate(LocalDate.of(2026, 11, 12));
+        LocalDate date = LocalDate.now().plusDays(10);
+        dto.setStartDate(date);
+        dto.setEndDate(date.plusDays(2));
         dto.setReason("Full fidelity check");
 
         // 1. First Execution
@@ -364,8 +366,9 @@ public class IdempotencyIntegrationTest {
         LeaveRequestDTO dto1 = new LeaveRequestDTO();
         dto1.setEmployeeId(employee1.getId());
         dto1.setLeaveTypeId(annualLeaveType.getId());
-        dto1.setStartDate(LocalDate.of(2026, 11, 16));
-        dto1.setEndDate(LocalDate.of(2026, 11, 18));
+        LocalDate date1 = LocalDate.now().plusDays(15);
+        dto1.setStartDate(date1);
+        dto1.setEndDate(date1.plusDays(2));
         dto1.setReason("Trip");
 
         // First execution
@@ -380,8 +383,9 @@ public class IdempotencyIntegrationTest {
         LeaveRequestDTO dto2 = new LeaveRequestDTO();
         dto2.setEmployeeId(employee1.getId());
         dto2.setLeaveTypeId(annualLeaveType.getId());
-        dto2.setStartDate(LocalDate.of(2026, 11, 23));
-        dto2.setEndDate(LocalDate.of(2026, 11, 25));
+        LocalDate date2 = LocalDate.now().plusDays(20);
+        dto2.setStartDate(date2);
+        dto2.setEndDate(date2.plusDays(2));
         dto2.setReason("Completely different reason");
 
         MvcResult mismatchResult = mockMvc.perform(post("/api/leave-requests")
@@ -402,8 +406,9 @@ public class IdempotencyIntegrationTest {
         LeaveRequest req = new LeaveRequest();
         req.setEmployee(employee1);
         req.setLeaveType(annualLeaveType);
-        req.setStartDate(LocalDate.of(2026, 12, 1));
-        req.setEndDate(LocalDate.of(2026, 12, 3));
+        LocalDate reqDate = LocalDate.now().plusDays(25);
+        req.setStartDate(reqDate);
+        req.setEndDate(reqDate.plusDays(2));
         req.setStatus(LeaveStatus.PENDING);
         req.setReason("Need rest");
         req.setRequiresDualApproval(false);
@@ -447,8 +452,9 @@ public class IdempotencyIntegrationTest {
         LeaveRequestDTO dto = new LeaveRequestDTO();
         dto.setEmployeeId(employee1.getId());
         dto.setLeaveTypeId(annualLeaveType.getId());
-        dto.setStartDate(LocalDate.of(2026, 11, 5));
-        dto.setEndDate(LocalDate.of(2026, 11, 6));
+        LocalDate authDate = LocalDate.now().plusDays(12);
+        dto.setStartDate(authDate);
+        dto.setEndDate(authDate.plusDays(1));
         dto.setReason("Auth retry test");
 
         // 1. Submit request with INVALID token -> 401 Unauthorized
@@ -482,8 +488,9 @@ public class IdempotencyIntegrationTest {
         LeaveRequestDTO dto = new LeaveRequestDTO();
         dto.setEmployeeId(employee1.getId());
         dto.setLeaveTypeId(annualLeaveType.getId());
-        dto.setStartDate(LocalDate.of(2026, 11, 9));
-        dto.setEndDate(LocalDate.of(2026, 11, 10));
+        LocalDate authzDate = LocalDate.now().plusDays(14);
+        dto.setStartDate(authzDate);
+        dto.setEndDate(authzDate.plusDays(1));
         dto.setReason("Authz retry test");
 
         // 1. Guest user without LEAVE_CREATE permission -> 403 Forbidden
@@ -512,11 +519,12 @@ public class IdempotencyIntegrationTest {
         String key = "key-val-fail-" + UUID.randomUUID();
 
         // Invalid payload: endDate is before startDate
+        LocalDate valBase = LocalDate.now().plusDays(16);
         LeaveRequestDTO invalidDto = new LeaveRequestDTO();
         invalidDto.setEmployeeId(employee1.getId());
         invalidDto.setLeaveTypeId(annualLeaveType.getId());
-        invalidDto.setStartDate(LocalDate.of(2026, 11, 10));
-        invalidDto.setEndDate(LocalDate.of(2026, 11, 5)); // BEFORE start date!
+        invalidDto.setStartDate(valBase);
+        invalidDto.setEndDate(valBase.minusDays(5)); // BEFORE start date!
         invalidDto.setReason("Invalid dates");
 
         // 1. Fails with 400 Bad Request
@@ -533,8 +541,8 @@ public class IdempotencyIntegrationTest {
         LeaveRequestDTO validDto = new LeaveRequestDTO();
         validDto.setEmployeeId(employee1.getId());
         validDto.setLeaveTypeId(annualLeaveType.getId());
-        validDto.setStartDate(LocalDate.of(2026, 11, 10));
-        validDto.setEndDate(LocalDate.of(2026, 11, 12)); // Corrected!
+        validDto.setStartDate(valBase);
+        validDto.setEndDate(valBase.plusDays(2)); // Corrected!
         validDto.setReason("Corrected dates");
 
         mockMvc.perform(post("/api/leave-requests")
@@ -554,8 +562,9 @@ public class IdempotencyIntegrationTest {
         LeaveRequestDTO dto = new LeaveRequestDTO();
         dto.setEmployeeId(employee1.getId());
         dto.setLeaveTypeId(annualLeaveType.getId());
-        dto.setStartDate(LocalDate.of(2026, 12, 10));
-        dto.setEndDate(LocalDate.of(2026, 12, 11));
+        LocalDate dupDate = LocalDate.now().plusDays(18);
+        dto.setStartDate(dupDate);
+        dto.setEndDate(dupDate.plusDays(1));
         dto.setReason("Prevent dup test");
 
         // Initial submission
@@ -590,8 +599,9 @@ public class IdempotencyIntegrationTest {
         LeaveRequestDTO dto = new LeaveRequestDTO();
         dto.setEmployeeId(employee1.getId());
         dto.setLeaveTypeId(annualLeaveType.getId());
-        dto.setStartDate(LocalDate.of(2026, 11, 20));
-        dto.setEndDate(LocalDate.of(2026, 11, 21));
+        LocalDate badKeyDate = LocalDate.now().plusDays(20);
+        dto.setStartDate(badKeyDate);
+        dto.setEndDate(badKeyDate.plusDays(1));
         dto.setReason("Invalid key test");
 
         // Key with spaces
@@ -633,8 +643,9 @@ public class IdempotencyIntegrationTest {
         LeaveRequestDTO dto = new LeaveRequestDTO();
         dto.setEmployeeId(employee1.getId());
         dto.setLeaveTypeId(annualLeaveType.getId());
-        dto.setStartDate(LocalDate.of(2026, 12, 8));
-        dto.setEndDate(LocalDate.of(2026, 12, 9));
+        LocalDate bypassDate = LocalDate.now().plusDays(22);
+        dto.setStartDate(bypassDate);
+        dto.setEndDate(bypassDate.plusDays(1));
         dto.setReason("No idempotency header test");
 
         MvcResult result = mockMvc.perform(post("/api/leave-requests")
@@ -659,8 +670,9 @@ public class IdempotencyIntegrationTest {
         LeaveRequestDTO dto = new LeaveRequestDTO();
         dto.setEmployeeId(employee1.getId());
         dto.setLeaveTypeId(annualLeaveType.getId());
-        dto.setStartDate(LocalDate.of(2026, 12, 14));
-        dto.setEndDate(LocalDate.of(2026, 12, 15));
+        LocalDate largeDate = LocalDate.now().plusDays(24);
+        dto.setStartDate(largeDate);
+        dto.setEndDate(largeDate.plusDays(1));
         dto.setReason("Large text: " + "X".repeat(500)); // Will exceed 300 bytes
 
         mockMvc.perform(post("/api/leave-requests")
@@ -688,18 +700,19 @@ public class IdempotencyIntegrationTest {
     public void testDifferentUsersWithSameKey_IsolatedAndIndependent() throws Exception {
         String commonKey = "shared-uuid-key";
 
+        LocalDate diffDate = LocalDate.now().plusDays(26);
         LeaveRequestDTO dto1 = new LeaveRequestDTO();
         dto1.setEmployeeId(employee1.getId());
         dto1.setLeaveTypeId(annualLeaveType.getId());
-        dto1.setStartDate(LocalDate.of(2026, 12, 15));
-        dto1.setEndDate(LocalDate.of(2026, 12, 16));
+        dto1.setStartDate(diffDate);
+        dto1.setEndDate(diffDate.plusDays(1));
         dto1.setReason("User 1 leave");
 
         LeaveRequestDTO dto2 = new LeaveRequestDTO();
         dto2.setEmployeeId(employee2.getId());
         dto2.setLeaveTypeId(annualLeaveType.getId());
-        dto2.setStartDate(LocalDate.of(2026, 12, 15));
-        dto2.setEndDate(LocalDate.of(2026, 12, 16));
+        dto2.setStartDate(diffDate);
+        dto2.setEndDate(diffDate.plusDays(1));
         dto2.setReason("User 2 leave");
 
         // User 1 uses key
@@ -775,8 +788,9 @@ public class IdempotencyIntegrationTest {
         LeaveRequestDTO dto = new LeaveRequestDTO();
         dto.setEmployeeId(employee1.getId());
         dto.setLeaveTypeId(annualLeaveType.getId());
-        dto.setStartDate(LocalDate.of(2026, 12, 18));
-        dto.setEndDate(LocalDate.of(2026, 12, 19));
+        LocalDate expDate = LocalDate.now().plusDays(28);
+        dto.setStartDate(expDate);
+        dto.setEndDate(expDate.plusDays(1));
         dto.setReason("Reuse after expiry");
 
         // Submitting with expired key is treated as NEW execution
@@ -804,8 +818,9 @@ public class IdempotencyIntegrationTest {
         LeaveRequestDTO dto = new LeaveRequestDTO();
         dto.setEmployeeId(employee1.getId());
         dto.setLeaveTypeId(annualLeaveType.getId());
-        dto.setStartDate(LocalDate.of(2026, 12, 22));
-        dto.setEndDate(LocalDate.of(2026, 12, 24));
+        LocalDate concDate = LocalDate.now().plusDays(30);
+        dto.setStartDate(concDate);
+        dto.setEndDate(concDate.plusDays(2));
         dto.setReason("Concurrent stress test");
 
         int numThreads = 4;
@@ -899,8 +914,9 @@ public class IdempotencyIntegrationTest {
         LeaveRequestDTO dto = new LeaveRequestDTO();
         dto.setEmployeeId(employee1.getId());
         dto.setLeaveTypeId(annualLeaveType.getId());
-        dto.setStartDate(LocalDate.of(2026, 12, 28));
-        dto.setEndDate(LocalDate.of(2026, 12, 30));
+        LocalDate reuseDate = LocalDate.now().plusDays(35);
+        dto.setStartDate(reuseDate);
+        dto.setEndDate(reuseDate.plusDays(2));
         dto.setReason("Attempted concurrent reuse while in-progress");
 
         // Attempting to reuse this key while original operation is still in-progress returns 409 Conflict
@@ -930,8 +946,9 @@ public class IdempotencyIntegrationTest {
         LeaveRequestDTO dto = new LeaveRequestDTO();
         dto.setEmployeeId(employee1.getId());
         dto.setLeaveTypeId(annualLeaveType.getId());
-        dto.setStartDate(LocalDate.of(2026, 12, 8));
-        dto.setEndDate(LocalDate.of(2026, 12, 10)); // 3 working days (Tuesday - Thursday)
+        LocalDate nextTuesday = LocalDate.now().with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.TUESDAY));
+        dto.setStartDate(nextTuesday);
+        dto.setEndDate(nextTuesday.plusDays(2)); // 3 working days (Tuesday - Thursday)
         dto.setReason("Post commit failure test");
 
         // 1. Initial request commits successfully (201 Created)
