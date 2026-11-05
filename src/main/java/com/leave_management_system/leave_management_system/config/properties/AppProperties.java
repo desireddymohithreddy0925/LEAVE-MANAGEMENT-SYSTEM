@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.validation.annotation.Validated;
@@ -56,6 +57,8 @@ public class AppProperties {
      */
     public static class JwtProperties {
 
+        @NotBlank(message = "JWT secret cannot be blank")
+        @Size(min = 32, message = "JWT secret must provide at least 256 bits (32 bytes) of key material")
         private String secret = "defaultSecretKeyThatNeedsToBeVeryLongAndSecureEnoughForHS256AlgorithmToBeUsedSafelyAndSecurely";
 
         @NotNull
@@ -96,6 +99,7 @@ public class AppProperties {
      */
     public static class SecurityProperties {
 
+        @NotBlank(message = "Trusted proxies list cannot be blank")
         private String trustedProxies = "127.0.0.1,::1,0:0:0:0:0:0:0:1";
 
         @Valid
@@ -164,6 +168,8 @@ public class AppProperties {
      */
     public static class EncryptionProperties {
 
+        @NotBlank(message = "Encryption key cannot be blank")
+        @Size(min = 32, message = "Encryption key must provide at least 256 bits (32 bytes) of key material")
         private String key = "leave-mgmt-system-master-encryption-key-256-bit";
 
         public String getKey() {

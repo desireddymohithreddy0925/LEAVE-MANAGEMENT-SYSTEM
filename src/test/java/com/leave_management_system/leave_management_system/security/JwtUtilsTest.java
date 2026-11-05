@@ -3,6 +3,7 @@ package com.leave_management_system.leave_management_system.security;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -13,7 +14,6 @@ import java.util.Base64;
 import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 public class JwtUtilsTest {
 
@@ -46,8 +46,7 @@ public class JwtUtilsTest {
     @DisplayName("generateJwtToken: extracts username from Authentication principal")
     void generateJwtToken_FromAuthentication_Success() {
         UserDetails principal = new User("authuser@example.com", "password", Collections.emptyList());
-        Authentication auth = mock(Authentication.class);
-        when(auth.getPrincipal()).thenReturn(principal);
+        Authentication auth = new UsernamePasswordAuthenticationToken(principal, "password", Collections.emptyList());
 
         String token = jwtUtils.generateJwtToken(auth);
 

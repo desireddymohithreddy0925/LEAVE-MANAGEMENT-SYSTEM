@@ -44,18 +44,35 @@ public class JwtUtils {
     @PostConstruct
     public void validateSecretSecurity() {
         boolean isProd = environment != null && Arrays.asList(environment.getActiveProfiles()).contains("prod");
-        
-        byte[] keyBytes = resolveKeyBytes();
-        if (isProd) {
-            if (jwtSecret == null || jwtSecret.trim().isEmpty()) {
+
+        if (jwtSecret == null || jwtSecret.trim().isEmpty()) {
+            if (isProd) {
                 throw new IllegalStateException("Production startup failed: JWT_SECRET environment variable is missing.");
             }
-            if (INSECURE_DEFAULT_SECRETS.contains(jwtSecret.trim())) {
-                throw new IllegalStateException("Production startup failed: An insecure default JWT_SECRET is configured. A unique, secure secret of at least 256 bits (32 bytes) is required in production.");
+            throw new IllegalArgumentException("JWT_SECRET cannot be null or blank.");
+        }
+
+        String trimmedSecret = jwtSecret.trim();
+        if (isProd) {
+            if (INSECURE_DEFAULT_SECRETS.contains(trimmedSecret) || trimmedSecret.startsWith("REPLACE_WITH_") || trimmedSecret.equalsIgnoreCase("CHANGE_ME")) {
+                throw new IllegalStateException("Production startup failed: An insecure default or placeholder JWT_SECRET is configured. A unique, secure secret of at least 256 bits (32 bytes) is required in production.");
             }
-            if (keyBytes.length < 32) {
-                throw new IllegalStateException("Production startup failed: JWT_SECRET must provide at least 256 bits (32 bytes) of key material for HMAC-SHA256 security. Current length: " + keyBytes.length + " bytes.");
+        }
+
+        byte[] keyBytes = resolveKeyBytes();
+        if (keyBytes.length < 32) {
+            String errorMsg = "JWT_SECRET must provide at least 256 bits (32 bytes) of key material for HMAC-SHA256 security. Current length: " + keyBytes.length + " bytes (" + (keyBytes.length * 8) + " bits).";
+            if (isProd) {
+                throw new IllegalStateException("Production startup failed: " + errorMsg);
             }
+            throw new IllegalArgumentException(errorMsg);
+        }
+
+        if (jwtExpirationMs < 60000) {
+            throw new IllegalArgumentException("Invalid JWT configuration: expirationMs must be at least 60,000 ms (1 minute). Current: " + jwtExpirationMs);
+        }
+
+        if (isProd) {
             log.info("Production JWT security validation passed (Key size: {} bits).", keyBytes.length * 8);
         }
     }

@@ -13,6 +13,121 @@ This is a complete, enterprise-ready Leave Management System backend built with 
 - **Maven** (Build Tool)
 - **Springdoc OpenAPI** (Swagger API Documentation)
 
+## Environment Profiles & Deployment Configuration
+
+The application uses Spring Boot profiles to separate development, staging, and production environments, enforcing zero-trust security checks in production.
+
+| Profile | Target Environment | Configuration File | Example Env File | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **`dev`** | Local Workstations | [`application-dev.yml`](file:///Users/desireddymohithreddy/Library/Mobile%20Documents/com~apple~CloudDocs/Leave%20Management%20System/leave-management-system/src/main/resources/application-dev.yml) | [`.env.dev.example`](file:///Users/desireddymohithreddy/Library/Mobile%20Documents/com~apple~CloudDocs/Leave%20Management%20System/leave-management-system/.env.dev.example) | Permissive defaults for rapid local development. Detailed errors and debug logging enabled. |
+| **`staging`** | Pre-production & QA | [`application-staging.yml`](file:///Users/desireddymohithreddy/Library/Mobile%20Documents/com~apple~CloudDocs/Leave%20Management%20System/leave-management-system/src/main/resources/application-staging.yml) | [`.env.staging.example`](file:///Users/desireddymohithreddy/Library/Mobile%20Documents/com~apple~CloudDocs/Leave%20Management%20System/leave-management-system/.env.staging.example) | Mirrors production settings for pre-release validation and automated load/Newman testing. |
+| **`prod`** | Production Deployment | [`application-prod.yml`](file:///Users/desireddymohithreddy/Library/Mobile%20Documents/com~apple~CloudDocs/Leave%20Management%20System/leave-management-system/src/main/resources/application-prod.yml) | [`.env.prod.example`](file:///Users/desireddymohithreddy/Library/Mobile%20Documents/com~apple~CloudDocs/Leave%20Management%20System/leave-management-system/.env.prod.example) | Zero-trust enforcement. Requires strong 256-bit secrets, hardened connection pools, sanitized Actuator health metrics, and non-root runtime. |
+
+---
+
+### 1. Development Profile (`dev`)
+
+#### Running Locally with Maven
+1. Copy the development environment variables:
+   ```bash
+   cp .env.dev.example .env
+   ```
+2. Start the local database (if using external PostgreSQL) or let the embedded runner start:
+   ```bash
+   ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+   ```
+
+#### Running with Docker Compose (Development)
+```bash
+docker compose up --build -d
+```
+The application will start on `http://localhost:8080`.
+
+---
+
+### 2. Staging Profile (`staging`)
+
+The staging profile mirrors production architecture while allowing authorized diagnostic inspection.
+
+1. **Create Staging Environment Configuration**:
+   ```bash
+   cp .env.staging.example .env.staging
+   ```
+2. **Populate Secrets**:
+   Provide staging database credentials and generate test cryptographic keys:
+   ```bash
+   # Generate 256-bit secret for JWT
+   openssl rand -base64 32
+   # Generate 256-bit secret for AES-256 data encryption
+   openssl rand -base64 32
+   ```
+3. **Launch Staging Stack**:
+   ```bash
+   docker compose --env-file .env.staging up --build -d
+   ```
+
+---
+
+### 3. Production Profile (`prod`)
+
+> [!IMPORTANT]
+> The production profile implements strict **Zero-Trust Fail-Fast Validation** via [`ProductionSecurityValidator`](file:///Users/desireddymohithreddy/Library/Mobile%20Documents/com~apple~CloudDocs/Leave%20Management%20System/leave-management-system/src/main/java/com/leave_management_system/leave_management_system/config/ProductionSecurityValidator.java). Application startup will **immediately abort** if:
+> - `DB_PASSWORD` is missing, blank, or set to insecure defaults (`postgres`, `admin`, `password`, `root`, `123456`, `secret`, or `REPLACE_WITH_*`).
+> - `JWT_SECRET` is missing, placeholder (`REPLACE_WITH_*`), default, or provides fewer than 256 bits (32 bytes).
+> - `ENCRYPTION_KEY` is missing, placeholder (`REPLACE_WITH_*`), default, or provides fewer than 256 bits (32 bytes).
+> - `SECURITY_TRUSTED_PROXIES` contains malformed IP addresses or invalid CIDR masks.
+> - PostgreSQL database port 5432 is not exposed publicly on host network interfaces.
+
+#### Production Deployment Steps:
+
+1. **Copy the Production Example Template**:
+   ```bash
+   cp .env.prod.example .env.prod
+   chmod 600 .env.prod
+   ```
+
+2. **Generate Cryptographically Secure 256-bit Secrets**:
+   Generate distinct, cryptographically strong random secrets for JWT signing and AES-256 sensitive data encryption:
+   ```bash
+   # Generate JWT Secret (HS256)
+   openssl rand -base64 32
+
+   # Generate Master Encryption Key (AES-256-GCM)
+   openssl rand -base64 32
+   ```
+
+3. **Populate `.env.prod`**:
+   Edit `.env.prod` and configure:
+   ```dotenv
+   SPRING_PROFILES_ACTIVE=prod
+   DB_PASSWORD=<Your-Generated-Strong-Postgres-Password>
+   JWT_SECRET=<Output-From-OpenSSL-For-JWT>
+   ENCRYPTION_KEY=<Output-From-OpenSSL-For-Encryption>
+   SECURITY_TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+   ```
+
+4. **Launch Hardened Production Container Stack**:
+   ```bash
+   docker compose --env-file .env.prod up --build -d
+   ```
+
+5. **Verify Production Health & Non-Root Execution**:
+   ```bash
+   # Check service readiness
+   curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/actuator/health
+   # 200
+
+   # Verify sanitized public health response (details hidden)
+   curl -s http://localhost:8080/actuator/health
+   # {"status":"UP"}
+
+   # Verify container runtime user is non-root (UID 10001)
+   docker compose exec app id
+   # uid=10001(appuser) gid=10001(appgroup) groups=10001(appgroup)
+   ```
+
+---
+
 ## Setup & Run Instructions
 
 ### 1. Docker Compose Setup (Recommended)

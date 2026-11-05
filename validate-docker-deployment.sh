@@ -53,9 +53,9 @@ log_info() {
 log_section "1. Secret Enforcement & Configuration Validation"
 
 if docker compose --env-file /dev/null config > /tmp/compose-err.log 2>&1; then
-    log_fail "Compose unexpectedly allowed startup without DB_PASSWORD/JWT_SECRET"
+    log_fail "Compose unexpectedly allowed startup without DB_PASSWORD/JWT_SECRET/ENCRYPTION_KEY"
 else
-    log_pass "docker-compose requires explicit DB_PASSWORD and JWT_SECRET (aborts if missing)"
+    log_pass "docker-compose requires explicit DB_PASSWORD, JWT_SECRET, and ENCRYPTION_KEY (aborts if missing)"
 fi
 
 if [ -f .env ]; then

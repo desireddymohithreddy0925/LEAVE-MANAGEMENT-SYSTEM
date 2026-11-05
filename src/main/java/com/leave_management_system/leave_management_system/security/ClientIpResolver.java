@@ -36,7 +36,8 @@ public class ClientIpResolver {
                 if (!trimmed.isEmpty()) {
                     try {
                         matchers.add(new IpAddressMatcher(trimmed));
-                    } catch (Exception ignored) {
+                    } catch (Exception e) {
+                        throw new IllegalArgumentException("Invalid trusted proxy address or CIDR notation: '" + trimmed + "'", e);
                     }
                 }
             }

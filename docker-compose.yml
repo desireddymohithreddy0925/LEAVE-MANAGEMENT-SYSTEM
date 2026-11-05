@@ -42,7 +42,7 @@ services:
       - "JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env or environment}"
       - JWT_EXPIRATION=${JWT_EXPIRATION:-900000}
       - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-604800000}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-leave-mgmt-system-master-encryption-key-256-bit}
+      - "ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY must be set in .env or environment}"
       - SECURITY_TRUSTED_PROXIES=${SECURITY_TRUSTED_PROXIES:-127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
     depends_on:
       db:

@@ -3,6 +3,7 @@ package com.leave_management_system.leave_management_system.security.idempotency
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leave_management_system.leave_management_system.dto.ErrorResponseDTO;
 import com.leave_management_system.leave_management_system.exception.PayloadTooLargeException;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -57,6 +58,16 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
     public long getMaxBodySizeBytes() {
         return this.maxBodySizeBytes;
+    }
+
+    @PostConstruct
+    public void validateConfiguration() {
+        if (maxBodySizeBytes <= 0) {
+            throw new IllegalArgumentException("Invalid idempotency configuration: max-body-size-bytes must be greater than 0 (current: " + maxBodySizeBytes + ")");
+        }
+        if (maxBodySizeBytes > 52428800L) { // 50 MB safety upper bound
+            throw new IllegalArgumentException("Invalid idempotency configuration: max-body-size-bytes cannot exceed 50 MB (current: " + maxBodySizeBytes + ")");
+        }
     }
 
     @Override

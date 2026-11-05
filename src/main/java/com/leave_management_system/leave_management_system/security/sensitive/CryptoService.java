@@ -1,6 +1,8 @@
 package com.leave_management_system.leave_management_system.security.sensitive;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.Cipher;
@@ -12,7 +14,10 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.HexFormat;
+import java.util.Set;
 
 @Service
 public class CryptoService {
@@ -24,17 +29,95 @@ public class CryptoService {
     private static final int GCM_TAG_LENGTH_BITS = 128;
     private static final String HMAC_ALGORITHM = "HmacSHA256";
 
+    private static final Set<String> INSECURE_DEFAULT_KEYS = Set.of(
+            "leave-mgmt-system-master-encryption-key-256-bit",
+            "defaultSecretKeyThatNeedsToBeVeryLongAndSecureEnoughForHS256AlgorithmToBeUsedSafelyAndSecurely",
+            "defaultSecretKeyThatIsAtLeast32CharactersLongAndSecure!",
+            "secret",
+            "password",
+            "12345678901234567890123456789012"
+    );
+
     private final SecretKey secretKey;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public CryptoService(@Value("${app.security.encryption.key:leave-mgmt-system-master-encryption-key-256-bit}") String secret) {
+        this(secret, null);
+    }
+
+    @Autowired
+    public CryptoService(@Value("${app.security.encryption.key:leave-mgmt-system-master-encryption-key-256-bit}") String secret,
+                         @Autowired(required = false) Environment environment) {
         try {
-            MessageDigest sha = MessageDigest.getInstance("SHA-256");
-            byte[] keyBytes = sha.digest(secret.getBytes(StandardCharsets.UTF_8));
+            byte[] keyBytes = validateAndDeriveKey(secret, environment);
             this.secretKey = new SecretKeySpec(keyBytes, ALGORITHM);
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
             throw new IllegalStateException("Failed to initialize cryptographic secret key", e);
         }
+    }
+
+    public static byte[] validateAndDeriveKey(String secret, Environment environment) {
+        boolean isProd = environment != null && Arrays.asList(environment.getActiveProfiles()).contains("prod");
+        if (secret == null || secret.isBlank()) {
+            if (isProd) {
+                throw new IllegalStateException("Production startup failed: ENCRYPTION_KEY environment variable is missing.");
+            }
+            throw new IllegalArgumentException("ENCRYPTION_KEY cannot be null or blank.");
+        }
+
+        String trimmed = secret.trim();
+        if (isProd) {
+            if (INSECURE_DEFAULT_KEYS.contains(trimmed) || trimmed.startsWith("REPLACE_WITH_") || trimmed.equalsIgnoreCase("CHANGE_ME")) {
+                throw new IllegalStateException("Production startup failed: An insecure default or placeholder ENCRYPTION_KEY is configured. A unique, 256-bit key is required in production.");
+            }
+        }
+
+        byte[] keyMaterial = resolveKeyBytes(trimmed);
+        if (keyMaterial.length < 32) {
+            String errorMsg = "ENCRYPTION_KEY must provide at least 256 bits (32 bytes) of key material for AES-256 security. Current length: " + keyMaterial.length + " bytes (" + (keyMaterial.length * 8) + " bits).";
+            if (isProd) {
+                throw new IllegalStateException("Production startup failed: " + errorMsg);
+            }
+            throw new IllegalArgumentException(errorMsg);
+        }
+
+        try {
+            MessageDigest sha = MessageDigest.getInstance("SHA-256");
+            return sha.digest(keyMaterial);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to digest cryptographic key", e);
+        }
+    }
+
+    public static byte[] resolveKeyBytes(String secret) {
+        if (secret == null || secret.isBlank()) {
+            return new byte[0];
+        }
+        String trimmed = secret.trim();
+        // 1. Try Base64 decoding if input matches base64 structure and length >= 32
+        try {
+            byte[] decoded = Base64.getDecoder().decode(trimmed);
+            if (decoded.length >= 32) {
+                return decoded;
+            }
+        } catch (IllegalArgumentException ignored) {
+        }
+
+        // 2. Try Hex decoding if 64+ hex characters (256 bits)
+        if (trimmed.length() >= 64 && trimmed.matches("^[0-9a-fA-F]+$")) {
+            try {
+                byte[] hexBytes = HexFormat.of().parseHex(trimmed);
+                if (hexBytes.length >= 32) {
+                    return hexBytes;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        // 3. Fall back to raw UTF-8 bytes
+        return trimmed.getBytes(StandardCharsets.UTF_8);
     }
 
     /**

@@ -1,7 +1,9 @@
 package com.leave_management_system.leave_management_system.security.idempotency;
 
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -12,8 +14,24 @@ public class IdempotencyCleanupScheduler {
 
     private final IdempotencyService idempotencyService;
 
+    @Value("${idempotency.cleanup-rate-ms:3600000}")
+    private long cleanupRateMs = 3600000L;
+
+    @Value("${idempotency.cleanup-initial-delay-ms:60000}")
+    private long cleanupInitialDelayMs = 60000L;
+
     public IdempotencyCleanupScheduler(IdempotencyService idempotencyService) {
         this.idempotencyService = idempotencyService;
+    }
+
+    @PostConstruct
+    public void validateSchedulerConfig() {
+        if (cleanupRateMs < 1000) {
+            throw new IllegalArgumentException("Invalid idempotency configuration: cleanup-rate-ms must be at least 1,000 ms (current: " + cleanupRateMs + ")");
+        }
+        if (cleanupInitialDelayMs < 0) {
+            throw new IllegalArgumentException("Invalid idempotency configuration: cleanup-initial-delay-ms cannot be negative (current: " + cleanupInitialDelayMs + ")");
+        }
     }
 
     /**
