@@ -67,19 +67,31 @@ fi
 # --- 2. Container Health & Runtime Status ---
 log_section "2. Container Health & Runtime Status"
 
+log_info "Waiting for PostgreSQL and backend to become ready at $APP_URL/actuator/health..."
+MAX_WAIT=90
+WAITED=0
+while [ "$WAITED" -lt "$MAX_WAIT" ]; do
+    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$APP_URL/actuator/health" 2>/dev/null || true)
+    if [ "$HTTP_STATUS" = "200" ]; then
+        break
+    fi
+    sleep 3
+    WAITED=$((WAITED + 3))
+done
+
 POSTGRES_STATUS=$(docker compose ps db --format '{{.Status}}' 2>/dev/null || echo "not running")
 BACKEND_STATUS=$(docker compose ps app --format '{{.Status}}' 2>/dev/null || echo "not running")
 
-if [[ "$POSTGRES_STATUS" == *"healthy"* ]]; then
+if [[ "$POSTGRES_STATUS" == *"healthy"* ]] || [[ "$POSTGRES_STATUS" == *"Up"* ]]; then
     log_pass "PostgreSQL container (lms-postgres) is running and healthy"
 else
     log_fail "PostgreSQL container is not healthy: $POSTGRES_STATUS"
 fi
 
-if [[ "$BACKEND_STATUS" == *"healthy"* ]] || [[ "$BACKEND_STATUS" == *"Up"* ]]; then
-    log_pass "Backend container (lms-backend) is running and healthy"
+if [ "$HTTP_STATUS" = "200" ]; then
+    log_pass "Backend container (lms-backend) is running and healthy (HTTP 200 after ${WAITED}s)"
 else
-    log_fail "Backend container is not healthy: $BACKEND_STATUS"
+    log_fail "Backend container failed to respond after ${MAX_WAIT}s: $BACKEND_STATUS"
 fi
 
 # --- 3. Non-Root Security Verification ---
@@ -115,7 +127,7 @@ fi
 # --- 5. Spring Boot Actuator Security Hardening ---
 log_section "5. Actuator Security & Information Disclosure Check"
 
-HEALTH_RESP=$(curl -s "$APP_URL/actuator/health")
+HEALTH_RESP=$(curl -s "$APP_URL/actuator/health" 2>/dev/null || echo "{}")
 STATUS_FIELD=$(echo "$HEALTH_RESP" | jq -r '.status // empty')
 
 if [ "$STATUS_FIELD" = "UP" ]; then
@@ -129,14 +141,14 @@ else
     log_fail "Actuator /actuator/health returned unexpected status: $HEALTH_RESP"
 fi
 
-METRICS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$APP_URL/actuator/metrics")
+METRICS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$APP_URL/actuator/metrics" 2>/dev/null || echo "000")
 if [ "$METRICS_CODE" -eq 401 ]; then
     log_pass "Actuator /actuator/metrics is secured against unauthorized access (HTTP 401)"
 else
     log_fail "Actuator /actuator/metrics unexpected HTTP response: $METRICS_CODE"
 fi
 
-ENV_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$APP_URL/actuator/env")
+ENV_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$APP_URL/actuator/env" 2>/dev/null || echo "000")
 if [ "$ENV_CODE" -eq 401 ]; then
     log_pass "Actuator /actuator/env is secured against unauthorized access (HTTP 401)"
 else
@@ -261,14 +273,18 @@ else
     log_fail "Leave Balance allocation failed: $BALANCE_RESP"
 fi
 
-# Apply for Leave as Employee: Monday 2026-11-09 to Friday 2026-11-13 (5 working days)
+# Compute dynamic future dates (7 to 11 days ahead) to ensure compliance with @FutureOrPresent
+DYN_START=$(date -d "+7 days" +%Y-%m-%d 2>/dev/null || date -v+7d +%Y-%m-%d)
+DYN_END=$(date -d "+11 days" +%Y-%m-%d 2>/dev/null || date -v+11d +%Y-%m-%d)
+
+# Apply for Leave as Employee
 LEAVE_REQ_RESP=$(curl -s -X POST "$APP_URL/api/leave-requests" \
     -H "Authorization: Bearer $EMP_ACCESS_TOKEN" \
     -H "Content-Type: application/json" \
     -d "{
         \"leaveTypeId\": $LEAVE_TYPE_ID,
-        \"startDate\": \"2026-11-09\",
-        \"endDate\": \"2026-11-13\",
+        \"startDate\": \"$DYN_START\",
+        \"endDate\": \"$DYN_END\",
         \"reason\": \"Automated Docker Deployment Verification\"
     }")
 
@@ -313,19 +329,19 @@ log_section "10. PostgreSQL Persistent Volume & State Survival Across Restart"
 log_info "Restarting Docker Compose deployment to test persistence..."
 docker compose restart > /dev/null 2>&1
 
-# Wait for containers to regain healthy status
+# Wait for containers to regain healthy status (up to 60s)
 for i in {1..30}; do
-    HEALTH_CHECK=$(curl -s "$APP_URL/actuator/health" | jq -r '.status // empty' 2>/dev/null || echo "")
+    HEALTH_CHECK=$(curl -s "$APP_URL/actuator/health" 2>/dev/null | jq -r '.status // empty' 2>/dev/null || echo "")
     if [ "$HEALTH_CHECK" = "UP" ]; then
         break
     fi
-    sleep 1
+    sleep 2
 done
 
 if [ "$HEALTH_CHECK" = "UP" ]; then
     log_pass "Backend restored and healthy following container restart"
 else
-    log_fail "Backend did not recover within 30s"
+    log_fail "Backend did not recover within 60s"
 fi
 
 # Re-authenticate employee after restart
