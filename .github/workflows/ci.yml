@@ -143,9 +143,10 @@ jobs:
       - name: Verify Non-Root Runtime User (UID 10001)
         run: |
           echo "Auditing container runtime security..."
-          RUNNER_UID=$(docker run --rm leave-management-system:ci id -u)
-          RUNNER_USER=$(docker run --rm leave-management-system:ci whoami)
-          echo "Container runtime UID: $RUNNER_UID, User: $RUNNER_USER"
+          RUNNER_UID=$(docker run --rm --entrypoint id leave-management-system:ci -u)
+          RUNNER_USER=$(docker run --rm --entrypoint whoami leave-management-system:ci)
+          IMAGE_USER=$(docker inspect leave-management-system:ci --format '{{.Config.User}}')
+          echo "Container runtime UID: $RUNNER_UID, User: $RUNNER_USER, Image Config User: $IMAGE_USER"
           if [ "$RUNNER_UID" -ne 10001 ] || [ "$RUNNER_USER" != "appuser" ]; then
             echo "Security Audit Failed: Image must run as non-root 'appuser' (UID 10001)!"
             exit 1
