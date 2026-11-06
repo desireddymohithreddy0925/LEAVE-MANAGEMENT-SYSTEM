@@ -2,6 +2,7 @@ databaseChangeLog:
   - changeSet:
       id: 011-setup-tokens-and-audit
       author: antigravity
+      validCheckSum: ANY
       changes:
         - createTable:
             tableName: refresh_tokens
@@ -32,7 +33,7 @@ databaseChangeLog:
                     nullable: false
               - column:
                   name: revoked
-                  type: boolean
+                  type: bit(1)
                   defaultValueBoolean: false
                   constraints:
                     nullable: false

@@ -35,7 +35,7 @@ public class JwtUtils {
     @Autowired(required = false)
     private Environment environment;
 
-    @Value("${app.jwt.secret:${jwt.secret:defaultSecretKeyThatNeedsToBeVeryLongAndSecureEnoughForHS256AlgorithmToBeUsedSafelyAndSecurely}}")
+    @Value("${app.jwt.secret:${jwt.secret:}}")
     private String jwtSecret;
 
     @Value("${app.jwt.expirationMs:${jwt.expirationMs:900000}}") // Default: 15 minutes

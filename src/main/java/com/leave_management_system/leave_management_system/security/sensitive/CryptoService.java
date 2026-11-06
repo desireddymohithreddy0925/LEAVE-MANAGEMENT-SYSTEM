@@ -41,12 +41,12 @@ public class CryptoService {
     private final SecretKey secretKey;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public CryptoService(@Value("${app.security.encryption.key:leave-mgmt-system-master-encryption-key-256-bit}") String secret) {
+    public CryptoService(@Value("${app.security.encryption.key:}") String secret) {
         this(secret, null);
     }
 
     @Autowired
-    public CryptoService(@Value("${app.security.encryption.key:leave-mgmt-system-master-encryption-key-256-bit}") String secret,
+    public CryptoService(@Value("${app.security.encryption.key:}") String secret,
                          @Autowired(required = false) Environment environment) {
         try {
             byte[] keyBytes = validateAndDeriveKey(secret, environment);

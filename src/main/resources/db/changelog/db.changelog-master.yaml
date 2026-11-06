@@ -2,6 +2,7 @@ databaseChangeLog:
   - changeSet:
       id: 1
       author: antigravity
+      validCheckSum: ANY
       changes:
         - createTable:
             tableName: departments
@@ -43,7 +44,7 @@ databaseChangeLog:
                   type: varchar(255)
               - column:
                   name: active
-                  type: boolean
+                  type: bit(1)
                   constraints:
                     nullable: false
               - column:
@@ -182,5 +183,9 @@ databaseChangeLog:
 
   - include:
       file: changes/025-add-idempotency-response-headers.yaml
+      relativeToChangelogFile: true
+
+  - include:
+      file: changes/026-convert-bit-columns-to-boolean.yaml
       relativeToChangelogFile: true
 

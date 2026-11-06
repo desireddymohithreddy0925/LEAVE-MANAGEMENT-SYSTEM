@@ -20,6 +20,9 @@ public class IdempotencyCleanupScheduler {
     @Value("${idempotency.cleanup-initial-delay-ms:60000}")
     private long cleanupInitialDelayMs = 60000L;
 
+    @Value("${idempotency.in-progress-timeout-seconds:120}")
+    private long inProgressTimeoutSeconds = 120L;
+
     public IdempotencyCleanupScheduler(IdempotencyService idempotencyService) {
         this.idempotencyService = idempotencyService;
     }
@@ -32,10 +35,13 @@ public class IdempotencyCleanupScheduler {
         if (cleanupInitialDelayMs < 0) {
             throw new IllegalArgumentException("Invalid idempotency configuration: cleanup-initial-delay-ms cannot be negative (current: " + cleanupInitialDelayMs + ")");
         }
+        if (inProgressTimeoutSeconds <= 0) {
+            throw new IllegalArgumentException("Invalid idempotency configuration: in-progress-timeout-seconds must be greater than 0 (current: " + inProgressTimeoutSeconds + ")");
+        }
     }
 
     /**
-     * Periodically cleans up expired idempotency records.
+     * Periodically cleans up expired idempotency records and recovers interrupted operations.
      * Defaults to running once every hour (3600000 ms).
      */
     @Scheduled(fixedRateString = "${idempotency.cleanup-rate-ms:3600000}", initialDelayString = "${idempotency.cleanup-initial-delay-ms:60000}")
@@ -44,6 +50,10 @@ public class IdempotencyCleanupScheduler {
             int deleted = idempotencyService.cleanupExpiredKeys();
             if (deleted > 0) {
                 log.info("Scheduled idempotency cleanup: removed {} expired records", deleted);
+            }
+            int recovered = idempotencyService.recoverInterruptedKeys(inProgressTimeoutSeconds);
+            if (recovered > 0) {
+                log.info("Scheduled idempotency cleanup: recovered {} interrupted records", recovered);
             }
         } catch (Exception e) {
             log.error("Error during scheduled idempotency key cleanup: {}", e.getMessage(), e);

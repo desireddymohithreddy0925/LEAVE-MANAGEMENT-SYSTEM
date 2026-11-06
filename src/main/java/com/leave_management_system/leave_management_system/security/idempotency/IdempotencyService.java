@@ -24,9 +24,20 @@ public class IdempotencyService {
     private final IdempotencyKeyRepository idempotencyKeyRepository;
     private final ObjectMapper objectMapper;
 
+    @org.springframework.beans.factory.annotation.Value("${idempotency.in-progress-timeout-seconds:120}")
+    private long inProgressTimeoutSeconds = 120L;
+
     public IdempotencyService(IdempotencyKeyRepository idempotencyKeyRepository) {
         this.idempotencyKeyRepository = idempotencyKeyRepository;
         this.objectMapper = new ObjectMapper().findAndRegisterModules();
+    }
+
+    public void setInProgressTimeoutSeconds(long inProgressTimeoutSeconds) {
+        this.inProgressTimeoutSeconds = inProgressTimeoutSeconds;
+    }
+
+    public long getInProgressTimeoutSeconds() {
+        return this.inProgressTimeoutSeconds;
     }
 
     public IdempotencyResult processOrAcquire(String key, String userEmail, String path, String method, String requestHash) {
@@ -35,14 +46,18 @@ public class IdempotencyService {
         if (existingOpt.isPresent()) {
             IdempotencyKey existing = existingOpt.get();
 
-            // 1. If an operation is currently IN_PROGRESS, cleanup or concurrent reuse must NOT delete or replace it
+            // 1. If an operation is currently IN_PROGRESS
             if ("IN_PROGRESS".equals(existing.getStatus())) {
-                log.warn("Concurrent in-progress request detected for idempotency key '{}' and user '{}'", key, userEmail);
-                return IdempotencyResult.inProgress();
-            }
-
-            // 2. Check if key has expired (only completed or failed keys can be safely pruned)
-            if (existing.getExpiresAt().isBefore(LocalDateTime.now())) {
+                // If the operation exceeded the in-progress timeout, it was interrupted (e.g. node crash / network drop)
+                if (existing.getCreatedAt() != null && existing.getCreatedAt().isBefore(LocalDateTime.now().minusSeconds(inProgressTimeoutSeconds))) {
+                    log.warn("Interrupted in-progress idempotency key '{}' detected for user '{}' (created at {} exceeded timeout of {}s). Recovering interrupted key to allow retry.",
+                            key, userEmail, existing.getCreatedAt(), inProgressTimeoutSeconds);
+                    removeKey(key, userEmail);
+                } else {
+                    log.warn("Concurrent in-progress request detected for idempotency key '{}' and user '{}'", key, userEmail);
+                    return IdempotencyResult.inProgress();
+                }
+            } else if (existing.getExpiresAt().isBefore(LocalDateTime.now())) {
                 log.info("Idempotency key '{}' expired at {}. Removing expired record.", key, existing.getExpiresAt());
                 removeKey(key, userEmail);
             } else if ("COMPLETED".equals(existing.getStatus())) {
@@ -132,6 +147,16 @@ public class IdempotencyService {
         int deleted = idempotencyKeyRepository.deleteExpiredKeys(LocalDateTime.now());
         if (deleted > 0) {
             log.info("Cleaned up {} expired idempotency records.", deleted);
+        }
+        return deleted;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public int recoverInterruptedKeys(long timeoutSeconds) {
+        LocalDateTime cutoff = LocalDateTime.now().minusSeconds(timeoutSeconds);
+        int deleted = idempotencyKeyRepository.deleteInterruptedKeys(cutoff);
+        if (deleted > 0) {
+            log.warn("Recovered and cleaned up {} interrupted in-progress idempotency records older than {} seconds.", deleted, timeoutSeconds);
         }
         return deleted;
     }

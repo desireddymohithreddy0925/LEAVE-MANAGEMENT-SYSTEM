@@ -1,0 +1,50 @@
+databaseChangeLog:
+  - changeSet:
+      id: 026-convert-bit-columns-to-boolean-h2
+      author: antigravity
+      dbms: h2
+      changes:
+        - modifyDataType:
+            tableName: leave_types
+            columnName: active
+            newDataType: boolean
+        - modifyDataType:
+            tableName: users
+            columnName: active
+            newDataType: boolean
+        - modifyDataType:
+            tableName: refresh_tokens
+            columnName: revoked
+            newDataType: boolean
+
+  - changeSet:
+      id: 026-convert-bit-columns-to-boolean-postgresql
+      author: antigravity
+      dbms: postgresql
+      changes:
+        - sql:
+            comment: Ensure active and revoked columns are cleanly converted to boolean in PostgreSQL
+            sql: >
+              DO $$
+              BEGIN
+                IF EXISTS (
+                  SELECT 1 FROM information_schema.columns 
+                  WHERE table_name = 'leave_types' AND column_name = 'active' AND data_type = 'bit'
+                ) THEN
+                  ALTER TABLE leave_types ALTER COLUMN active TYPE boolean USING (active = B'1');
+                END IF;
+
+                IF EXISTS (
+                  SELECT 1 FROM information_schema.columns 
+                  WHERE table_name = 'users' AND column_name = 'active' AND data_type = 'bit'
+                ) THEN
+                  ALTER TABLE users ALTER COLUMN active TYPE boolean USING (active = B'1');
+                END IF;
+
+                IF EXISTS (
+                  SELECT 1 FROM information_schema.columns 
+                  WHERE table_name = 'refresh_tokens' AND column_name = 'revoked' AND data_type = 'bit'
+                ) THEN
+                  ALTER TABLE refresh_tokens ALTER COLUMN revoked TYPE boolean USING (revoked = B'1');
+                END IF;
+              END $$;

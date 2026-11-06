@@ -32,7 +32,8 @@ class AppPropertiesTest {
         assertEquals(15, properties.getSecurity().getLockout().getDurationMinutes());
 
         assertNotNull(properties.getSecurity().getEncryption());
-        assertEquals("leave-mgmt-system-master-encryption-key-256-bit", properties.getSecurity().getEncryption().getKey());
+        assertNull(properties.getSecurity().getEncryption().getKey(), "Encryption key must not have an insecure hardcoded default");
+        assertNull(properties.getJwt().getSecret(), "JWT secret must not have an insecure hardcoded default");
 
         assertNotNull(properties.getIdempotency());
         assertEquals(1048576L, properties.getIdempotency().getMaxBodySizeBytes());

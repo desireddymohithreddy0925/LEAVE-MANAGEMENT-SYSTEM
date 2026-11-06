@@ -28,6 +28,17 @@ management:
     health:
       show-details: always
 
+# Local development secret fallbacks
+app:
+  jwt:
+    secret: ${JWT_SECRET:devOnlySecretKeyThatIsVeryLongAndSecureEnoughForLocalDevTesting2026!}
+  security:
+    encryption:
+      key: ${ENCRYPTION_KEY:devOnlyMasterEncryptionKeyForLocalDevTesting256Bit2026!}
+
+jwt:
+  secret: ${JWT_SECRET:devOnlySecretKeyThatIsVeryLongAndSecureEnoughForLocalDevTesting2026!}
+
 # Granular logging for local development
 logging:
   level:

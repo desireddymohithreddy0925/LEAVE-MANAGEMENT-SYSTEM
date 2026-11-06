@@ -59,7 +59,7 @@ public class AppProperties {
 
         @NotBlank(message = "JWT secret cannot be blank")
         @Size(min = 32, message = "JWT secret must provide at least 256 bits (32 bytes) of key material")
-        private String secret = "defaultSecretKeyThatNeedsToBeVeryLongAndSecureEnoughForHS256AlgorithmToBeUsedSafelyAndSecurely";
+        private String secret;
 
         @NotNull
         @Min(value = 60000, message = "Access token expiration must be at least 1 minute (60,000 ms)")
@@ -170,7 +170,7 @@ public class AppProperties {
 
         @NotBlank(message = "Encryption key cannot be blank")
         @Size(min = 32, message = "Encryption key must provide at least 256 bits (32 bytes) of key material")
-        private String key = "leave-mgmt-system-master-encryption-key-256-bit";
+        private String key;
 
         public String getKey() {
             return key;

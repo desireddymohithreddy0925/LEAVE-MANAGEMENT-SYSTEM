@@ -26,6 +26,11 @@ public class ProductionConfigurationValidationTest {
         }
     }
 
+    private static final String VALID_PROD_JWT_SECRET = "c2VjdXJlUmFuZG9tSldUU2VjcmV0S2V5MjAyNkZvckxlYXZlTWFuYWdlbWVudFN5c3RlbSE=";
+    private static final String VALID_PROD_ENCRYPTION_KEY = "ci-test-master-encryption-key-256-bit";
+    private static final String VALID_PROD_DB_PASSWORD = "StrongProductionDbPassword2026!#";
+    private static final String VALID_PROXIES = "127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16";
+
     private final ApplicationContextRunner baseRunner = new ApplicationContextRunner()
             .withUserConfiguration(
                     TestContextConfiguration.class,
@@ -36,12 +41,11 @@ public class ProductionConfigurationValidationTest {
                     IdempotencyFilter.class,
                     IdempotencyCleanupScheduler.class,
                     AppProperties.class
+            )
+            .withPropertyValues(
+                    "app.security.encryption.key=" + VALID_PROD_ENCRYPTION_KEY,
+                    "app.jwt.secret=" + VALID_PROD_JWT_SECRET
             );
-
-    private static final String VALID_PROD_JWT_SECRET = "c2VjdXJlUmFuZG9tSldUU2VjcmV0S2V5MjAyNkZvckxlYXZlTWFuYWdlbWVudFN5c3RlbSE=";
-    private static final String VALID_PROD_ENCRYPTION_KEY = "ci-test-master-encryption-key-256-bit";
-    private static final String VALID_PROD_DB_PASSWORD = "StrongProductionDbPassword2026!#";
-    private static final String VALID_PROXIES = "127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16";
 
     private boolean anyCauseContains(Throwable throwable, String search) {
         Throwable cur = throwable;
@@ -72,7 +76,8 @@ public class ProductionConfigurationValidationTest {
                 .withPropertyValues(
                         "spring.profiles.active=prod",
                         "spring.datasource.password=" + VALID_PROD_DB_PASSWORD,
-                        "app.jwt.secret=" + VALID_PROD_JWT_SECRET
+                        "app.jwt.secret=" + VALID_PROD_JWT_SECRET,
+                        "app.security.encryption.key="
                 )
                 .run(context -> {
                     assertThat(context).hasFailed();
@@ -143,7 +148,8 @@ public class ProductionConfigurationValidationTest {
                 .withPropertyValues(
                         "spring.profiles.active=prod",
                         "spring.datasource.password=" + VALID_PROD_DB_PASSWORD,
-                        "app.security.encryption.key=" + VALID_PROD_ENCRYPTION_KEY
+                        "app.security.encryption.key=" + VALID_PROD_ENCRYPTION_KEY,
+                        "app.jwt.secret="
                 )
                 .run(context -> {
                     assertThat(context).hasFailed();

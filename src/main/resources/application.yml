@@ -27,7 +27,7 @@ server:
 # --- Application Configuration Properties ('app.*') ---
 app:
   jwt:
-    secret: ${JWT_SECRET:defaultSecretKeyThatNeedsToBeVeryLongAndSecureEnoughForHS256AlgorithmToBeUsedSafelyAndSecurely}
+    secret: ${JWT_SECRET:}
     expirationMs: ${JWT_EXPIRATION:900000}          # 15 minutes
     refreshExpirationMs: ${JWT_REFRESH_EXPIRATION:604800000} # 7 days
   security:
@@ -36,7 +36,7 @@ app:
       max-failed-attempts: ${LOCKOUT_MAX_FAILED_ATTEMPTS:5}
       duration-minutes: ${LOCKOUT_DURATION_MINUTES:15}
     encryption:
-      key: ${ENCRYPTION_KEY:leave-mgmt-system-master-encryption-key-256-bit}
+      key: ${ENCRYPTION_KEY:}
   idempotency:
     max-body-size-bytes: ${IDEMPOTENCY_MAX_BODY_SIZE:1048576}
     cleanup-rate-ms: ${IDEMPOTENCY_CLEANUP_RATE:3600000}
@@ -44,7 +44,7 @@ app:
 
 # Backward compatibility aliases for direct property lookups
 jwt:
-  secret: ${JWT_SECRET:defaultSecretKeyThatNeedsToBeVeryLongAndSecureEnoughForHS256AlgorithmToBeUsedSafelyAndSecurely}
+  secret: ${JWT_SECRET:}
   expirationMs: ${JWT_EXPIRATION:900000}
   refreshExpirationMs: ${JWT_REFRESH_EXPIRATION:604800000}
 

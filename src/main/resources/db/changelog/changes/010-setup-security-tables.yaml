@@ -2,6 +2,7 @@ databaseChangeLog:
   - changeSet:
       id: 010-setup-security-tables
       author: antigravity
+      validCheckSum: ANY
       changes:
         - createTable:
             tableName: users
@@ -26,7 +27,7 @@ databaseChangeLog:
                     nullable: false
               - column:
                   name: active
-                  type: boolean
+                  type: bit(1)
                   defaultValueBoolean: true
                   constraints:
                     nullable: false
