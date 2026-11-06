@@ -10,6 +10,9 @@ COLLECTION_FILE="postman/Leave_Management_System.postman_collection.json"
 ENV_FILE="postman/Leave_Management_System.postman_environment.json"
 REPORT_DIR="target/newman-reports"
 
+export JWT_SECRET="${JWT_SECRET:-testOnlySecretKeyForUnitAndIntegrationTestsThatIsAtLeast32BytesLong!}"
+export ENCRYPTION_KEY="${ENCRYPTION_KEY:-testOnlyMasterEncryptionKeyForUnitAndIntegrationTests256Bit!}"
+
 mkdir -p "$REPORT_DIR"
 
 echo "=========================================================="
@@ -27,7 +30,7 @@ if lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null ; then
 else
     echo "Starting Spring Boot application on port $PORT (test profile)..."
     ./mvnw spring-boot:run \
-        -Dspring-boot.run.arguments="--spring.profiles.active=test --server.port=$PORT" \
+        -Dspring-boot.run.arguments="--spring.profiles.active=test --server.port=$PORT --app.jwt.secret=$JWT_SECRET --jwt.secret=$JWT_SECRET --app.security.encryption.key=$ENCRYPTION_KEY" \
         > "$REPORT_DIR/spring-boot.log" 2>&1 &
     SERVER_PID=$!
     echo "Application started with PID: $SERVER_PID"

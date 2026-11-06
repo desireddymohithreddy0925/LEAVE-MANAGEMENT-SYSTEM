@@ -28,3 +28,14 @@ logging:
     com.leave_management_system: INFO
     org.springframework.web: WARN
     org.springframework.security: WARN
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:testOnlySecretKeyForUnitAndIntegrationTestsThatIsAtLeast32BytesLong!}
+  security:
+    encryption:
+      key: ${ENCRYPTION_KEY:testOnlyMasterEncryptionKeyForUnitAndIntegrationTests256Bit!}
+
+jwt:
+  secret: ${JWT_SECRET:testOnlySecretKeyForUnitAndIntegrationTestsThatIsAtLeast32BytesLong!}
+

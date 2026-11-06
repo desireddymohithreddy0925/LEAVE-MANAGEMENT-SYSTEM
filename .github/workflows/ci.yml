@@ -106,6 +106,9 @@ jobs:
         run: ./run-postman-tests.sh
         env:
           PORT: 8089
+          JWT_SECRET: testOnlySecretKeyForUnitAndIntegrationTestsThatIsAtLeast32BytesLong!
+          ENCRYPTION_KEY: testOnlyMasterEncryptionKeyForUnitAndIntegrationTests256Bit!
+
 
       - name: Archive Newman Test Reports
         if: always()
