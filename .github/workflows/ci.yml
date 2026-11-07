@@ -196,7 +196,7 @@ jobs:
           JWT_EXPIRATION=900000
           JWT_REFRESH_EXPIRATION=604800000
           ENCRYPTION_KEY=ci-test-master-encryption-key-256-bit
-          SECURITY_TRUSTED_PROXIES=127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+          SECURITY_TRUSTED_PROXIES=127.0.0.1,::1
           EOF
 
       - name: Make Validation Suite Executable
@@ -210,6 +210,8 @@ jobs:
         env:
           APP_URL: http://localhost:8080
           DB_PORT: 5433
+          CI: "true"
+          ALLOW_DISPOSABLE_RUN: "true"
 
       - name: Capture Container Logs on Failure
         if: failure()

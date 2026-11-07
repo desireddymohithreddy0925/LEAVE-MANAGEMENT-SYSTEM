@@ -13,7 +13,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - lms-network
+      - lms-internal-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-leave_management_db}"]
       interval: 5s
@@ -43,12 +43,13 @@ services:
       - JWT_EXPIRATION=${JWT_EXPIRATION:-900000}
       - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-604800000}
       - "ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY must be set in .env or environment}"
-      - SECURITY_TRUSTED_PROXIES=${SECURITY_TRUSTED_PROXIES:-127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      - SECURITY_TRUSTED_PROXIES=${SECURITY_TRUSTED_PROXIES:-127.0.0.1,::1}
     depends_on:
       db:
         condition: service_healthy
     networks:
-      - lms-network
+      - lms-public-net
+      - lms-internal-net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 15s
@@ -64,9 +65,13 @@ services:
           memory: 512M
 
 networks:
-  lms-network:
-    name: lms-network
+  lms-public-net:
+    name: lms-public-net
     driver: bridge
+  lms-internal-net:
+    name: lms-internal-net
+    driver: bridge
+    internal: true
 
 volumes:
   postgres_data:

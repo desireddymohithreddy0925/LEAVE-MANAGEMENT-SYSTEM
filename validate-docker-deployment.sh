@@ -14,6 +14,7 @@
 #  8. User Registration & Employee Profile Creation
 #  9. Leave Management Flow (Leave Type, Balance, Application & Approval)
 # 10. PostgreSQL Persistent Volume & State Survival Across Restart
+# 11. Test Data Purge & Zero Database Pollution
 # ==============================================================================
 
 set -eo pipefail
@@ -25,11 +26,47 @@ BLUE='\033[0;34m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color
 
+# --- Environment Safety Restriction ---
+# Prevent unintended execution against live, production non-disposable environments
+if [ "${SPRING_PROFILES_ACTIVE:-}" = "prod" ] && [ "${ALLOW_DISPOSABLE_RUN:-false}" != "true" ] && [ "${CI:-false}" != "true" ]; then
+    echo -e "${RED}${BOLD}ERROR: validate-docker-deployment.sh is restricted to disposable test or development environments.${NC}"
+    echo "It executes state-modifying actions (user provisioning, leave balance mutation, and cluster restart testing)."
+    echo "To execute against disposable test clusters running the production profile, explicitly pass ALLOW_DISPOSABLE_RUN=true or CI=true."
+    exit 1
+fi
+
 APP_URL="${APP_URL:-http://localhost:8080}"
 DB_PORT="${DB_PORT:-5432}"
 
+# Dynamic database configuration and credentials (avoid hardcoded assumptions)
+DB_USER="${DB_USERNAME:-postgres}"
+DB_NAME="${DB_NAME:-leave_management_db}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin@leavemanagement.com}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-Admin@123}"
+
+if [ -f .env ]; then
+    [ -z "$DB_USERNAME" ] && DB_USER="$(grep -E '^DB_USERNAME=' .env | cut -d '=' -f2- | tr -d '\"\r' || echo "postgres")"
+    [ -z "$DB_NAME" ] && DB_NAME="$(grep -E '^DB_NAME=' .env | cut -d '=' -f2- | tr -d '\"\r' || echo "leave_management_db")"
+    if [ -z "$ADMIN_EMAIL_OVERRIDE" ]; then
+        VAL="$(grep -E '^ADMIN_EMAIL=' .env | cut -d '=' -f2- | tr -d '\"\r' || true)"
+        [ -n "$VAL" ] && ADMIN_EMAIL="$VAL"
+    fi
+    if [ -z "$ADMIN_PASSWORD_OVERRIDE" ]; then
+        VAL="$(grep -E '^ADMIN_PASSWORD=' .env | cut -d '=' -f2- | tr -d '\"\r' || true)"
+        [ -n "$VAL" ] && ADMIN_PASSWORD="$VAL"
+    fi
+fi
+
 pass_count=0
 fail_count=0
+
+# Tracking variables for automated test data cleanup
+USER_ID=""
+EMP_RECORD_ID=""
+LEAVE_TYPE_ID=""
+CUSTOM_LT_CREATED=0
+BALANCE_ID=""
+LEAVE_REQ_ID=""
 
 log_section() {
     echo -e "\n${BLUE}${BOLD}=== $1 ===${NC}"
@@ -48,6 +85,29 @@ log_fail() {
 log_info() {
     echo -e "  [${YELLOW}INFO${NC}] $1"
 }
+
+cleanup_validation_records() {
+    log_info "Purging test-created records to ensure zero database pollution..."
+    if [ -n "$LEAVE_REQ_ID" ] && [ "$LEAVE_REQ_ID" != "null" ]; then
+        docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -c "DELETE FROM leave_requests WHERE id = $LEAVE_REQ_ID;" >/dev/null 2>&1 || true
+    fi
+    if [ -n "$BALANCE_ID" ] && [ "$BALANCE_ID" != "null" ]; then
+        docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -c "DELETE FROM leave_balances WHERE id = $BALANCE_ID;" >/dev/null 2>&1 || true
+    fi
+    if [ -n "$EMP_RECORD_ID" ] && [ "$EMP_RECORD_ID" != "null" ]; then
+        docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -c "DELETE FROM employees WHERE id = $EMP_RECORD_ID;" >/dev/null 2>&1 || true
+    fi
+    if [ -n "$USER_ID" ] && [ "$USER_ID" != "null" ]; then
+        docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -c "DELETE FROM refresh_tokens WHERE user_id = $USER_ID;" >/dev/null 2>&1 || true
+        docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -c "DELETE FROM user_roles WHERE user_id = $USER_ID;" >/dev/null 2>&1 || true
+        docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -c "DELETE FROM users WHERE id = $USER_ID;" >/dev/null 2>&1 || true
+    fi
+    if [ "$CUSTOM_LT_CREATED" -eq 1 ] && [ -n "$LEAVE_TYPE_ID" ] && [ "$LEAVE_TYPE_ID" != "null" ]; then
+        docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -c "DELETE FROM leave_types WHERE id = $LEAVE_TYPE_ID;" >/dev/null 2>&1 || true
+    fi
+}
+
+trap cleanup_validation_records EXIT INT TERM
 
 # --- 1. Secret Enforcement Validation ---
 log_section "1. Secret Enforcement & Configuration Validation"
@@ -117,11 +177,30 @@ else
     log_fail "PostgreSQL port binding is insecure or not found: $DB_PORT_BINDING"
 fi
 
-NETWORK_EXISTS=$(docker network ls --filter name=lms-network -q)
-if [ -n "$NETWORK_EXISTS" ]; then
-    log_pass "Isolated internal Docker bridge network 'lms-network' is active"
+# Validate internal network isolation configuration
+INTERNAL_NET_INSPECT=$(docker network inspect lms-internal-net 2>/dev/null || echo "[]")
+IS_INTERNAL=$(echo "$INTERNAL_NET_INSPECT" | jq -r '.[0].Internal // false' 2>/dev/null || echo "false")
+
+if [ "$IS_INTERNAL" = "true" ]; then
+    log_pass "Dedicated internal network 'lms-internal-net' is configured with internal: true (external routing restricted)"
 else
-    log_fail "Internal network 'lms-network' not found"
+    log_fail "Internal network 'lms-internal-net' not configured as internal (IS_INTERNAL=$IS_INTERNAL)"
+fi
+
+# Validate DB is attached strictly to internal network, not public
+DB_NETWORKS=$(docker inspect lms-postgres --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' 2>/dev/null || echo "")
+if [[ "$DB_NETWORKS" == *"lms-internal-net"* ]] && [[ "$DB_NETWORKS" != *"lms-public-net"* ]]; then
+    log_pass "PostgreSQL container is connected exclusively to internal network and isolated from public network"
+else
+    log_fail "PostgreSQL container network attachment is not properly isolated: $DB_NETWORKS"
+fi
+
+# Verify backend can communicate with PostgreSQL across internal network
+ACTUATOR_DB_STATUS=$(curl -s "$APP_URL/actuator/health" 2>/dev/null | jq -r '.status // empty')
+if [ "$ACTUATOR_DB_STATUS" = "UP" ]; then
+    log_pass "Backend successfully communicates with PostgreSQL across internal network"
+else
+    log_fail "Backend cannot communicate with PostgreSQL across internal network (Status: $ACTUATOR_DB_STATUS)"
 fi
 
 # --- 5. Spring Boot Actuator Security Hardening ---
@@ -158,7 +237,7 @@ fi
 # --- 6. Liquibase Migrations Check ---
 log_section "6. Liquibase Schema Migrations Verification"
 
-CHANGESET_COUNT=$(docker compose exec -T db psql -U postgres -d leave_management_db -t -A -c "SELECT COUNT(*) FROM databasechangelog;" 2>/dev/null || echo "0")
+CHANGESET_COUNT=$(docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -t -A -c "SELECT COUNT(*) FROM databasechangelog;" 2>/dev/null || echo "0")
 if [ "$CHANGESET_COUNT" -ge 16 ]; then
     log_pass "Liquibase executed successfully ($CHANGESET_COUNT changesets verified in databasechangelog)"
 else
@@ -170,7 +249,7 @@ log_section "7. Authentication & Token Refresh Lifecycle"
 
 ADMIN_LOGIN_RESP=$(curl -s -X POST "$APP_URL/api/auth/login" \
     -H "Content-Type: application/json" \
-    -d '{"email":"admin@leavemanagement.com","password":"Admin@123"}')
+    -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
 
 ADMIN_ACCESS_TOKEN=$(echo "$ADMIN_LOGIN_RESP" | jq -r '.accessToken // empty')
 ADMIN_REFRESH_TOKEN=$(echo "$ADMIN_LOGIN_RESP" | jq -r '.refreshToken // empty')
@@ -231,7 +310,7 @@ else
 fi
 
 # Fetch Employee record ID
-EMP_RECORD_ID=$(docker compose exec -T db psql -U postgres -d leave_management_db -t -A -c "SELECT id FROM employees WHERE user_id = $USER_ID;" 2>/dev/null || echo "")
+EMP_RECORD_ID=$(docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -t -A -c "SELECT id FROM employees WHERE user_id = $USER_ID;" 2>/dev/null || echo "")
 
 if [ -n "$EMP_RECORD_ID" ]; then
     log_pass "Employee profile linked in database (Employee ID: $EMP_RECORD_ID)"
@@ -251,6 +330,7 @@ if [ -z "$LEAVE_TYPE_ID" ] || [ "$LEAVE_TYPE_ID" = "null" ]; then
         -H "Content-Type: application/json" \
         -d '{"name":"Validation Leave","description":"Automated Validation Quota","defaultDays":25}')
     LEAVE_TYPE_ID=$(echo "$CREATE_LT_RESP" | jq -r '.id // empty')
+    CUSTOM_LT_CREATED=1
 fi
 log_pass "Target Leave Type resolved (Leave Type ID: $LEAVE_TYPE_ID)"
 
@@ -377,6 +457,9 @@ if [ "$PERSISTED_AVAIL" -eq "$EXPECTED_AVAIL" ]; then
 else
     log_fail "Persisted balance verification failed: $PERSISTED_BAL (Expected: $EXPECTED_AVAIL)"
 fi
+
+# Clean up test-created records
+cleanup_validation_records
 
 # --- Summary ---
 echo -e "\n=============================================================================="

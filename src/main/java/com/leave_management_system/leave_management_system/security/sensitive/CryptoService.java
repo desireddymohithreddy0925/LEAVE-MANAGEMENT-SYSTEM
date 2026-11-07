@@ -14,10 +14,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.HexFormat;
-import java.util.Set;
+import java.util.*;
 
 @Service
 public class CryptoService {
@@ -39,18 +36,59 @@ public class CryptoService {
     );
 
     private final SecretKey secretKey;
+    private final List<SecretKey> fallbackKeys;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public CryptoService(@Value("${app.security.encryption.key:}") String secret) {
-        this(secret, null);
+        this(secret, null, null);
+    }
+
+    public CryptoService(String secret, Environment environment) {
+        this(secret, null, environment);
+    }
+
+    public CryptoService(String secret, String previousKeys) {
+        this(secret, previousKeys, null);
     }
 
     @Autowired
     public CryptoService(@Value("${app.security.encryption.key:}") String secret,
+                         @Value("${app.security.encryption.previous-keys:}") String previousKeys,
                          @Autowired(required = false) Environment environment) {
         try {
             byte[] keyBytes = validateAndDeriveKey(secret, environment);
             this.secretKey = new SecretKeySpec(keyBytes, ALGORITHM);
+
+            List<SecretKey> fallbacks = new ArrayList<>();
+
+            // 1. Backward Compatibility: Always register legacy UTF-8 key derivation
+            // if it differs from the primary derived key bytes.
+            byte[] legacyUtf8KeyBytes = deriveLegacyUtf8Key(secret);
+            if (legacyUtf8KeyBytes.length > 0 && !Arrays.equals(keyBytes, legacyUtf8KeyBytes)) {
+                fallbacks.add(new SecretKeySpec(legacyUtf8KeyBytes, ALGORITHM));
+            }
+
+            // 2. Key Rotation: Register configured previous keys (both primary and legacy derivations)
+            if (previousKeys != null && !previousKeys.isBlank()) {
+                for (String prevKey : previousKeys.split(",")) {
+                    String trimmed = prevKey.trim();
+                    if (!trimmed.isEmpty()) {
+                        try {
+                            byte[] prevBytes = validateAndDeriveKey(trimmed, null);
+                            if (!Arrays.equals(keyBytes, prevBytes)) {
+                                fallbacks.add(new SecretKeySpec(prevBytes, ALGORITHM));
+                            }
+                        } catch (Exception ignored) {
+                        }
+                        byte[] prevLegacyBytes = deriveLegacyUtf8Key(trimmed);
+                        if (prevLegacyBytes.length > 0 && !Arrays.equals(keyBytes, prevLegacyBytes)) {
+                            fallbacks.add(new SecretKeySpec(prevLegacyBytes, ALGORITHM));
+                        }
+                    }
+                }
+            }
+
+            this.fallbackKeys = Collections.unmodifiableList(fallbacks);
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
@@ -88,6 +126,18 @@ public class CryptoService {
             return sha.digest(keyMaterial);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to digest cryptographic key", e);
+        }
+    }
+
+    public static byte[] deriveLegacyUtf8Key(String secret) {
+        if (secret == null || secret.isBlank()) {
+            return new byte[0];
+        }
+        try {
+            MessageDigest sha = MessageDigest.getInstance("SHA-256");
+            return sha.digest(secret.trim().getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            return new byte[0];
         }
     }
 
@@ -153,6 +203,10 @@ public class CryptoService {
      * Decrypts ciphertext previously encrypted by encrypt().
      * If input is null, returns null.
      * If input is not prefixed with "ENC:", returns the input as legacy plaintext.
+     *
+     * Compatibility & Key Rotation:
+     * Attempts decryption using the current primary key. If authentication fails,
+     * it systematically tries legacy key derivations and configured previous keys.
      */
     public String decrypt(String ciphertext) {
         if (ciphertext == null) {
@@ -162,30 +216,58 @@ public class CryptoService {
             // Backward-compatible fallback for unencrypted legacy data
             return ciphertext;
         }
+
+        // 1. Attempt decryption with primary secretKey
         try {
-            String base64Payload = ciphertext.substring(ENCRYPTION_PREFIX.length());
-            byte[] combined = Base64.getDecoder().decode(base64Payload);
-
-            if (combined.length < GCM_IV_LENGTH_BYTES + (GCM_TAG_LENGTH_BITS / 8)) {
-                throw new IllegalArgumentException("Invalid encrypted payload size");
+            return decryptWithKey(ciphertext, this.secretKey);
+        } catch (Exception primaryException) {
+            // 2. Attempt decryption with fallback / previous rotated keys
+            if (this.fallbackKeys != null) {
+                for (SecretKey fallbackKey : this.fallbackKeys) {
+                    try {
+                        return decryptWithKey(ciphertext, fallbackKey);
+                    } catch (Exception ignored) {
+                    }
+                }
             }
-
-            ByteBuffer byteBuffer = ByteBuffer.wrap(combined);
-            byte[] iv = new byte[GCM_IV_LENGTH_BYTES];
-            byteBuffer.get(iv);
-
-            byte[] encryptedBytes = new byte[byteBuffer.remaining()];
-            byteBuffer.get(encryptedBytes);
-
-            Cipher cipher = Cipher.getInstance(CIPHER_TRANSFORMATION);
-            GCMParameterSpec parameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv);
-            cipher.init(Cipher.DECRYPT_MODE, secretKey, parameterSpec);
-
-            byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
-            return new String(decryptedBytes, StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new SecurityException("Failed to decrypt or authenticate sensitive data", e);
+            throw new SecurityException("Failed to decrypt or authenticate sensitive data", primaryException);
         }
+    }
+
+    private String decryptWithKey(String ciphertext, SecretKey key) throws Exception {
+        String base64Payload = ciphertext.substring(ENCRYPTION_PREFIX.length());
+        byte[] combined = Base64.getDecoder().decode(base64Payload);
+
+        if (combined.length < GCM_IV_LENGTH_BYTES + (GCM_TAG_LENGTH_BITS / 8)) {
+            throw new IllegalArgumentException("Invalid encrypted payload size");
+        }
+
+        ByteBuffer byteBuffer = ByteBuffer.wrap(combined);
+        byte[] iv = new byte[GCM_IV_LENGTH_BYTES];
+        byteBuffer.get(iv);
+
+        byte[] encryptedBytes = new byte[byteBuffer.remaining()];
+        byteBuffer.get(encryptedBytes);
+
+        Cipher cipher = Cipher.getInstance(CIPHER_TRANSFORMATION);
+        GCMParameterSpec parameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv);
+        cipher.init(Cipher.DECRYPT_MODE, key, parameterSpec);
+
+        byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
+        return new String(decryptedBytes, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Re-encrypts ciphertext using the current primary key.
+     * If the ciphertext was encrypted using a previous key or legacy derivation,
+     * it safely decrypts it using the fallback key and re-encrypts with the primary key.
+     */
+    public String rotateCiphertext(String ciphertext) {
+        if (ciphertext == null || !isEncrypted(ciphertext)) {
+            return ciphertext;
+        }
+        String decrypted = decrypt(ciphertext);
+        return encrypt(decrypted);
     }
 
     /**
