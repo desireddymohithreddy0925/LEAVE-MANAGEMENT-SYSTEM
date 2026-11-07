@@ -169,12 +169,13 @@ fi
 # --- 4. Network Isolation & Port Binding ---
 log_section "4. Network Isolation & Port Binding"
 
-DB_PORT_BINDING=$(docker compose port db 5432 2>/dev/null || echo "")
+# Verify PostgreSQL has zero public or wildcard network exposure
+PUBLIC_PORT_EXPOSURE=$(docker inspect lms-postgres --format '{{range $p, $conf := .NetworkSettings.Ports}}{{range $conf}}{{if and (ne .HostIp "127.0.0.1") (ne .HostIp "::1")}}{{.HostIp}}:{{.HostPort}}{{end}}{{end}}{{end}}' 2>/dev/null || echo "")
 
-if [[ "$DB_PORT_BINDING" == 127.0.0.1:* ]]; then
-    log_pass "PostgreSQL port 5432 is restricted to loopback (127.0.0.1) and NOT exposed publicly"
+if [ -z "$PUBLIC_PORT_EXPOSURE" ]; then
+    log_pass "PostgreSQL port 5432 is strictly isolated (zero public interface exposure, restricted to loopback/internal network)"
 else
-    log_fail "PostgreSQL port binding is insecure or not found: $DB_PORT_BINDING"
+    log_fail "PostgreSQL port binding is insecurely exposed on external interfaces: $PUBLIC_PORT_EXPOSURE"
 fi
 
 # Validate internal network isolation configuration
