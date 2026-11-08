@@ -19,6 +19,10 @@ public class UserService {
     private final UserRepository userRepository;
     private final AuditService auditService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @Lazy
+    private AuthorizationAuditService authorizationAuditService;
+
     public UserService(UserRepository userRepository, @Lazy AuditService auditService) {
         this.userRepository = userRepository;
         this.auditService = auditService;
@@ -64,6 +68,11 @@ public class UserService {
             );
         }
 
+        if (authorizationAuditService != null) {
+            authorizationAuditService.recordGranted(null, null, "USER_UNLOCK",
+                    "User#" + user.getId() + " (" + user.getEmail() + ")", "USER_LOCK_MANAGE", "User account manually unlocked by administrator");
+        }
+
         return UserResponseDTO.fromEntity(saved);
     }
 
@@ -77,14 +86,19 @@ public class UserService {
         user.setLockExpiresAt(null); // Indefinite lock until unlocked
         User saved = userRepository.save(user);
 
+        String details = (reason != null && !reason.isBlank()) ? reason.trim() : "Manually locked by administrator";
         if (auditService != null) {
-            String details = (reason != null && !reason.isBlank()) ? reason.trim() : "Manually locked by administrator";
             auditService.logSecurityEvent(
                     SecurityEventType.ACCOUNT_LOCKED,
                     null,
                     user.getEmail(),
                     "User account manually locked: " + details
             );
+        }
+
+        if (authorizationAuditService != null) {
+            authorizationAuditService.recordGranted(null, null, "USER_LOCK",
+                    "User#" + user.getId() + " (" + user.getEmail() + ")", "USER_LOCK_MANAGE", "User account manually locked: " + details);
         }
 
         return UserResponseDTO.fromEntity(saved);

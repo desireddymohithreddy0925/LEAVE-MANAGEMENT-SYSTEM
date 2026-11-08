@@ -210,6 +210,24 @@ public class SecurityEventManagementService {
                 event.setStatus(SecurityEventStatus.OPEN);
                 event.setThreatReason("Attempted unauthorized privilege escalation");
                 break;
+            case SecurityEventType.ACCOUNT_LOCKED:
+                event.setSeverity(SecurityEventSeverity.HIGH);
+                event.setThreatScore(75);
+                event.setStatus(SecurityEventStatus.OPEN);
+                event.setThreatReason("User account locked due to excessive failed attempts or policy enforcement");
+                break;
+            case SecurityEventType.ACCOUNT_UNLOCKED:
+                event.setSeverity(SecurityEventSeverity.LOW);
+                event.setThreatScore(10);
+                event.setStatus(SecurityEventStatus.RESOLVED);
+                event.setResolutionNotes("User account unlocked");
+                break;
+            case SecurityEventType.SUSPICIOUS_IP_ACTIVITY:
+                event.setSeverity(SecurityEventSeverity.HIGH);
+                event.setThreatScore(80);
+                event.setStatus(SecurityEventStatus.OPEN);
+                event.setThreatReason("Suspicious request patterns detected from source IP address");
+                break;
             default:
                 event.setSeverity(SecurityEventSeverity.MEDIUM);
                 event.setThreatScore(30);

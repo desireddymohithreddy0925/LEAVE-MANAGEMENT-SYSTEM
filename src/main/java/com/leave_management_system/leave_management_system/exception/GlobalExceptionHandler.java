@@ -37,6 +37,13 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponseDTO> handleNoResourceFound(
+            org.springframework.web.servlet.resource.NoResourceFoundException exception) {
+        ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.NOT_FOUND.value(), "Not Found", "Resource not found");
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponseDTO> handleValidationException(
             MethodArgumentNotValidException exception) {
@@ -124,6 +131,19 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponseDTO> handleMissingServletRequestParameterException(
             org.springframework.web.bind.MissingServletRequestParameterException exception) {
         ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.BAD_REQUEST.value(), "Bad Request", exception.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponseDTO> handleHttpRequestMethodNotSupportedException(
+            org.springframework.web.HttpRequestMethodNotSupportedException exception) {
+        ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.METHOD_NOT_ALLOWED.value(), "Method Not Allowed", exception.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.METHOD_NOT_ALLOWED);
+    }
+
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<ErrorResponseDTO> handleSecurityException(SecurityException exception) {
+        ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.BAD_REQUEST.value(), "Decryption Failed", exception.getMessage());
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 

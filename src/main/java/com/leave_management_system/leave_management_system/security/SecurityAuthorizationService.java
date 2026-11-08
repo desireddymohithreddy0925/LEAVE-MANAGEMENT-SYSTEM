@@ -5,6 +5,7 @@ import com.leave_management_system.leave_management_system.entity.Employee;
 import com.leave_management_system.leave_management_system.entity.LeaveRequest;
 import com.leave_management_system.leave_management_system.repository.EmployeeRepository;
 import com.leave_management_system.leave_management_system.repository.LeaveRequestRepository;
+import com.leave_management_system.leave_management_system.repository.UserRepository;
 import com.leave_management_system.leave_management_system.service.AuthorizationAuditService;
 import com.leave_management_system.leave_management_system.entity.TransactionReview;
 import com.leave_management_system.leave_management_system.repository.TransactionReviewRepository;
@@ -21,15 +22,18 @@ public class SecurityAuthorizationService {
     private final LeaveRequestRepository leaveRequestRepository;
     private final AuthorizationAuditService authorizationAuditService;
     private final TransactionReviewRepository transactionReviewRepository;
+    private final UserRepository userRepository;
 
     public SecurityAuthorizationService(EmployeeRepository employeeRepository,
                                         LeaveRequestRepository leaveRequestRepository,
                                         @Lazy AuthorizationAuditService authorizationAuditService,
-                                        @Lazy TransactionReviewRepository transactionReviewRepository) {
+                                        @Lazy TransactionReviewRepository transactionReviewRepository,
+                                        @Lazy UserRepository userRepository) {
         this.employeeRepository = employeeRepository;
         this.leaveRequestRepository = leaveRequestRepository;
         this.authorizationAuditService = authorizationAuditService;
         this.transactionReviewRepository = transactionReviewRepository;
+        this.userRepository = userRepository;
     }
 
     public Optional<Employee> getAuthenticatedEmployee(Authentication authentication) {
@@ -40,10 +44,24 @@ public class SecurityAuthorizationService {
         return employeeRepository.findByUserEmail(email);
     }
 
-    public boolean isSelf(Authentication authentication, Long targetEmployeeId) {
-        return getAuthenticatedEmployee(authentication)
-                .map(emp -> emp.getId().equals(targetEmployeeId))
-                .orElse(false);
+    public boolean isSelf(Authentication authentication, Long targetId) {
+        if (authentication == null || !authentication.isAuthenticated() || targetId == null) {
+            return false;
+        }
+        String email = authentication.getName();
+        Optional<Employee> emp = employeeRepository.findByUserEmail(email);
+        if (emp.isPresent()) {
+            Employee e = emp.get();
+            if (targetId.equals(e.getId()) || (e.getUser() != null && targetId.equals(e.getUser().getId()))) {
+                return true;
+            }
+        }
+        if (userRepository != null) {
+            return userRepository.findByEmail(email)
+                    .map(u -> targetId.equals(u.getId()))
+                    .orElse(false);
+        }
+        return false;
     }
 
     public boolean isManagerOfEmployee(Authentication authentication, Long targetEmployeeId) {
@@ -309,21 +327,25 @@ public class SecurityAuthorizationService {
 
     public boolean canViewTransactionReview(Authentication authentication, Long reviewId) {
         if (authentication == null || !authentication.isAuthenticated()) {
+            audit(authentication, "TRANSACTION_REVIEW_VIEW_CHECK", "TransactionReview#" + reviewId, "REVIEW_VIEW", false, "Unauthenticated caller");
             return false;
         }
         boolean isGlobalScope = authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_HR")
                         || a.getAuthority().equals("AUDIT_VIEW") || a.getAuthority().equals("ADMIN_AUDIT_VIEW"));
         if (isGlobalScope) {
+            audit(authentication, "TRANSACTION_REVIEW_VIEW_CHECK", "TransactionReview#" + reviewId, "REVIEW_VIEW", true, "Authorized via global audit role");
             return true;
         }
 
         if (reviewId == null) {
+            audit(authentication, "TRANSACTION_REVIEW_VIEW_CHECK", "TransactionReview#null", "REVIEW_VIEW", false, "Review ID is null");
             return false;
         }
 
         Optional<TransactionReview> reviewOpt = transactionReviewRepository.findById(reviewId);
         if (reviewOpt.isEmpty()) {
+            audit(authentication, "TRANSACTION_REVIEW_VIEW_CHECK", "TransactionReview#" + reviewId, "REVIEW_VIEW", false, "Review not found");
             return false;
         }
 
@@ -331,19 +353,26 @@ public class SecurityAuthorizationService {
         String callerEmail = authentication.getName();
 
         if (review.getActorEmail() != null && review.getActorEmail().equalsIgnoreCase(callerEmail)) {
+            audit(authentication, "TRANSACTION_REVIEW_VIEW_CHECK", "TransactionReview#" + reviewId, "SELF", true, "Authorized as actor");
             return true;
         }
 
         if (review.getEmployee() != null && review.getEmployee().getUser() != null && review.getEmployee().getUser().getEmail() != null) {
             if (review.getEmployee().getUser().getEmail().equalsIgnoreCase(callerEmail)) {
+                audit(authentication, "TRANSACTION_REVIEW_VIEW_CHECK", "TransactionReview#" + reviewId, "SELF", true, "Authorized as subject employee");
                 return true;
             }
         }
 
         if (review.getEmployee() != null) {
-            return isManagerOfEmployee(authentication, review.getEmployee().getId());
+            boolean isManager = isManagerOfEmployee(authentication, review.getEmployee().getId());
+            if (isManager) {
+                audit(authentication, "TRANSACTION_REVIEW_VIEW_CHECK", "TransactionReview#" + reviewId, "MANAGER", true, "Authorized as manager of employee");
+                return true;
+            }
         }
 
+        audit(authentication, "TRANSACTION_REVIEW_VIEW_CHECK", "TransactionReview#" + reviewId, "REVIEW_VIEW", false, "User lacks authorization to view transaction review");
         return false;
     }
 }

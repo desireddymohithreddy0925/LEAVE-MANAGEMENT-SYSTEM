@@ -40,21 +40,35 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             int status = response.getStatus();
             String clientIp = getClientIp(request);
 
+            String safeUser = sanitizeForLog(user);
+            String safeIp = sanitizeForLog(clientIp);
+            String safeMethod = sanitizeForLog(method);
+            String safeUri = sanitizeForLog(uri);
+
             if (status >= 400) {
                 logger.error("Request Completed - User: {}, IP: {}, Action: {} {}, Result: {}, Duration: {}ms", 
-                        user, clientIp, method, uri, status, duration);
+                        safeUser, safeIp, safeMethod, safeUri, status, duration);
             } else {
                 logger.info("Request Completed - User: {}, IP: {}, Action: {} {}, Result: {}, Duration: {}ms", 
-                        user, clientIp, method, uri, status, duration);
+                        safeUser, safeIp, safeMethod, safeUri, status, duration);
             }
         }
     }
 
-    private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
+    private String sanitizeForLog(String input) {
+        if (input == null) {
+            return "";
         }
-        return ip;
+        return input.replace('\r', '_').replace('\n', '_');
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.leave_management_system.leave_management_system.security.ClientIpResolver clientIpResolver;
+
+    private String getClientIp(HttpServletRequest request) {
+        if (clientIpResolver != null) {
+            return clientIpResolver.resolveClientIp(request);
+        }
+        return request.getRemoteAddr();
     }
 }

@@ -123,7 +123,7 @@ public class SensitiveDataController {
         return ResponseEntity.ok(export);
     }
 
-    @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('EMPLOYEE_VIEW')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN') or @securityService.canViewEmployee(authentication, #employeeId)")
     @GetMapping("/export/{employeeId:\\d+}")
     @Operation(summary = "Admin export of employee personal data", description = "Exports all personal data held for a specific employee.")
     @ApiResponses({

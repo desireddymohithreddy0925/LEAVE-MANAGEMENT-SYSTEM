@@ -24,10 +24,20 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
     private final AuditService auditService;
     private final com.leave_management_system.leave_management_system.service.AuthorizationAuditService authorizationAuditService;
 
+    @Autowired(required = false)
+    private com.leave_management_system.leave_management_system.security.ClientIpResolver clientIpResolver;
+
     public CustomAuthenticationEntryPoint(@Lazy @Autowired(required = false) AuditService auditService,
                                           @Lazy @Autowired(required = false) com.leave_management_system.leave_management_system.service.AuthorizationAuditService authorizationAuditService) {
         this.auditService = auditService;
         this.authorizationAuditService = authorizationAuditService;
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        if (clientIpResolver != null) {
+            return clientIpResolver.resolveClientIp(request);
+        }
+        return request.getRemoteAddr();
     }
 
     @Override
@@ -35,10 +45,7 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
                          AuthenticationException authException) throws IOException, ServletException {
 
         try {
-            String ip = request.getHeader("X-Forwarded-For");
-            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-                ip = request.getRemoteAddr();
-            }
+            String ip = getClientIp(request);
             String details = request.getMethod() + " " + request.getRequestURI();
             if (auditService != null) {
                 auditService.logSecurityEvent(SecurityEventType.UNAUTHORIZED_ACCESS, ip, null, details);

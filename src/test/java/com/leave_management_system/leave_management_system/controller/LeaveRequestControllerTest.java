@@ -153,6 +153,7 @@ class LeaveRequestControllerTest {
 
         OverlapCheckResponseDTO response = new OverlapCheckResponseDTO(false, "No overlap detected", Collections.emptyList());
 
+        when(securityService.canViewEmployee(any(), eq(1L))).thenReturn(true);
         when(leaveRequestService.checkOverlap(1L, start, end)).thenReturn(response);
 
         mockMvc.perform(get("/api/leave-requests/check-overlap")
@@ -165,6 +166,26 @@ class LeaveRequestControllerTest {
                 .andExpect(jsonPath("$.message").value("No overlap detected"));
 
         verify(leaveRequestService).checkOverlap(1L, start, end);
+    }
+
+    @Test
+    @DisplayName("GET /api/leave-requests/check-overlap - Returns 403 Forbidden when unauthorized to view target employee")
+    void checkOverlap_Forbidden() throws Exception {
+        UsernamePasswordAuthenticationToken empAuth = new UsernamePasswordAuthenticationToken(
+                "emp@example.com", null, List.of(new SimpleGrantedAuthority("ROLE_EMPLOYEE")));
+        LocalDate start = LocalDate.now().plusDays(1);
+        LocalDate end = LocalDate.now().plusDays(3);
+
+        when(securityService.canViewEmployee(any(), eq(99L))).thenReturn(false);
+
+        mockMvc.perform(get("/api/leave-requests/check-overlap")
+                        .principal(empAuth)
+                        .param("startDate", start.toString())
+                        .param("endDate", end.toString())
+                        .param("employeeId", "99"))
+                .andExpect(status().isForbidden());
+
+        verify(leaveRequestService, never()).checkOverlap(anyLong(), any(), any());
     }
 
     @Test

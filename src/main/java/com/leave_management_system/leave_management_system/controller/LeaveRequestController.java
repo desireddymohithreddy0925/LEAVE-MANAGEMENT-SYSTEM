@@ -110,17 +110,17 @@ public class LeaveRequestController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) Long employeeId) {
 
-        boolean isElevated = authentication != null && authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_HR") || a.getAuthority().equals("ROLE_MANAGER"));
-
         Long targetEmployeeId;
-        if (!isElevated || employeeId == null) {
+        if (employeeId == null) {
             com.leave_management_system.leave_management_system.entity.Employee employee = securityService
                     .getAuthenticatedEmployee(authentication)
                     .orElseThrow(() -> new com.leave_management_system.leave_management_system.exception.ResourceNotFoundException(
                             "Authenticated employee not found"));
-            targetEmployeeId = (isElevated && employeeId != null) ? employeeId : employee.getId();
+            targetEmployeeId = employee.getId();
         } else {
+            if (!securityService.canViewEmployee(authentication, employeeId)) {
+                throw new org.springframework.security.access.AccessDeniedException("Forbidden from checking overlap for target employee");
+            }
             targetEmployeeId = employeeId;
         }
 

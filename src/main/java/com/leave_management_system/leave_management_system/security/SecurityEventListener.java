@@ -53,6 +53,8 @@ public class SecurityEventListener {
         try {
             if (event.getObject() instanceof org.aopalliance.intercept.MethodInvocation mi) {
                 resource = mi.getMethod().getDeclaringClass().getSimpleName() + "#" + mi.getMethod().getName();
+            } else if (event.getObject() instanceof org.springframework.security.web.access.intercept.RequestAuthorizationContext rac) {
+                resource = rac.getRequest().getMethod() + " " + rac.getRequest().getRequestURI();
             } else if (event.getObject() != null) {
                 resource = event.getObject().toString();
             }

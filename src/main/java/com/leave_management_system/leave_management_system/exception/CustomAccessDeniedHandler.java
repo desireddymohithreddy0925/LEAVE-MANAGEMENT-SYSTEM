@@ -26,10 +26,20 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
     private final AuditService auditService;
     private final AuthorizationAuditService authorizationAuditService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.leave_management_system.leave_management_system.security.ClientIpResolver clientIpResolver;
+
     public CustomAccessDeniedHandler(@Lazy AuditService auditService,
                                      @Lazy AuthorizationAuditService authorizationAuditService) {
         this.auditService = auditService;
         this.authorizationAuditService = authorizationAuditService;
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        if (clientIpResolver != null) {
+            return clientIpResolver.resolveClientIp(request);
+        }
+        return request.getRemoteAddr();
     }
 
     @Override
@@ -37,10 +47,7 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
                        AccessDeniedException accessDeniedException) throws IOException, ServletException {
 
         try {
-            String ip = request.getHeader("X-Forwarded-For");
-            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-                ip = request.getRemoteAddr();
-            }
+            String ip = getClientIp(request);
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             String userEmail = (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal()))
                     ? auth.getName() : null;
