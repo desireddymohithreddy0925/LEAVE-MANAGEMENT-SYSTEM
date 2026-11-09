@@ -36,7 +36,7 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('SECURITY_EVENT_MANAGE') or hasAuthority('USER_LOCK_MANAGE') or @securityService.isSelf(authentication, #id)")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('SECURITY_EVENT_MANAGE') or hasAuthority('USER_LOCK_MANAGE') or @securityService.isSelfUser(authentication, #id)")
     @Operation(summary = "Get user by ID", description = "Retrieve details for a specific user")
     public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long id) {
         return ResponseEntity.ok(userService.getUserById(id));

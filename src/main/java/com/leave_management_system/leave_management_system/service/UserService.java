@@ -41,7 +41,7 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('SECURITY_EVENT_MANAGE') or hasAuthority('USER_LOCK_MANAGE') or @securityService.isSelf(authentication, #id)")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('SECURITY_EVENT_MANAGE') or hasAuthority('USER_LOCK_MANAGE') or @securityService.isSelfUser(authentication, #id)")
     public UserResponseDTO getUserById(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));

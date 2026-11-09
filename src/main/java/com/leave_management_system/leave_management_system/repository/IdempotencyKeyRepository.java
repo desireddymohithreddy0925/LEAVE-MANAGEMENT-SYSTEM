@@ -24,4 +24,10 @@ public interface IdempotencyKeyRepository extends JpaRepository<IdempotencyKey, 
     @Modifying
     @Query("DELETE FROM IdempotencyKey k WHERE k.createdAt <= :cutoff AND k.status = 'IN_PROGRESS'")
     int deleteInterruptedKeys(@Param("cutoff") LocalDateTime cutoff);
+
+    long countByStatus(String status);
+
+    long countByExpiresAtBefore(LocalDateTime dateTime);
+
+    long countByCreatedAtBeforeAndStatus(LocalDateTime dateTime, String status);
 }

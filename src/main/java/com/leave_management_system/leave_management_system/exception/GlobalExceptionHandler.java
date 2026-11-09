@@ -44,6 +44,15 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler({
+            jakarta.persistence.EntityNotFoundException.class,
+            org.springframework.dao.EmptyResultDataAccessException.class
+    })
+    public ResponseEntity<ErrorResponseDTO> handleEntityNotFoundException(Exception exception) {
+        ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.NOT_FOUND.value(), "Not Found", exception.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponseDTO> handleValidationException(
             MethodArgumentNotValidException exception) {
@@ -134,11 +143,44 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(org.springframework.web.bind.MissingPathVariableException.class)
+    public ResponseEntity<ErrorResponseDTO> handleMissingPathVariableException(
+            org.springframework.web.bind.MissingPathVariableException exception) {
+        String message = exception.getVariableName() != null
+                ? "Missing path variable: " + exception.getVariableName()
+                : "Required path variable is missing";
+        ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.BAD_REQUEST.value(), "Bad Request", message);
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorResponseDTO> handleHttpRequestMethodNotSupportedException(
             org.springframework.web.HttpRequestMethodNotSupportedException exception) {
         ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.METHOD_NOT_ALLOWED.value(), "Method Not Allowed", exception.getMessage());
         return new ResponseEntity<>(response, HttpStatus.METHOD_NOT_ALLOWED);
+    }
+
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponseDTO> handleHttpMediaTypeNotSupportedException(
+            org.springframework.web.HttpMediaTypeNotSupportedException exception) {
+        ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.UNSUPPORTED_MEDIA_TYPE.value(), "Unsupported Media Type", exception.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+    }
+
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<ErrorResponseDTO> handleHttpMediaTypeNotAcceptableException(
+            org.springframework.web.HttpMediaTypeNotAcceptableException exception) {
+        ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.NOT_ACCEPTABLE.value(), "Not Acceptable", "Requested media type is not acceptable");
+        return new ResponseEntity<>(response, HttpStatus.NOT_ACCEPTABLE);
+    }
+
+    @ExceptionHandler({
+            PayloadTooLargeException.class,
+            org.springframework.web.multipart.MaxUploadSizeExceededException.class
+    })
+    public ResponseEntity<ErrorResponseDTO> handlePayloadTooLargeException(Exception exception) {
+        ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.PAYLOAD_TOO_LARGE.value(), "Payload Too Large", exception.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.PAYLOAD_TOO_LARGE);
     }
 
     @ExceptionHandler(SecurityException.class)
@@ -176,6 +218,15 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponseDTO> handleConcurrencyLockingException(Exception exception) {
         ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.CONFLICT.value(), "Conflict",
                 "The resource was updated concurrently by another transaction. Please refresh and try again.");
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponseDTO> handleDataIntegrityViolationException(
+            org.springframework.dao.DataIntegrityViolationException exception) {
+        log.warn("Database data integrity violation: {}", exception.getMessage());
+        ErrorResponseDTO response = new ErrorResponseDTO(HttpStatus.CONFLICT.value(), "Conflict",
+                "Database integrity constraint violation: The requested operation violates unique or referential integrity constraints.");
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 

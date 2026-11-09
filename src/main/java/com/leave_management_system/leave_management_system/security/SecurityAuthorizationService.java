@@ -44,21 +44,24 @@ public class SecurityAuthorizationService {
         return employeeRepository.findByUserEmail(email);
     }
 
-    public boolean isSelf(Authentication authentication, Long targetId) {
-        if (authentication == null || !authentication.isAuthenticated() || targetId == null) {
+    public boolean isSelf(Authentication authentication, Long targetEmployeeId) {
+        if (authentication == null || !authentication.isAuthenticated() || targetEmployeeId == null) {
             return false;
         }
         String email = authentication.getName();
-        Optional<Employee> emp = employeeRepository.findByUserEmail(email);
-        if (emp.isPresent()) {
-            Employee e = emp.get();
-            if (targetId.equals(e.getId()) || (e.getUser() != null && targetId.equals(e.getUser().getId()))) {
-                return true;
-            }
+        return employeeRepository.findByUserEmail(email)
+                .map(e -> targetEmployeeId.equals(e.getId()))
+                .orElse(false);
+    }
+
+    public boolean isSelfUser(Authentication authentication, Long targetUserId) {
+        if (authentication == null || !authentication.isAuthenticated() || targetUserId == null) {
+            return false;
         }
+        String email = authentication.getName();
         if (userRepository != null) {
             return userRepository.findByEmail(email)
-                    .map(u -> targetId.equals(u.getId()))
+                    .map(u -> targetUserId.equals(u.getId()))
                     .orElse(false);
         }
         return false;

@@ -164,6 +164,105 @@ public class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("handleNoResourceFound: returns 404 Not Found")
+    void handleNoResourceFound_Returns404() {
+        org.springframework.web.servlet.resource.NoResourceFoundException ex =
+                mock(org.springframework.web.servlet.resource.NoResourceFoundException.class);
+
+        ResponseEntity<ErrorResponseDTO> response = exceptionHandler.handleNoResourceFound(ex);
+
+        assertNotNull(response);
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertEquals(404, response.getBody().getStatus());
+        assertEquals("Resource not found", response.getBody().getMessage());
+    }
+
+    @Test
+    @DisplayName("handleEntityNotFoundException: returns 404 Not Found")
+    void handleEntityNotFoundException_Returns404() {
+        jakarta.persistence.EntityNotFoundException ex =
+                new jakarta.persistence.EntityNotFoundException("Entity with id 42 does not exist");
+
+        ResponseEntity<ErrorResponseDTO> response = exceptionHandler.handleEntityNotFoundException(ex);
+
+        assertNotNull(response);
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertEquals(404, response.getBody().getStatus());
+        assertEquals("Entity with id 42 does not exist", response.getBody().getMessage());
+    }
+
+    @Test
+    @DisplayName("handleDataIntegrityViolationException: returns 409 Conflict with sanitized message")
+    void handleDataIntegrityViolationException_Returns409() {
+        org.springframework.dao.DataIntegrityViolationException ex =
+                new org.springframework.dao.DataIntegrityViolationException("Unique index or primary key violation: EMAIL_INDEX");
+
+        ResponseEntity<ErrorResponseDTO> response = exceptionHandler.handleDataIntegrityViolationException(ex);
+
+        assertNotNull(response);
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+        assertEquals(409, response.getBody().getStatus());
+        assertTrue(response.getBody().getMessage().contains("Database integrity constraint violation"));
+    }
+
+    @Test
+    @DisplayName("handlePayloadTooLargeException: returns 413 Payload Too Large")
+    void handlePayloadTooLargeException_Returns413() {
+        PayloadTooLargeException ex = new PayloadTooLargeException("Request payload exceeds limit of 10MB");
+
+        ResponseEntity<ErrorResponseDTO> response = exceptionHandler.handlePayloadTooLargeException(ex);
+
+        assertNotNull(response);
+        assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, response.getStatusCode());
+        assertEquals(413, response.getBody().getStatus());
+        assertEquals("Request payload exceeds limit of 10MB", response.getBody().getMessage());
+    }
+
+    @Test
+    @DisplayName("handleHttpMediaTypeNotSupportedException: returns 415 Unsupported Media Type")
+    void handleHttpMediaTypeNotSupportedException_Returns415() {
+        org.springframework.web.HttpMediaTypeNotSupportedException ex =
+                new org.springframework.web.HttpMediaTypeNotSupportedException("Content-Type 'text/xml' is not supported");
+
+        ResponseEntity<ErrorResponseDTO> response = exceptionHandler.handleHttpMediaTypeNotSupportedException(ex);
+
+        assertNotNull(response);
+        assertEquals(HttpStatus.UNSUPPORTED_MEDIA_TYPE, response.getStatusCode());
+        assertEquals(415, response.getBody().getStatus());
+        assertTrue(response.getBody().getMessage().contains("not supported"));
+    }
+
+    @Test
+    @DisplayName("handleHttpMediaTypeNotAcceptableException: returns 406 Not Acceptable")
+    void handleHttpMediaTypeNotAcceptableException_Returns406() {
+        org.springframework.web.HttpMediaTypeNotAcceptableException ex =
+                new org.springframework.web.HttpMediaTypeNotAcceptableException("No acceptable representation");
+
+        ResponseEntity<ErrorResponseDTO> response = exceptionHandler.handleHttpMediaTypeNotAcceptableException(ex);
+
+        assertNotNull(response);
+        assertEquals(HttpStatus.NOT_ACCEPTABLE, response.getStatusCode());
+        assertEquals(406, response.getBody().getStatus());
+        assertEquals("Requested media type is not acceptable", response.getBody().getMessage());
+    }
+
+    @Test
+    @DisplayName("handleMissingPathVariableException: returns 400 Bad Request")
+    void handleMissingPathVariableException_Returns400() throws Exception {
+        java.lang.reflect.Method method = GlobalExceptionHandlerTest.class.getDeclaredMethod("handleMissingPathVariableException_Returns400");
+        org.springframework.core.MethodParameter methodParam = new org.springframework.core.MethodParameter(method, -1);
+        org.springframework.web.bind.MissingPathVariableException ex =
+                new org.springframework.web.bind.MissingPathVariableException("id", methodParam);
+
+        ResponseEntity<ErrorResponseDTO> response = exceptionHandler.handleMissingPathVariableException(ex);
+
+        assertNotNull(response);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals(400, response.getBody().getStatus());
+        assertTrue(response.getBody().getMessage().contains("Missing path variable: id"));
+    }
+
+    @Test
     @DisplayName("handleGenericException: returns 500 Internal Server Error")
     void handleGenericException_Returns500() {
         RuntimeException ex = new RuntimeException("Unexpected internal failure");
