@@ -735,3 +735,141 @@ MySQL
 Actual persistence
 
 This is the database foundation I'd use for the project before starting the authentication and REST API implementation.
+
+---
+
+# 9. Extended Enterprise Schema & Audit Architecture
+
+In addition to core employee and leave domain entities, production compliance and zero-trust security require dedicated tables for granular RBAC permissions, audit trails, transaction review, idempotency, and dual-signoff tracking:
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                   EXTENDED ENTERPRISE AUDIT SCHEMA                       │
+└──────────────────────────────────────────────────────────────────────────┘
+
+     ┌──────────────┐       ┌──────────────────────┐       ┌──────────────┐
+     │ permissions  │◀─────┤   role_permissions   ├─────▶│    roles     │
+     ├──────────────┤       ├──────────────────────┤       ├──────────────┤
+     │ PK id        │       │ PK role_id (FK)      │       │ PK id        │
+     │ name UNIQUE  │       │ PK permission_id (FK)│       │ name UNIQUE  │
+     │ description  │       └──────────────────────┘       └──────────────┘
+     └──────────────┘
+
+     ┌────────────────────────┐      ┌───────────────────────────┐
+     │    security_events     │      │   authorization_audit_logs│
+     ├────────────────────────┤      ├───────────────────────────┤
+     │ PK id                  │      │ PK id                     │
+     │ event_type             │      │ user_id (FK)              │
+     │ severity               │      │ required_permission       │
+     │ details                │      │ endpoint_url              │
+     │ ip_address             │      │ http_method               │
+     │ created_at             │      │ authorized (boolean)      │
+     └────────────────────────┘      │ created_at                │
+                                     └───────────────────────────┘
+
+     ┌────────────────────────┐      ┌───────────────────────────┐
+     │   idempotency_keys     │      │   leave_request_signoffs  │
+     ├────────────────────────┤      ├───────────────────────────┤
+     │ PK id                  │      │ PK id                     │
+     │ idempotency_key (UK)   │      │ leave_request_id (FK)     │
+     │ user_email (UK)        │      │ approver_id (FK)          │
+     │ request_path           │      │ signoff_role (MGR/HR/ADM) │
+     │ request_method         │      │ comments                  │
+     │ request_hash           │      │ signoff_timestamp         │
+     │ status (COMPLETED/...) │      └───────────────────────────┘
+     │ response_status        │
+     │ response_body          │      ┌───────────────────────────┐
+     │ response_headers       │      │   transaction_reviews     │
+     │ expires_at             │      ├───────────────────────────┤
+     └────────────────────────┘      │ PK id                     │
+                                     │ transaction_type          │
+                                     │ entity_name               │
+                                     │ entity_id                 │
+                                     │ status (APPROVED/REJECTED)│
+                                     │ reviewer_id (FK)          │
+                                     │ review_notes              │
+                                     │ created_at                │
+                                     └───────────────────────────┘
+```
+
+---
+
+# 10. Database Index & Constraint Matrix
+
+Every table is protected by foreign key referential integrity with cascading rules, unique keys, and B-Tree indexes optimized for high query throughput:
+
+| Table Name | Index / Constraint Name | Indexed Columns | Type | Purpose |
+|------------|-------------------------|-----------------|------|---------|
+| `users` | `uk_users_email` | `email` | UNIQUE B-Tree | Ensures email uniqueness, fast login lookup |
+| `employees` | `uk_employees_code` | `employee_code` | UNIQUE B-Tree | Employee corporate code uniqueness |
+| `employees` | `idx_employees_user` | `user_id` | Foreign Key B-Tree | Bidirectional 1:1 user-to-employee lookups |
+| `employees` | `idx_employees_dept` | `department_id` | Foreign Key B-Tree | Department filtering & team queries |
+| `employees` | `idx_employees_manager` | `manager_id` | Foreign Key B-Tree | Manager hierarchical subtree queries |
+| `leave_types` | `uk_leave_types_name` | `name` | UNIQUE B-Tree | Prevents duplicate leave type creation |
+| `leave_balances` | `uk_balances_emp_type_yr` | `(employee_id, leave_type_id, year)` | UNIQUE Composite | Ensures single balance ledger record per year |
+| `leave_balances` | `idx_balances_employee` | `employee_id` | Foreign Key B-Tree | Rapid retrieval of employee balances |
+| `leave_requests` | `idx_requests_employee` | `employee_id` | Foreign Key B-Tree | User and manager leave list queries |
+| `leave_requests` | `idx_requests_status` | `status` | B-Tree | Status filtering (`PENDING`, `APPROVED`, etc.) |
+| `leave_requests` | `idx_requests_dates` | `(start_date, end_date)` | Composite B-Tree | Overlapping leave interval conflict queries |
+| `idempotency_keys` | `uk_idempotency_key_user` | `(idempotency_key, user_email)` | UNIQUE Composite | Enforces caller-scoped key uniqueness |
+| `idempotency_keys` | `idx_idempotency_expires` | `expires_at` | B-Tree | Fast scheduled cleanup of expired keys |
+| `leave_request_signoffs` | `idx_signoffs_request` | `leave_request_id` | Foreign Key B-Tree | Dual-approval tracking lookup |
+| `audit_logs` | `idx_audit_logs_user` | `user_id` | Foreign Key B-Tree | User activity audit trails |
+| `audit_logs` | `idx_audit_logs_timestamp`| `timestamp` | B-Tree | Chronological audit query filtering |
+
+---
+
+# 11. HikariCP Connection Pool Architecture & Sizing Formula
+
+The connection pool serves as the critical gatekeeper between the application thread pool and the database server processes.
+
+### 1. PostgreSQL & MySQL Sizing Formula
+$$\text{maximumPoolSize} = (\text{CPU\_Cores} \times 2) + \text{Disk\_Spindles}$$
+
+For a standard 4-vCPU database server with SSD storage:
+$$\text{maximumPoolSize} = (4 \times 2) + 2 = 10 \text{ to } 20 \text{ connections}$$
+
+Creating excessive connections $(>50)$ degrades throughput due to context switching, cache invalidation, and backend memory consumption per connection (each PostgreSQL backend allocates $\approx 10\text{ MB}$ private memory).
+
+### 2. Recommended Production Configuration
+```yaml
+spring:
+  datasource:
+    hikari:
+      pool-name: LMS-HikariPool
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 20000        # 20 seconds lease wait limit
+      idle-timeout: 600000             # 10 minutes before releasing idle
+      max-lifetime: 1800000            # 30 minutes before recycling connection
+      leak-detection-threshold: 30000  # 30 seconds threshold for connection leak warning
+```
+
+### 3. Monitoring & Alerting Matrix
+- `threadsAwaitingConnection == 0`: Normal operations.
+- `threadsAwaitingConnection > 0`: Contention detected; thread pool waiting on connection availability.
+- `threadsAwaitingConnection > 5` or `active == maxPoolSize && idle == 0`: **CRITICAL alert**; risk of HTTP 500 / `ConnectionTimeoutException`.
+
+---
+
+# 12. Database Query Review & N+1 Prevention Strategy
+
+1. **JOIN FETCH for Entity Associations**:
+   - Hibernate's default `@ManyToOne(fetch = FetchType.LAZY)` issues secondary queries when related entities are traversed. The LMS repository methods utilize explicit `JOIN FETCH` clauses:
+   ```java
+   @Query("SELECT lr FROM LeaveRequest lr " +
+          "JOIN FETCH lr.employee e " +
+          "JOIN FETCH lr.leaveType lt " +
+          "JOIN FETCH e.department d " +
+          "WHERE lr.id = :id")
+   Optional<LeaveRequest> findByIdWithDetails(@Param("id") Long id);
+   ```
+2. **Pessimistic Row-Level Locking**:
+   - `SELECT ... FOR UPDATE` row locks prevent race conditions during leave application and balance deduction while avoiding table-level lock escalation:
+   ```java
+   @Lock(LockModeType.PESSIMISTIC_WRITE)
+   @Query("SELECT lb FROM LeaveBalance lb WHERE lb.employee.id = :empId AND lb.leaveType.id = :typeId AND lb.year = :year")
+   Optional<LeaveBalance> findByEmployeeAndLeaveTypeAndYearWithLock(...);
+   ```
+3. **Database Consistency Verification**:
+   - Liquibase checksum consistency checks and schema migrations ensure all staging and production environments strictly match the canonical schema changelog.
