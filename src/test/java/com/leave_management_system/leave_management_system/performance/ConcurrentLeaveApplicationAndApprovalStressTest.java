@@ -10,6 +10,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -41,6 +43,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @ActiveProfiles("test")
 @DisplayName("Concurrent Leave Application and Approval Stress Test Suite")
 public class ConcurrentLeaveApplicationAndApprovalStressTest {
+
+    private static final Logger log = LoggerFactory.getLogger(ConcurrentLeaveApplicationAndApprovalStressTest.class);
 
     @Autowired
     private WebApplicationContext context;
@@ -312,12 +316,14 @@ public class ConcurrentLeaveApplicationAndApprovalStressTest {
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger failureCount = new AtomicInteger(0);
         List<Integer> statuses = Collections.synchronizedList(new ArrayList<>());
+        List<Long> latencies = Collections.synchronizedList(new ArrayList<>());
 
         for (int i = 0; i < threads; i++) {
             executor.submit(() -> {
                 readyLatch.countDown();
                 try {
                     startLatch.await();
+                    long startNanos = System.nanoTime();
                     LeaveRequestDTO dto = new LeaveRequestDTO();
                     dto.setEmployeeId(regularEmployee.getId());
                     dto.setLeaveTypeId(annualLeaveType.getId());
@@ -330,6 +336,9 @@ public class ConcurrentLeaveApplicationAndApprovalStressTest {
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(objectMapper.writeValueAsString(dto)))
                             .andReturn();
+
+                    long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000L;
+                    latencies.add(elapsedMs);
 
                     int status = result.getResponse().getStatus();
                     statuses.add(status);
@@ -350,6 +359,19 @@ public class ConcurrentLeaveApplicationAndApprovalStressTest {
         startLatch.countDown();
         assertTrue(doneLatch.await(15, TimeUnit.SECONDS), "Concurrent execution timed out");
         executor.shutdown();
+
+        Collections.sort(latencies);
+        long min = latencies.get(0);
+        long max = latencies.get(latencies.size() - 1);
+        long p50 = latencies.get((int) Math.ceil(latencies.size() * 0.50) - 1);
+        long p90 = latencies.get((int) Math.ceil(latencies.size() * 0.90) - 1);
+        long p95 = latencies.get((int) Math.ceil(latencies.size() * 0.95) - 1);
+        long p99 = latencies.get((int) Math.ceil(latencies.size() * 0.99) - 1);
+        double avg = latencies.stream().mapToLong(Long::longValue).average().orElse(0.0);
+
+        log.info("Raw concurrent leave application latencies (ms) [sorted, N={}]: {}", latencies.size(), latencies);
+        log.info("Concurrent Application Stress Metrics [N={}]: min={}ms, avg={}ms, p50={}ms, p90={}ms, p95={}ms, p99={}ms, max={}ms",
+                threads, min, String.format(Locale.ROOT, "%.2f", avg), p50, p90, p95, p99, max);
 
         assertEquals(1, successCount.get(), "Exactly one leave application must succeed among concurrent requests. Statuses: " + statuses);
         assertEquals(threads - 1, failureCount.get(), "All competing overlapping requests must be rejected. Statuses: " + statuses);

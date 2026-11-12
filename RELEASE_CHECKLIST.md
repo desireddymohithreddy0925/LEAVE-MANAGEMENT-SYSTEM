@@ -73,7 +73,9 @@ This release checklist establishes the formal quality, security, and operational
 
 ---
 
-## Gate 5: Production Deployment Runbook (Zero-Downtime)
+## Gate 5: Production Deployment Runbook (Rolling Redeploy)
+
+*(Note: In the current single-container Docker Compose topology, service recreation exhibits a 10–25s initialization window. For true zero-downtime, utilize Blue/Green deployment with Nginx or Kubernetes RollingUpdate as documented in DEPLOYMENT.md).*
 
 1. **Pre-Deployment Sync & Configuration**:
    ```bash
@@ -92,9 +94,9 @@ This release checklist establishes the formal quality, security, and operational
    docker compose build app
    ```
 
-4. **Rolling Redeploy Application Service**:
+4. **Redeploy Application Service**:
    ```bash
-   docker compose up -d --no-deps --build app
+   docker compose up -d --no-deps app
    ```
 
 5. **Post-Deployment Verification**:

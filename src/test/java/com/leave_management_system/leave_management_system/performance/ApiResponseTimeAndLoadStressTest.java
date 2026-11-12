@@ -243,16 +243,19 @@ public class ApiResponseTimeAndLoadStressTest {
         assertEquals(totalRequests, successCount.get(), "All read requests must return 200 OK under concurrent load");
         assertEquals(0, failureCount.get(), "Zero requests should fail during load test");
 
-        // Calculate Percentiles
+        // Calculate Percentiles accurately using standard rank-based percentile indexing
         Collections.sort(latencies);
-        long p50 = latencies.get((int) (latencies.size() * 0.50));
-        long p90 = latencies.get((int) (latencies.size() * 0.90));
-        long p95 = latencies.get((int) (latencies.size() * 0.95));
-        long p99 = latencies.get(latencies.size() - 1);
+        long min = latencies.get(0);
+        long max = latencies.get(latencies.size() - 1);
+        long p50 = latencies.get((int) Math.ceil(latencies.size() * 0.50) - 1);
+        long p90 = latencies.get((int) Math.ceil(latencies.size() * 0.90) - 1);
+        long p95 = latencies.get((int) Math.ceil(latencies.size() * 0.95) - 1);
+        long p99 = latencies.get((int) Math.ceil(latencies.size() * 0.99) - 1);
         double avg = latencies.stream().mapToLong(Long::longValue).average().orElse(0.0);
 
-        log.info("Read Load Test Metrics [N={}]: avg={:.2f}ms, p50={}ms, p90={}ms, p95={}ms, p99={}ms",
-                totalRequests, avg, p50, p90, p95, p99);
+        log.info("Raw benchmark latencies (ms) [sorted, N={}]: {}", latencies.size(), latencies);
+        log.info("Read Load Test Metrics [N={}]: min={}ms, avg={}ms, p50={}ms, p90={}ms, p95={}ms, p99={}ms, max={}ms",
+                totalRequests, min, String.format(Locale.ROOT, "%.2f", avg), p50, p90, p95, p99, max);
 
         // Strict SLA assertions: p95 must remain under 400ms for read endpoints in the test environment
         assertThat(p95).isLessThan(400L);

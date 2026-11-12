@@ -212,41 +212,149 @@ docker build -t leave-management-system:1.0.0 -f Dockerfile .
 
 ---
 
-## 6. Zero-Downtime Rolling Update Strategy
+## 6. Deployment Strategies & Zero-Downtime Analysis
 
-When upgrading the application version without service disruption:
+### 6.1 Architectural Analysis: Does the Current Docker Compose Support Zero-Downtime?
 
-1. **Graceful Shutdown**:
-   Configured in `application.yml`:
-   ```yaml
-   server:
-     shutdown: graceful
-   spring:
-     lifecycle:
-       timeout-per-shutdown-phase: 30s
-   ```
-   In-flight HTTP requests and database transactions complete before the container terminates.
+**Definitive Architectural Finding**: **No. Zero-downtime deployment is NOT genuinely supported by the current single-container Docker Compose architecture.**
 
-2. **Docker Compose Rolling Redeployment**:
+While the application code supports graceful shutdown, deploying via single-node Docker Compose incurs an unavoidable **10 to 25 second maintenance window (service downtime)** during container recreation.
+
+#### Why Zero-Downtime is NOT Supported in the Current Compose Topology:
+1. **Direct Host Port Collision (`ports: "8080:8080"`)**:
+   Host port 8080 is bound directly to `lms-backend`. The operating system's TCP socket stack allows only one process to listen on port 8080 at a time. A new container cannot start on port 8080 until the old container has stopped and released the socket.
+2. **Fixed Container Name (`container_name: lms-backend`)**:
+   Docker enforces unique container names. A new version cannot be created alongside the active container with the same name.
+3. **Absence of a Dynamic Reverse Proxy / Ingress**:
+   Without an edge router (e.g., Nginx, Traefik, Envoy, or HAProxy) in front of the application, there is no mechanism to buffer incoming connections or route traffic between blue/green upstream targets based on health probes.
+4. **JVM Warm-up & Context Initialization Window**:
+   When `docker compose up -d --no-deps app` runs:
+   - The old container stops (in-flight requests complete within 30s via graceful shutdown).
+   - Port 8080 closes.
+   - The new container starts the OpenJDK 21/25 JVM.
+   - Spring Boot initializes classpath components (3–5s).
+   - Liquibase acquires lock and validates 26 changesets against PostgreSQL (2–4s).
+   - HikariCP pool allocates database connections (1–2s).
+   - Tomcat binds to port 8080 and Actuator reports `UP`.
+   - **Total gap: 10 to 25 seconds where all incoming requests receive `ECONNREFUSED` (Connection Refused)**.
+
+---
+
+### 6.2 Validated Production Deployment Procedure
+
+For environments where a 15-second scheduled maintenance window is acceptable:
+
+1. **Pre-Deployment Pre-Flight**:
    ```bash
-   # Pull new code
    git pull origin main
+   chmod 600 .env.prod
+   # Verify mandatory production secrets
+   grep -q "REPLACE_WITH" .env.prod && { echo "ERROR: Placeholder secrets found"; exit 1; }
+   ```
 
-   # Build new container image without bringing down active services
+2. **Pre-Deployment Database Snapshot**:
+   ```bash
+   docker exec -t lms-postgres pg_dump -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-leave_management_db} \
+     --clean --if-exists --format=plain | gzip > "/var/backups/lms/pre_deploy_$(date +%Y%m%d_%H%M%S).sql.gz"
+   ```
+
+3. **Build the New Container Image**:
+   ```bash
+   # Building prior to stopping avoids downtime during the image compilation phase
    docker compose build app
-
-   # Recreate app container with zero downtime
-   docker compose up -d --no-deps --build app
    ```
 
-3. **Kubernetes Deployment Manifest**:
-   ```yaml
-   strategy:
-     type: RollingUpdate
-     rollingUpdate:
-       maxSurge: 1
-       maxUnavailable: 0
+4. **Execute Controlled Container Recreation**:
+   ```bash
+   docker compose up -d --no-deps app
    ```
+
+5. **Post-Deployment Validation & Health Check**:
+   ```bash
+   docker compose ps
+   docker compose logs -f --tail=30 app
+   curl -f http://localhost:8080/actuator/health
+   # Expected: {"status":"UP"}
+   ```
+
+---
+
+### 6.3 Validated Rollback Procedures
+
+#### Procedure A: Application Code Rollback (No Schema Incompatibility)
+When rolling back application logic or fixing a runtime regression where database changes are backward-compatible:
+
+```bash
+# 1. Identify previous verified release tag or commit SHA
+git log -2 --oneline
+
+# 2. Checkout the previous known-good release tag
+git checkout <previous-known-good-tag>
+
+# 3. Rebuild and restart the application container
+docker compose build app
+docker compose up -d --no-deps app
+
+# 4. Verify restored health
+curl -f http://localhost:8080/actuator/health
+```
+
+#### Procedure B: Emergency Full Disaster Rollback (Database & Application Reversal)
+When a deployment fails due to schema divergence, corrupted data, or unrecoverable exceptions:
+
+```bash
+# 1. Immediately stop the application to isolate incoming traffic
+docker compose stop app
+
+# 2. Restore the pre-deployment database snapshot
+LATEST_BACKUP=$(ls -t /var/backups/lms/pre_deploy_*.sql.gz | head -1)
+echo "Restoring from snapshot: $LATEST_BACKUP"
+gunzip -c "$LATEST_BACKUP" | docker exec -i lms-postgres psql -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-leave_management_db}
+
+# 3. Checkout and deploy the previous known-good application release
+git checkout <previous-known-good-tag>
+docker compose up -d --no-deps --build app
+
+# 4. Validate post-rollback operational state
+curl -f http://localhost:8080/actuator/health
+docker exec -t lms-postgres psql -U postgres -d leave_management_db -c "SELECT COUNT(*) FROM databasechangelog;"
+```
+
+---
+
+### 6.4 How to Achieve Genuine Zero-Downtime (Target Architectures)
+
+To eliminate the 15-second downtime window and achieve true zero-downtime:
+
+#### Option 1: Blue/Green Docker Compose with Nginx Reverse Proxy
+```
+           ┌─────────────────────────────┐
+           │     Nginx Ingress Proxy     │
+           │  (Host Port 8080 / 443)     │
+           └──────────────┬──────────────┘
+                          │ (Zero-Downtime Reload)
+                ┌─────────┴─────────┐
+                ▼                   ▼
+      ┌──────────────────┐ ┌──────────────────┐
+      │  app-blue:8080   │ │  app-green:8080  │
+      │  (Active Prod)   │ │  (Staging/New)   │
+      └─────────┬────────┘ └─────────┬────────┘
+                │                    │
+                └─────────┬──────────┘
+                          ▼
+              ┌───────────────────────┐
+              │  PostgreSQL (Port 5432)│
+              └───────────────────────┘
+```
+1. Add an Nginx service bound to host port 8080.
+2. Define two internal app services: `app-blue` and `app-green` (no host port binding).
+3. Deploy new code to the inactive color (`green`).
+4. Wait for `green` healthcheck (`/actuator/health` -> `200 OK`).
+5. Reload Nginx configuration (`docker exec nginx nginx -s reload`) to point upstream to `green` (0 ms cutover).
+6. Terminate `blue`.
+
+#### Option 2: Kubernetes Rolling Update (`maxSurge: 1, maxUnavailable: 0`)
+Deploy onto Kubernetes where native rolling updates spin up the new pod, wait for the readiness probe (`readinessProbe: httpGet: path: /actuator/health, port: 8080`) to pass, register the new pod with the Service endpoints, and only then terminate the old pod. Zero dropped connections.
 
 ---
 
