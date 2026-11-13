@@ -256,10 +256,15 @@ public class ApiResponseTimeAndLoadStressTest {
         log.info("Raw benchmark latencies (ms) [sorted, N={}]: {}", latencies.size(), latencies);
         log.info("Read Load Test Metrics [N={}]: min={}ms, avg={}ms, p50={}ms, p90={}ms, p95={}ms, p99={}ms, max={}ms",
                 totalRequests, min, String.format(Locale.ROOT, "%.2f", avg), p50, p90, p95, p99, max);
+        log.info("Execution Environment: OS={} {} ({}), JVM={} ({}), Available Processors={}, Max Memory={}MB",
+                System.getProperty("os.name"), System.getProperty("os.version"), System.getProperty("os.arch"),
+                System.getProperty("java.version"), System.getProperty("java.vendor"),
+                Runtime.getRuntime().availableProcessors(),
+                Runtime.getRuntime().maxMemory() / (1024 * 1024));
 
-        // Strict SLA assertions: p95 must remain under 400ms for read endpoints in the test environment
-        assertThat(p95).isLessThan(400L);
-        assertThat(p50).isLessThan(250L);
+        // Strict SLA assertions aligned with documented 150 ms target for read endpoints
+        assertThat(p95).isLessThanOrEqualTo(150L);
+        assertThat(p50).isLessThanOrEqualTo(100L);
     }
 
     @Test

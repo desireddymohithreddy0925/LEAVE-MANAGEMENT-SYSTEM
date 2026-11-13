@@ -32,6 +32,7 @@ app:
     trusted-proxies: ${SECURITY_TRUSTED_PROXIES:127.0.0.1,::1}
     encryption:
       key: ${ENCRYPTION_KEY}
+      previous-keys: ${ENCRYPTION_PREVIOUS_KEYS:}
 
 jwt:
   secret: ${JWT_SECRET}

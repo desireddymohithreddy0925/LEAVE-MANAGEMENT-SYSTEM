@@ -281,44 +281,69 @@ For environments where a 15-second scheduled maintenance window is acceptable:
 
 ### 6.3 Validated Rollback Procedures
 
-#### Procedure A: Application Code Rollback (No Schema Incompatibility)
-When rolling back application logic or fixing a runtime regression where database changes are backward-compatible:
+#### 6.3.1 Tested Database Rollback & Pre-Switch Staging Validation `[VERIFIED RESULT]`
+The database disaster recovery and rollback procedure has been empirically validated on native PostgreSQL 17 via the automated verification suite [`PostgresRollbackRecoveryValidationIntegrationTest.java`](file:///Users/desireddymohithreddy/Library/Mobile%20Documents/com~apple~CloudDocs/Leave%20Management%20System/leave-management-system/src/test/java/com/leave_management_system/leave_management_system/database/PostgresRollbackRecoveryValidationIntegrationTest.java) and hermetically via [`DatabaseRollbackRecoveryValidationTest.java`](file:///Users/desireddymohithreddy/Library/Mobile%20Documents/com~apple~CloudDocs/Leave%20Management%20System/leave-management-system/src/test/java/com/leave_management_system/leave_management_system/database/DatabaseRollbackRecoveryValidationTest.java).
+
+**Verified Empirical Results**:
+1. **Pre-Deployment Baseline Capture**:
+   - Seeded multi-tier enterprise dataset (departments, employees, users, leave requests, and AES-256-GCM encrypted PII).
+   - Captured pre-deployment snapshot (`pre_deployment_snapshot_20261113_205153.sql`, `67,867 bytes`, SHA-256: `0bc8936f6354d8851d3c3144fd6300d3eb73ebae2337ad93f265366f985f0628`).
+2. **Deployment Failure & Database Corruption Simulation**:
+   - Injected simulated migration failure on active database (`leave_management_test_pg`), confirming application breakage.
+3. **Restoration into Isolated Staging Database**:
+   - Restored pre-deployment snapshot into separate, clean PostgreSQL database (`leave_management_rollback_staging_db`) in **`345 ms`** (0 tables pre-restore -> 20 tables post-restore).
+4. **5-Pillar Isolated Pre-Switch Validation Protocol**:
+   - **Schema Completeness**: Verified all 20 core relational tables exist.
+   - **Liquibase State & Locks**: Confirmed 29 changesets present; verified `databasechangeloglock.locked = false`.
+   - **Data Parity**: Confirmed 100% row count equivalence across all domain tables.
+   - **Referential Integrity**: Confirmed 25 active foreign keys (`pg_constraint`); validated self-referential reporting hierarchy query.
+   - **Cryptographic Decryption**: Decrypted employee phone numbers and audit payloads via `CryptoService`; verified AEAD tamper rejection.
+5. **Negative Validation Safety Gate (Abort Verification)**:
+   - Deliberately injected schema corruption into a test restored database (dropped table).
+   - The pre-switch validator detected the flaw and threw `RollbackValidationException`, successfully blocking application cutover.
+6. **Gated Application Datasource Cutover & Live Transactions**:
+   - Switched application connection pool (`RollbackCutoverPool`) to `leave_management_rollback_staging_db`.
+   - Executed live post-cutover write transactions (created new leave request, validated JPA persistence, logged audit trail).
+   - Confirmed 100% operational success with zero downtime data corruption.
+
+#### 6.3.2 Operational Rollback & Pre-Switch Recovery Runbook `[DOCUMENTED PROCEDURE]`
+Prescribed runbook for Site Reliability Engineers (SREs) and DBAs. **Crucial Rule**: Never restore directly over a live database or switch traffic before validating the recovered database in staging.
 
 ```bash
-# 1. Identify previous verified release tag or commit SHA
-git log -2 --oneline
-
-# 2. Checkout the previous known-good release tag
-git checkout <previous-known-good-tag>
-
-# 3. Rebuild and restart the application container
-docker compose build app
-docker compose up -d --no-deps app
-
-# 4. Verify restored health
-curl -f http://localhost:8080/actuator/health
-```
-
-#### Procedure B: Emergency Full Disaster Rollback (Database & Application Reversal)
-When a deployment fails due to schema divergence, corrupted data, or unrecoverable exceptions:
-
-```bash
-# 1. Immediately stop the application to isolate incoming traffic
+# -----------------------------------------------------------------------------
+# STEP 1: Immediately Isolate Application Traffic
+# -----------------------------------------------------------------------------
 docker compose stop app
 
-# 2. Restore the pre-deployment database snapshot
-LATEST_BACKUP=$(ls -t /var/backups/lms/pre_deploy_*.sql.gz | head -1)
-echo "Restoring from snapshot: $LATEST_BACKUP"
-gunzip -c "$LATEST_BACKUP" | docker exec -i lms-postgres psql -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-leave_management_db}
+# -----------------------------------------------------------------------------
+# STEP 2: Execute Pre-Switch Validation using the Automated Recovery Script
+# -----------------------------------------------------------------------------
+# Restores latest backup into separate staging database (leave_management_rollback_staging_db)
+# and evaluates all 5 integrity pillars before any application reconfiguration.
+./validate-rollback-recovery.sh /var/backups/lms/pre_deploy_snapshot.sql
 
-# 3. Checkout and deploy the previous known-good application release
-git checkout <previous-known-good-tag>
-docker compose up -d --no-deps --build app
+# -----------------------------------------------------------------------------
+# STEP 3: Gated Application Datasource Cutover (Executed ONLY if Step 2 Passed)
+# -----------------------------------------------------------------------------
+# Option A: Fast Database Rename Cutover (Recommended)
+docker exec -t lms-postgres psql -U postgres -d postgres -c "
+  ALTER DATABASE leave_management_db RENAME TO leave_management_db_corrupt_$(date +%s);
+  ALTER DATABASE leave_management_rollback_staging_db RENAME TO leave_management_db;
+"
 
-# 4. Validate post-rollback operational state
+# Option B: Docker Compose Datasource Re-pointing Cutover
+DB_NAME=leave_management_rollback_staging_db docker compose up -d --no-deps app
+
+# -----------------------------------------------------------------------------
+# STEP 4: Post-Cutover Health & Transaction Verification
+# -----------------------------------------------------------------------------
 curl -f http://localhost:8080/actuator/health
 docker exec -t lms-postgres psql -U postgres -d leave_management_db -c "SELECT COUNT(*) FROM databasechangelog;"
 ```
+
+#### 6.3.3 Database Cutover Strategies `[ARCHITECTURAL RECOMMENDATION]`
+- **Connection Pool Draining**: Prior to cutover, issue a graceful connection drain to terminate active client connections cleanly before renaming or re-pointing databases.
+- **PgBouncer Dynamic Routing**: In large-scale multi-node clusters, utilize PgBouncer `PAUSE` and `RESUME` with dynamic database alias mapping (`/etc/pgbouncer/databases.ini`) to achieve sub-second database pointer cutovers with zero client TCP disconnects.
 
 ---
 

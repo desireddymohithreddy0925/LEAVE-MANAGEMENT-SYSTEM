@@ -37,6 +37,7 @@ app:
       duration-minutes: ${LOCKOUT_DURATION_MINUTES:15}
     encryption:
       key: ${ENCRYPTION_KEY:}
+      previous-keys: ${ENCRYPTION_PREVIOUS_KEYS:}
   idempotency:
     max-body-size-bytes: ${IDEMPOTENCY_MAX_BODY_SIZE:1048576}
     cleanup-rate-ms: ${IDEMPOTENCY_CLEANUP_RATE:3600000}

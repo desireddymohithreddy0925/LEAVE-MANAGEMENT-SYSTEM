@@ -21,6 +21,7 @@ app:
   security:
     encryption:
       key: ${ENCRYPTION_KEY:testOnlyMasterEncryptionKeyForUnitAndIntegrationTests256Bit!}
+      previous-keys: ${ENCRYPTION_PREVIOUS_KEYS:}
 
 jwt:
   secret: ${JWT_SECRET:testOnlySecretKeyForUnitAndIntegrationTestsThatIsAtLeast32BytesLong!}
