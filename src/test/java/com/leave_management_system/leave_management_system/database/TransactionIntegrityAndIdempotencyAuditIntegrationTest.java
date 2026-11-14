@@ -30,6 +30,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -52,6 +53,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("API and Database Audit - Transaction Integrity & Idempotency Audit Test Suite")
 public class TransactionIntegrityAndIdempotencyAuditIntegrationTest {
 
@@ -191,19 +193,15 @@ public class TransactionIntegrityAndIdempotencyAuditIntegrationTest {
         Permission permLeaveView = permissionRepository.findByName("LEAVE_VIEW")
                 .orElseGet(() -> permissionRepository.save(new Permission("LEAVE_VIEW", "View leaves")));
 
-        adminRole.getPermissions().clear();
         adminRole.getPermissions().addAll(Set.of(permAdminView, permSystemAudit, permDeptManage, permDeptView, permLeaveApprove, permLeaveCreate, permLeaveApply, permLeaveView));
         roleRepository.save(adminRole);
 
-        managerRole.getPermissions().clear();
         managerRole.getPermissions().addAll(Set.of(permLeaveApprove, permLeaveView, permDeptView));
         roleRepository.save(managerRole);
 
-        hrRole.getPermissions().clear();
         hrRole.getPermissions().addAll(Set.of(permLeaveApprove, permLeaveView, permDeptView));
         roleRepository.save(hrRole);
 
-        employeeRole.getPermissions().clear();
         employeeRole.getPermissions().addAll(Set.of(permLeaveCreate, permLeaveApply, permLeaveView));
         roleRepository.save(employeeRole);
 

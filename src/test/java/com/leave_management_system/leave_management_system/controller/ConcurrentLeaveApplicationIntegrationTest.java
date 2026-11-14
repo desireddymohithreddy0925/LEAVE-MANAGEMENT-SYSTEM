@@ -20,17 +20,20 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
+import org.springframework.test.annotation.DirtiesContext;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 public class ConcurrentLeaveApplicationIntegrationTest {
 
     private MockMvc mockMvc;
@@ -109,7 +112,7 @@ public class ConcurrentLeaveApplicationIntegrationTest {
         cleanup();
 
         // 1. Setup Permissions
-        List<String> perms = List.of("LEAVE_CREATE", "LEAVE_CANCEL", "LEAVE_VIEW_ALL");
+        List<String> perms = List.of("LEAVE_CREATE", "LEAVE_CANCEL");
         Set<Permission> permissions = new HashSet<>();
         for (String permName : perms) {
             Permission p = permissionRepository.findByName(permName)
@@ -154,10 +157,11 @@ public class ConcurrentLeaveApplicationIntegrationTest {
         emp1.setUser(user1);
         employee1 = employeeRepository.save(emp1);
 
+        int currentYear = LocalDate.now().getYear();
         LeaveBalance bal1Annual = new LeaveBalance();
         bal1Annual.setEmployee(employee1);
         bal1Annual.setLeaveType(annualLeaveType);
-        bal1Annual.setYear(2026);
+        bal1Annual.setYear(currentYear);
         bal1Annual.setTotal(20);
         bal1Annual.setUsed(0);
         bal1Annual.setAvailable(20);
@@ -166,7 +170,7 @@ public class ConcurrentLeaveApplicationIntegrationTest {
         LeaveBalance bal1Sick = new LeaveBalance();
         bal1Sick.setEmployee(employee1);
         bal1Sick.setLeaveType(sickLeaveType);
-        bal1Sick.setYear(2026);
+        bal1Sick.setYear(currentYear);
         bal1Sick.setTotal(10);
         bal1Sick.setUsed(0);
         bal1Sick.setAvailable(10);
@@ -195,7 +199,7 @@ public class ConcurrentLeaveApplicationIntegrationTest {
         LeaveBalance bal2Annual = new LeaveBalance();
         bal2Annual.setEmployee(employee2);
         bal2Annual.setLeaveType(annualLeaveType);
-        bal2Annual.setYear(2026);
+        bal2Annual.setYear(currentYear);
         bal2Annual.setTotal(20);
         bal2Annual.setUsed(0);
         bal2Annual.setAvailable(20);
@@ -538,8 +542,12 @@ public class ConcurrentLeaveApplicationIntegrationTest {
 
     @Test
     public void concurrentSimultaneousApplications_fiveThreads_sameDates_exactlyOneSucceeds() throws Exception {
-        LocalDate start = LocalDate.now().plusDays(45);
-        LocalDate end = start.plusDays(2);
+        LocalDate computedStart = LocalDate.now().plusDays(10);
+        while (computedStart.getDayOfWeek() == DayOfWeek.SATURDAY || computedStart.getDayOfWeek() == DayOfWeek.SUNDAY || computedStart.getDayOfWeek() == DayOfWeek.FRIDAY) {
+            computedStart = computedStart.plusDays(1);
+        }
+        final LocalDate start = computedStart;
+        final LocalDate end = start.plusDays(1);
 
         int threads = 5;
         ExecutorService executor = Executors.newFixedThreadPool(threads);

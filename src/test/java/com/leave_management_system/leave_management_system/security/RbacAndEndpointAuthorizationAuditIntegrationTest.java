@@ -17,6 +17,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -35,6 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 public class RbacAndEndpointAuthorizationAuditIntegrationTest {
 
     @Autowired
@@ -572,6 +574,13 @@ public class RbacAndEndpointAuthorizationAuditIntegrationTest {
                         && "GRANTED".equals(l.getDecision())
                         && l.getResource().contains("Role#" + testRole.getId()));
         assertTrue(foundReplaced, "Expected ROLE_PERMISSIONS_REPLACED audit log");
+
+        // Restore original EMPLOYEE permissions
+        Permission permLeaveViewOwn = permissionRepository.findByName("LEAVE_VIEW_OWN").orElseThrow();
+        Permission permLeaveCreate = permissionRepository.findByName("LEAVE_CREATE").orElseThrow();
+        Permission permLeaveCancel = permissionRepository.findByName("LEAVE_CANCEL").orElseThrow();
+        rolePermissionService.replaceRolePermissions(testRole.getId(),
+                List.of(permLeaveViewOwn.getId(), permLeaveCreate.getId(), permLeaveCancel.getId()));
     }
 
     // =========================================================================

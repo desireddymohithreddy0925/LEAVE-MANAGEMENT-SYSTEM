@@ -26,6 +26,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -47,6 +48,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("API and Database Audit - Comprehensive Constraints, Indexes & Relationships Test Suite")
 public class DatabaseConstraintsIndexesAndRelationshipsAuditIntegrationTest {
 
@@ -148,7 +150,6 @@ public class DatabaseConstraintsIndexesAndRelationshipsAuditIntegrationTest {
         Permission permLeaveTypeManage = permissionRepository.findByName("LEAVE_TYPE_MANAGE")
                 .orElseGet(() -> permissionRepository.save(new Permission("LEAVE_TYPE_MANAGE", "Manage leave types")));
 
-        adminRole.getPermissions().clear();
         adminRole.getPermissions().addAll(Set.of(permDeptManage, permDeptView, permEmpCreate, permLeaveTypeManage));
         roleRepository.save(adminRole);
 

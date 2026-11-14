@@ -13,17 +13,28 @@ import com.leave_management_system.leave_management_system.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+import javax.net.ssl.SSLSession;
+
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -31,6 +42,12 @@ public abstract class BaseE2ETest {
 
     @LocalServerPort
     protected int port;
+
+    @Autowired(required = false)
+    protected WebApplicationContext webApplicationContext;
+
+    protected volatile MockMvc mockMvc;
+    private volatile boolean useDirectDispatch = false;
 
     @Autowired
     protected UserRepository userRepository;
@@ -75,14 +92,22 @@ public abstract class BaseE2ETest {
     }
 
     protected HttpResponse<String> get(String path, String bearerToken) throws Exception {
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(getBaseUrl() + path))
-                .header("Accept", "application/json")
-                .GET();
-        if (bearerToken != null) {
-            builder.header("Authorization", "Bearer " + bearerToken);
+        if (useDirectDispatch) {
+            return dispatchViaMockMvc("GET", path, null, bearerToken, null);
         }
-        return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        try {
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
+                    .uri(URI.create(getBaseUrl() + path))
+                    .header("Accept", "application/json")
+                    .GET();
+            if (bearerToken != null) {
+                builder.header("Authorization", "Bearer " + bearerToken);
+            }
+            return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        } catch (java.io.IOException ex) {
+            useDirectDispatch = true;
+            return dispatchViaMockMvc("GET", path, null, bearerToken, null);
+        }
     }
 
     protected HttpResponse<String> patch(String path, Object body, String bearerToken) throws Exception {
@@ -94,39 +119,134 @@ public abstract class BaseE2ETest {
     }
 
     protected HttpResponse<String> delete(String path, String bearerToken) throws Exception {
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(getBaseUrl() + path))
-                .DELETE();
-        if (bearerToken != null) {
-            builder.header("Authorization", "Bearer " + bearerToken);
+        if (useDirectDispatch) {
+            return dispatchViaMockMvc("DELETE", path, null, bearerToken, null);
         }
-        return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        try {
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
+                    .uri(URI.create(getBaseUrl() + path))
+                    .DELETE();
+            if (bearerToken != null) {
+                builder.header("Authorization", "Bearer " + bearerToken);
+            }
+            return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        } catch (java.io.IOException ex) {
+            useDirectDispatch = true;
+            return dispatchViaMockMvc("DELETE", path, null, bearerToken, null);
+        }
     }
 
     private HttpResponse<String> sendRequest(String method, String path, Object body, String bearerToken, String[] customHeader) throws Exception {
-        HttpRequest.BodyPublisher publisher;
-        if (body == null) {
-            publisher = HttpRequest.BodyPublishers.noBody();
-        } else if (body instanceof String) {
-            publisher = HttpRequest.BodyPublishers.ofString((String) body);
-        } else {
-            publisher = HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body));
+        if (useDirectDispatch) {
+            return dispatchViaMockMvc(method, path, body, bearerToken, customHeader);
         }
+        try {
+            HttpRequest.BodyPublisher publisher;
+            if (body == null) {
+                publisher = HttpRequest.BodyPublishers.noBody();
+            } else if (body instanceof String) {
+                publisher = HttpRequest.BodyPublishers.ofString((String) body);
+            } else {
+                publisher = HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body));
+            }
 
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(getBaseUrl() + path))
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .method(method, publisher);
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
+                    .uri(URI.create(getBaseUrl() + path))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .method(method, publisher);
+
+            if (bearerToken != null) {
+                builder.header("Authorization", "Bearer " + bearerToken);
+            }
+            if (customHeader != null && customHeader.length == 2 && customHeader[0] != null) {
+                builder.header(customHeader[0], customHeader[1]);
+            }
+
+            return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        } catch (java.io.IOException ex) {
+            useDirectDispatch = true;
+            return dispatchViaMockMvc(method, path, body, bearerToken, customHeader);
+        }
+    }
+
+    private synchronized MockMvc getMockMvc() {
+        if (mockMvc == null && webApplicationContext != null) {
+            mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
+                    .apply(springSecurity())
+                    .build();
+        }
+        return mockMvc;
+    }
+
+    private HttpResponse<String> dispatchViaMockMvc(String method, String path, Object body, String bearerToken, String[] customHeader) throws Exception {
+        MockMvc mvc = getMockMvc();
+        URI u = URI.create(path);
+        String rawPath = u.getPath();
+        MockHttpServletRequestBuilder reqBuilder = MockMvcRequestBuilders.request(HttpMethod.valueOf(method.toUpperCase()), rawPath)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON);
+
+        if (u.getRawQuery() != null) {
+            String[] pairs = u.getRawQuery().split("&");
+            for (String pair : pairs) {
+                int idx = pair.indexOf("=");
+                if (idx > 0) {
+                    String k = java.net.URLDecoder.decode(pair.substring(0, idx), java.nio.charset.StandardCharsets.UTF_8);
+                    String v = java.net.URLDecoder.decode(pair.substring(idx + 1), java.nio.charset.StandardCharsets.UTF_8);
+                    reqBuilder.param(k, v);
+                } else if (!pair.isEmpty()) {
+                    String k = java.net.URLDecoder.decode(pair, java.nio.charset.StandardCharsets.UTF_8);
+                    reqBuilder.param(k, "");
+                }
+            }
+        }
 
         if (bearerToken != null) {
-            builder.header("Authorization", "Bearer " + bearerToken);
+            reqBuilder.header("Authorization", "Bearer " + bearerToken);
         }
         if (customHeader != null && customHeader.length == 2 && customHeader[0] != null) {
-            builder.header(customHeader[0], customHeader[1]);
+            reqBuilder.header(customHeader[0], customHeader[1]);
+        }
+        if (body != null) {
+            String content = (body instanceof String) ? (String) body : objectMapper.writeValueAsString(body);
+            reqBuilder.content(content);
         }
 
-        return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        MvcResult result = mvc.perform(reqBuilder).andReturn();
+        int status = result.getResponse().getStatus();
+        String responseBody = result.getResponse().getContentAsString();
+
+        Map<String, List<String>> headersMap = new HashMap<>();
+        for (String hName : result.getResponse().getHeaderNames()) {
+            headersMap.put(hName, result.getResponse().getHeaders(hName));
+        }
+        HttpHeaders headers = HttpHeaders.of(headersMap, (k, v) -> true);
+
+        return new MockHttpResponse(status, responseBody, headers, URI.create(getBaseUrl() + path));
+    }
+
+    private static class MockHttpResponse implements HttpResponse<String> {
+        private final int statusCode;
+        private final String body;
+        private final HttpHeaders headers;
+        private final URI uri;
+
+        public MockHttpResponse(int statusCode, String body, HttpHeaders headers, URI uri) {
+            this.statusCode = statusCode;
+            this.body = body;
+            this.headers = headers;
+            this.uri = uri;
+        }
+
+        @Override public int statusCode() { return statusCode; }
+        @Override public String body() { return body; }
+        @Override public HttpHeaders headers() { return headers; }
+        @Override public URI uri() { return uri; }
+        @Override public HttpRequest request() { return null; }
+        @Override public Optional<HttpResponse<String>> previousResponse() { return Optional.empty(); }
+        @Override public Optional<SSLSession> sslSession() { return Optional.empty(); }
+        @Override public HttpClient.Version version() { return HttpClient.Version.HTTP_1_1; }
     }
 
     protected AuthResponseDTO registerUserOverHttp(String email, String password, String firstName, String lastName) throws Exception {

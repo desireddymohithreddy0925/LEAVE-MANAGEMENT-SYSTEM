@@ -18,6 +18,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -35,6 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("API and Database Audit - Comprehensive Endpoint Validation & Schema Integrity Test Suite")
 public class ApiAndDatabaseAuditIntegrationTest {
 
@@ -159,18 +161,16 @@ public class ApiAndDatabaseAuditIntegrationTest {
         Permission permAuditView = permissionRepository.findByName("AUDIT_LOG_VIEW")
                 .orElseGet(() -> permissionRepository.save(new Permission("AUDIT_LOG_VIEW", "View audit logs")));
 
-        adminRole.getPermissions().clear();
         adminRole.getPermissions().addAll(Set.of(permDeptManage, permDeptView, permEmpCreate, permEmpView,
                 permEmpUpdate, permLeaveTypeManage, permLeaveViewAll, permLeaveViewTeam, permLeaveCreate, permLeaveApprove,
                 permLeaveReject, permLeaveCancel, permAuditView));
         roleRepository.save(adminRole);
 
-        managerRole.getPermissions().clear();
         managerRole.getPermissions().addAll(Set.of(permLeaveViewTeam, permLeaveApprove, permLeaveReject,
                 permLeaveCreate, permLeaveCancel, permEmpView));
         roleRepository.save(managerRole);
 
-        employeeRole.getPermissions().clear();
+        employeeRole.getPermissions().removeIf(p -> p.getName().equals("LEAVE_VIEW_ALL") || p.getName().equals("LEAVE_APPROVE") || p.getName().equals("LEAVE_REJECT"));
         employeeRole.getPermissions().addAll(Set.of(permLeaveCreate, permLeaveCancel));
         roleRepository.save(employeeRole);
 

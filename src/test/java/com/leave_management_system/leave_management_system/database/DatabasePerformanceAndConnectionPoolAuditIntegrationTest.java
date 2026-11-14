@@ -27,6 +27,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -53,6 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("Database Performance & Connection Pool Audit Integration Test Suite")
 public class DatabasePerformanceAndConnectionPoolAuditIntegrationTest {
 
@@ -109,11 +111,9 @@ public class DatabasePerformanceAndConnectionPoolAuditIntegrationTest {
         Permission permLeaveView = permissionRepository.findByName("LEAVE_VIEW")
                 .orElseGet(() -> permissionRepository.save(new Permission("LEAVE_VIEW", "View leaves")));
 
-        adminRole.getPermissions().clear();
         adminRole.getPermissions().addAll(Set.of(permAdminView, permSystemAudit, permLeaveView));
         roleRepository.save(adminRole);
 
-        employeeRole.getPermissions().clear();
         employeeRole.getPermissions().addAll(Set.of(permLeaveView));
         roleRepository.save(employeeRole);
 

@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Transactional
 public class DynamicPermissionIntegrationTest {
 
@@ -128,6 +130,8 @@ public class DynamicPermissionIntegrationTest {
                                 .getBean(com.leave_management_system.leave_management_system.repository.UserRepository.class)
                                 .findByEmail("dyn.admin@test.com").get();
                 Role adminRole = roleRepository.findByName("ADMIN").get();
+                permissionRepository.findByName("LEAVE_BALANCE_MANAGE").ifPresent(adminRole.getPermissions()::add);
+                roleRepository.save(adminRole);
                 adminDbUser.getRoles().clear();
                 adminDbUser.getRoles().add(adminRole);
                 org.springframework.web.context.support.WebApplicationContextUtils
@@ -189,18 +193,21 @@ public class DynamicPermissionIntegrationTest {
                 Long leaveTypeId = JsonPath.parse(typeResult.getResponse().getContentAsString()).read("$.id",
                                 Long.class);
 
+                // Employee creates leave requests on guaranteed weekdays
+                java.time.LocalDate baseMonday = java.time.LocalDate.now().plusWeeks(1)
+                                .with(java.time.DayOfWeek.MONDAY);
+
                 com.leave_management_system.leave_management_system.dto.LeaveBalanceRequestDTO balDto = new com.leave_management_system.leave_management_system.dto.LeaveBalanceRequestDTO();
                 balDto.setEmployeeId(subEmpId);
                 balDto.setLeaveTypeId(leaveTypeId);
                 balDto.setAvailable(20);
+                balDto.setTotal(20);
+                balDto.setYear(baseMonday.getYear());
                 mockMvc.perform(post("/api/leave-balances")
                                 .header("Authorization", "Bearer " + adminToken)
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(balDto)));
-
-                // Employee creates leave requests on guaranteed weekdays
-                java.time.LocalDate baseMonday = java.time.LocalDate.now().plusWeeks(1)
-                                .with(java.time.DayOfWeek.MONDAY);
+                                .content(objectMapper.writeValueAsString(balDto)))
+                                .andExpect(status().isCreated());
 
                 com.leave_management_system.leave_management_system.dto.LeaveRequestDTO lr1 = new com.leave_management_system.leave_management_system.dto.LeaveRequestDTO();
                 lr1.setEmployeeId(subEmpId);
