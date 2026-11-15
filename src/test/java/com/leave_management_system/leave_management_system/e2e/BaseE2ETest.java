@@ -10,44 +10,33 @@ import com.leave_management_system.leave_management_system.entity.Permission;
 import com.leave_management_system.leave_management_system.entity.Role;
 import com.leave_management_system.leave_management_system.entity.User;
 import com.leave_management_system.leave_management_system.repository.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
 
 import java.net.URI;
 import java.net.http.HttpClient;
-import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.*;
-import javax.net.ssl.SSLSession;
+import java.util.concurrent.CopyOnWriteArrayList;
 
-import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 public abstract class BaseE2ETest {
 
+    private static final Logger log = LoggerFactory.getLogger(BaseE2ETest.class);
+
     @LocalServerPort
     protected int port;
-
-    @Autowired(required = false)
-    protected WebApplicationContext webApplicationContext;
-
-    protected volatile MockMvc mockMvc;
-    private volatile boolean useDirectDispatch = false;
 
     @Autowired
     protected UserRepository userRepository;
@@ -79,6 +68,35 @@ public abstract class BaseE2ETest {
     protected HttpClient httpClient = HttpClient.newHttpClient();
     protected ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
+    /**
+     * Immutable record capturing clear evidence of genuine HTTP exchanges over the wire.
+     */
+    public record HttpExchangeEvidence(
+            String method,
+            URI uri,
+            int port,
+            int statusCode,
+            HttpClient.Version protocolVersion,
+            long durationMs,
+            Map<String, List<String>> responseHeaders
+    ) {
+        @Override
+        public String toString() {
+            return String.format("[E2E-HTTP-EVIDENCE] %s %s -> HTTP %d (protocol: %s, duration: %dms, server-port: %d)",
+                    method, uri, statusCode, protocolVersion, durationMs, port);
+        }
+    }
+
+    protected static final List<HttpExchangeEvidence> recordedHttpEvidence = new CopyOnWriteArrayList<>();
+
+    public static List<HttpExchangeEvidence> getRecordedHttpEvidence() {
+        return Collections.unmodifiableList(recordedHttpEvidence);
+    }
+
+    public static void clearRecordedHttpEvidence() {
+        recordedHttpEvidence.clear();
+    }
+
     protected String getBaseUrl() {
         return "http://localhost:" + port;
     }
@@ -92,22 +110,7 @@ public abstract class BaseE2ETest {
     }
 
     protected HttpResponse<String> get(String path, String bearerToken) throws Exception {
-        if (useDirectDispatch) {
-            return dispatchViaMockMvc("GET", path, null, bearerToken, null);
-        }
-        try {
-            HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(URI.create(getBaseUrl() + path))
-                    .header("Accept", "application/json")
-                    .GET();
-            if (bearerToken != null) {
-                builder.header("Authorization", "Bearer " + bearerToken);
-            }
-            return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-        } catch (java.io.IOException ex) {
-            useDirectDispatch = true;
-            return dispatchViaMockMvc("GET", path, null, bearerToken, null);
-        }
+        return sendRequest("GET", path, null, bearerToken, null);
     }
 
     protected HttpResponse<String> patch(String path, Object body, String bearerToken) throws Exception {
@@ -119,28 +122,39 @@ public abstract class BaseE2ETest {
     }
 
     protected HttpResponse<String> delete(String path, String bearerToken) throws Exception {
-        if (useDirectDispatch) {
-            return dispatchViaMockMvc("DELETE", path, null, bearerToken, null);
-        }
-        try {
-            HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(URI.create(getBaseUrl() + path))
-                    .DELETE();
-            if (bearerToken != null) {
-                builder.header("Authorization", "Bearer " + bearerToken);
-            }
-            return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-        } catch (java.io.IOException ex) {
-            useDirectDispatch = true;
-            return dispatchViaMockMvc("DELETE", path, null, bearerToken, null);
-        }
+        return sendRequest("DELETE", path, null, bearerToken, null);
     }
 
-    private HttpResponse<String> sendRequest(String method, String path, Object body, String bearerToken, String[] customHeader) throws Exception {
-        if (useDirectDispatch) {
-            return dispatchViaMockMvc(method, path, body, bearerToken, customHeader);
+    /**
+     * Executes real HTTP request over the network using HttpClient.
+     * Fails immediately if the actual HTTP server is unavailable (no fallback to MockMvc).
+     */
+    protected HttpResponse<String> sendRequest(String method, String path, Object body, String bearerToken, String[] customHeader) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(getBaseUrl() + path))
+                .header("Accept", "application/json");
+
+        if (bearerToken != null) {
+            builder.header("Authorization", "Bearer " + bearerToken);
         }
-        try {
+        if (customHeader != null && customHeader.length == 2 && customHeader[0] != null) {
+            builder.header(customHeader[0], customHeader[1]);
+        }
+
+        if ("GET".equalsIgnoreCase(method)) {
+            builder.GET();
+        } else if ("DELETE".equalsIgnoreCase(method)) {
+            if (body != null) {
+                builder.header("Content-Type", "application/json");
+                HttpRequest.BodyPublisher publisher = (body instanceof String)
+                        ? HttpRequest.BodyPublishers.ofString((String) body)
+                        : HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body));
+                builder.method("DELETE", publisher);
+            } else {
+                builder.DELETE();
+            }
+        } else {
+            builder.header("Content-Type", "application/json");
             HttpRequest.BodyPublisher publisher;
             if (body == null) {
                 publisher = HttpRequest.BodyPublishers.noBody();
@@ -149,104 +163,51 @@ public abstract class BaseE2ETest {
             } else {
                 publisher = HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body));
             }
+            builder.method(method.toUpperCase(), publisher);
+        }
 
-            HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(URI.create(getBaseUrl() + path))
-                    .header("Content-Type", "application/json")
-                    .header("Accept", "application/json")
-                    .method(method, publisher);
-
-            if (bearerToken != null) {
-                builder.header("Authorization", "Bearer " + bearerToken);
-            }
-            if (customHeader != null && customHeader.length == 2 && customHeader[0] != null) {
-                builder.header(customHeader[0], customHeader[1]);
-            }
-
-            return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        long start = System.currentTimeMillis();
+        HttpResponse<String> response;
+        try {
+            response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
         } catch (java.io.IOException ex) {
-            useDirectDispatch = true;
-            return dispatchViaMockMvc(method, path, body, bearerToken, customHeader);
+            throw new AssertionError("E2E HTTP request failed: real HTTP server at " + getBaseUrl() + " is unavailable or unreachable", ex);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("E2E HTTP request interrupted while communicating with " + getBaseUrl(), ex);
         }
+        long duration = System.currentTimeMillis() - start;
+
+        // Validate that request genuinely reached the running application over HTTP
+        assertRealHttpExchangeEvidence(response);
+
+        HttpExchangeEvidence evidence = new HttpExchangeEvidence(
+                method.toUpperCase(),
+                response.uri(),
+                response.uri().getPort(),
+                response.statusCode(),
+                response.version(),
+                duration,
+                response.headers().map()
+        );
+        recordedHttpEvidence.add(evidence);
+        log.info("[E2E-HTTP-EVIDENCE] {} {} -> Status {} (protocol: {}, latency: {}ms, server-port: {})",
+                evidence.method(), evidence.uri(), evidence.statusCode(), evidence.protocolVersion(),
+                evidence.durationMs(), evidence.port());
+
+        return response;
     }
 
-    private synchronized MockMvc getMockMvc() {
-        if (mockMvc == null && webApplicationContext != null) {
-            mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
-                    .apply(springSecurity())
-                    .build();
-        }
-        return mockMvc;
-    }
-
-    private HttpResponse<String> dispatchViaMockMvc(String method, String path, Object body, String bearerToken, String[] customHeader) throws Exception {
-        MockMvc mvc = getMockMvc();
-        URI u = URI.create(path);
-        String rawPath = u.getPath();
-        MockHttpServletRequestBuilder reqBuilder = MockMvcRequestBuilders.request(HttpMethod.valueOf(method.toUpperCase()), rawPath)
-                .contentType(MediaType.APPLICATION_JSON)
-                .accept(MediaType.APPLICATION_JSON);
-
-        if (u.getRawQuery() != null) {
-            String[] pairs = u.getRawQuery().split("&");
-            for (String pair : pairs) {
-                int idx = pair.indexOf("=");
-                if (idx > 0) {
-                    String k = java.net.URLDecoder.decode(pair.substring(0, idx), java.nio.charset.StandardCharsets.UTF_8);
-                    String v = java.net.URLDecoder.decode(pair.substring(idx + 1), java.nio.charset.StandardCharsets.UTF_8);
-                    reqBuilder.param(k, v);
-                } else if (!pair.isEmpty()) {
-                    String k = java.net.URLDecoder.decode(pair, java.nio.charset.StandardCharsets.UTF_8);
-                    reqBuilder.param(k, "");
-                }
-            }
-        }
-
-        if (bearerToken != null) {
-            reqBuilder.header("Authorization", "Bearer " + bearerToken);
-        }
-        if (customHeader != null && customHeader.length == 2 && customHeader[0] != null) {
-            reqBuilder.header(customHeader[0], customHeader[1]);
-        }
-        if (body != null) {
-            String content = (body instanceof String) ? (String) body : objectMapper.writeValueAsString(body);
-            reqBuilder.content(content);
-        }
-
-        MvcResult result = mvc.perform(reqBuilder).andReturn();
-        int status = result.getResponse().getStatus();
-        String responseBody = result.getResponse().getContentAsString();
-
-        Map<String, List<String>> headersMap = new HashMap<>();
-        for (String hName : result.getResponse().getHeaderNames()) {
-            headersMap.put(hName, result.getResponse().getHeaders(hName));
-        }
-        HttpHeaders headers = HttpHeaders.of(headersMap, (k, v) -> true);
-
-        return new MockHttpResponse(status, responseBody, headers, URI.create(getBaseUrl() + path));
-    }
-
-    private static class MockHttpResponse implements HttpResponse<String> {
-        private final int statusCode;
-        private final String body;
-        private final HttpHeaders headers;
-        private final URI uri;
-
-        public MockHttpResponse(int statusCode, String body, HttpHeaders headers, URI uri) {
-            this.statusCode = statusCode;
-            this.body = body;
-            this.headers = headers;
-            this.uri = uri;
-        }
-
-        @Override public int statusCode() { return statusCode; }
-        @Override public String body() { return body; }
-        @Override public HttpHeaders headers() { return headers; }
-        @Override public URI uri() { return uri; }
-        @Override public HttpRequest request() { return null; }
-        @Override public Optional<HttpResponse<String>> previousResponse() { return Optional.empty(); }
-        @Override public Optional<SSLSession> sslSession() { return Optional.empty(); }
-        @Override public HttpClient.Version version() { return HttpClient.Version.HTTP_1_1; }
+    /**
+     * Validates that the response represents a genuine network exchange over HTTP
+     * with the embedded servlet container running on the assigned random port.
+     */
+    protected void assertRealHttpExchangeEvidence(HttpResponse<?> response) {
+        assertNotNull(response, "HTTP response must not be null");
+        assertNotNull(response.uri(), "HTTP response must contain target URI");
+        assertEquals(port, response.uri().getPort(), "E2E request must reach running application on HTTP port " + port);
+        assertNotNull(response.version(), "HTTP protocol version must be established over wire");
+        assertFalse(response.headers().map().isEmpty(), "HTTP response must contain real wire headers from servlet container");
     }
 
     protected AuthResponseDTO registerUserOverHttp(String email, String password, String firstName, String lastName) throws Exception {
