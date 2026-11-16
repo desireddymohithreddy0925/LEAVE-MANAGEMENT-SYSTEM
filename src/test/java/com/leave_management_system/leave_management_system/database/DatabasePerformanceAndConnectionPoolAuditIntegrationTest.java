@@ -84,6 +84,9 @@ public class DatabasePerformanceAndConnectionPoolAuditIntegrationTest {
     @Autowired
     private JwtUtils jwtUtils;
 
+    @Autowired(required = false)
+    private com.leave_management_system.leave_management_system.security.RolePermissionIsolationTestHelper permissionHelper;
+
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     private String runId;
@@ -111,9 +114,11 @@ public class DatabasePerformanceAndConnectionPoolAuditIntegrationTest {
         Permission permLeaveView = permissionRepository.findByName("LEAVE_VIEW")
                 .orElseGet(() -> permissionRepository.save(new Permission("LEAVE_VIEW", "View leaves")));
 
+        adminRole.getPermissions().clear();
         adminRole.getPermissions().addAll(Set.of(permAdminView, permSystemAudit, permLeaveView));
         roleRepository.save(adminRole);
 
+        employeeRole.getPermissions().clear();
         employeeRole.getPermissions().addAll(Set.of(permLeaveView));
         roleRepository.save(employeeRole);
 
@@ -152,6 +157,9 @@ public class DatabasePerformanceAndConnectionPoolAuditIntegrationTest {
 
     @AfterEach
     public void cleanup() {
+        if (permissionHelper != null) {
+            permissionHelper.resetToCanonicalPermissions();
+        }
         SecurityContextHolder.clearContext();
     }
 

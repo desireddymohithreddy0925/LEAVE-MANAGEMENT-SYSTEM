@@ -98,6 +98,9 @@ public class RbacAndEndpointAuthorizationAuditIntegrationTest {
     @Autowired
     private JwtUtils jwtUtils;
 
+    @Autowired(required = false)
+    private RolePermissionIsolationTestHelper permissionHelper;
+
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     private String runId;
 
@@ -162,21 +165,26 @@ public class RbacAndEndpointAuthorizationAuditIntegrationTest {
                 .orElseGet(() -> permissionRepository.save(new Permission("DEPARTMENT_MANAGE", "Manage departments")));
         Permission permEmpUpdate = permissionRepository.findByName("EMPLOYEE_UPDATE")
                 .orElseGet(() -> permissionRepository.save(new Permission("EMPLOYEE_UPDATE", "Update employee records")));
+        Permission permEmpView = permissionRepository.findByName("EMPLOYEE_VIEW")
+                .orElseGet(() -> permissionRepository.save(new Permission("EMPLOYEE_VIEW", "View employee records")));
 
         // Admin permissions
+        adminRole.getPermissions().clear();
         adminRole.getPermissions().addAll(List.of(
                 permLeaveApprove, permLeaveReject, permLeaveViewTeam, permLeaveViewOwn, permLeaveCreate, permLeaveCancel,
-                permRoleManage, permUserLock, permAuditView, permDeptView, permDeptManage, permEmpUpdate
+                permRoleManage, permUserLock, permAuditView, permDeptView, permDeptManage, permEmpUpdate, permEmpView
         ));
         roleRepository.save(adminRole);
 
         // Manager permissions
+        managerRole.getPermissions().clear();
         managerRole.getPermissions().addAll(List.of(
-                permLeaveApprove, permLeaveReject, permLeaveViewTeam, permLeaveViewOwn, permLeaveCreate, permLeaveCancel, permDeptView
+                permLeaveApprove, permLeaveReject, permLeaveViewTeam, permLeaveViewOwn, permLeaveCreate, permLeaveCancel, permDeptView, permEmpView
         ));
         roleRepository.save(managerRole);
 
         // Employee permissions
+        empRole.getPermissions().clear();
         empRole.getPermissions().addAll(List.of(
                 permLeaveViewOwn, permLeaveCreate, permLeaveCancel
         ));
@@ -361,6 +369,10 @@ public class RbacAndEndpointAuthorizationAuditIntegrationTest {
         if (adminUser != null && adminUser.getId() != null) {
             userRepository.deleteById(adminUser.getId());
             adminUser = null;
+        }
+
+        if (permissionHelper != null) {
+            permissionHelper.resetToCanonicalPermissions();
         }
     }
 

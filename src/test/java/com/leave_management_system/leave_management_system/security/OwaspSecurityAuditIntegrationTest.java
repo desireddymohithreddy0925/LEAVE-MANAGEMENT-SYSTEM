@@ -94,6 +94,9 @@ public class OwaspSecurityAuditIntegrationTest {
     @Autowired
     private JwtUtils jwtUtils;
 
+    @Autowired(required = false)
+    private RolePermissionIsolationTestHelper permissionHelper;
+
     @Autowired
     private CryptoService cryptoService;
 
@@ -153,13 +156,16 @@ public class OwaspSecurityAuditIntegrationTest {
         Permission permEmpView = permissionRepository.findByName("EMPLOYEE_VIEW")
                 .orElseGet(() -> permissionRepository.save(new Permission("EMPLOYEE_VIEW", "View employees")));
 
+        adminRole.getPermissions().clear();
         adminRole.getPermissions().addAll(Set.of(permLeaveApprove, permLeaveReject, permLeaveViewTeam, permLeaveViewAll,
                 permLeaveCreate, permUserLock, permAuditView, permEmpView));
         roleRepository.save(adminRole);
 
+        managerRole.getPermissions().clear();
         managerRole.getPermissions().addAll(Set.of(permLeaveApprove, permLeaveReject, permLeaveViewTeam, permLeaveCreate, permEmpView));
         roleRepository.save(managerRole);
 
+        empRole.getPermissions().clear();
         empRole.getPermissions().addAll(Set.of(permLeaveCreate));
         roleRepository.save(empRole);
 
@@ -322,6 +328,10 @@ public class OwaspSecurityAuditIntegrationTest {
         if (adminUser != null && adminUser.getId() != null) {
             userRepository.deleteById(adminUser.getId());
             adminUser = null;
+        }
+
+        if (permissionHelper != null) {
+            permissionHelper.resetToCanonicalPermissions();
         }
     }
 

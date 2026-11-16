@@ -10,6 +10,7 @@ import com.leave_management_system.leave_management_system.entity.Permission;
 import com.leave_management_system.leave_management_system.entity.Role;
 import com.leave_management_system.leave_management_system.entity.User;
 import com.leave_management_system.leave_management_system.repository.*;
+import com.leave_management_system.leave_management_system.security.RolePermissionIsolationTestHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,6 +65,9 @@ public abstract class BaseE2ETest {
 
     @Autowired
     protected PasswordEncoder passwordEncoder;
+
+    @Autowired(required = false)
+    protected RolePermissionIsolationTestHelper rolePermissionIsolationTestHelper;
 
     protected HttpClient httpClient = HttpClient.newHttpClient();
     protected ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
@@ -288,5 +292,9 @@ public abstract class BaseE2ETest {
         employeeRepository.deleteAll();
         departmentRepository.deleteAll();
         leaveTypeRepository.deleteAll();
+
+        if (rolePermissionIsolationTestHelper != null) {
+            rolePermissionIsolationTestHelper.resetToCanonicalPermissions();
+        }
     }
 }

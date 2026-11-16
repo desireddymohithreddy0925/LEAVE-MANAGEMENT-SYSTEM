@@ -95,6 +95,9 @@ public class ApiAndDatabaseAuditIntegrationTest {
     @Autowired
     private JwtUtils jwtUtils;
 
+    @Autowired(required = false)
+    private com.leave_management_system.leave_management_system.security.RolePermissionIsolationTestHelper permissionHelper;
+
     private String runId;
 
     private User adminUser;
@@ -161,16 +164,18 @@ public class ApiAndDatabaseAuditIntegrationTest {
         Permission permAuditView = permissionRepository.findByName("AUDIT_LOG_VIEW")
                 .orElseGet(() -> permissionRepository.save(new Permission("AUDIT_LOG_VIEW", "View audit logs")));
 
+        adminRole.getPermissions().clear();
         adminRole.getPermissions().addAll(Set.of(permDeptManage, permDeptView, permEmpCreate, permEmpView,
                 permEmpUpdate, permLeaveTypeManage, permLeaveViewAll, permLeaveViewTeam, permLeaveCreate, permLeaveApprove,
                 permLeaveReject, permLeaveCancel, permAuditView));
         roleRepository.save(adminRole);
 
+        managerRole.getPermissions().clear();
         managerRole.getPermissions().addAll(Set.of(permLeaveViewTeam, permLeaveApprove, permLeaveReject,
                 permLeaveCreate, permLeaveCancel, permEmpView));
         roleRepository.save(managerRole);
 
-        employeeRole.getPermissions().removeIf(p -> p.getName().equals("LEAVE_VIEW_ALL") || p.getName().equals("LEAVE_APPROVE") || p.getName().equals("LEAVE_REJECT"));
+        employeeRole.getPermissions().clear();
         employeeRole.getPermissions().addAll(Set.of(permLeaveCreate, permLeaveCancel));
         roleRepository.save(employeeRole);
 
@@ -405,6 +410,10 @@ public class ApiAndDatabaseAuditIntegrationTest {
             departmentRepository.deleteAll();
             employeeRepository.deleteAll();
             userRepository.deleteAll();
+
+            if (permissionHelper != null) {
+                permissionHelper.resetToCanonicalPermissions();
+            }
         } catch (Exception ignored) {
         }
     }

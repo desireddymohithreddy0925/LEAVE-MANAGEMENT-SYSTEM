@@ -129,21 +129,24 @@ public class IdempotencyIntegrationTest {
 
         cleanup();
 
-        // 1. Setup Permissions
-        List<String> perms = List.of("LEAVE_CREATE", "LEAVE_CANCEL", "LEAVE_APPROVE", "LEAVE_VIEW_ALL");
-        Set<Permission> permissions = new HashSet<>();
-        for (String permName : perms) {
-            Permission p = permissionRepository.findByName(permName)
-                    .orElseGet(() -> permissionRepository.save(new Permission(permName, permName + " permission")));
-            permissions.add(p);
-        }
+        // 1. Setup Permissions (Isolated per role)
+        Permission pCreate = permissionRepository.findByName("LEAVE_CREATE")
+                .orElseGet(() -> permissionRepository.save(new Permission("LEAVE_CREATE", "Create leave request")));
+        Permission pCancel = permissionRepository.findByName("LEAVE_CANCEL")
+                .orElseGet(() -> permissionRepository.save(new Permission("LEAVE_CANCEL", "Cancel leave request")));
+        Permission pApprove = permissionRepository.findByName("LEAVE_APPROVE")
+                .orElseGet(() -> permissionRepository.save(new Permission("LEAVE_APPROVE", "Approve leave request")));
+        Permission pViewAll = permissionRepository.findByName("LEAVE_VIEW_ALL")
+                .orElseGet(() -> permissionRepository.save(new Permission("LEAVE_VIEW_ALL", "View all leave requests")));
 
         Role empRole = roleRepository.findByName("EMPLOYEE").orElseGet(() -> roleRepository.save(new Role("EMPLOYEE")));
-        empRole.getPermissions().addAll(permissions);
+        empRole.getPermissions().clear();
+        empRole.getPermissions().addAll(Set.of(pCreate, pCancel));
         roleRepository.save(empRole);
 
         Role mgrRole = roleRepository.findByName("MANAGER").orElseGet(() -> roleRepository.save(new Role("MANAGER")));
-        mgrRole.getPermissions().addAll(permissions);
+        mgrRole.getPermissions().clear();
+        mgrRole.getPermissions().addAll(Set.of(pCreate, pCancel, pApprove, pViewAll));
         roleRepository.save(mgrRole);
 
         Role emptyRole = roleRepository.findByName("GUEST").orElseGet(() -> roleRepository.save(new Role("GUEST")));
@@ -175,15 +178,18 @@ public class IdempotencyIntegrationTest {
         employee1 = employeeRepository.save(emp1);
         employee1Token = "Bearer " + jwtUtils.generateTokenFromUsername(user1.getEmail());
 
-        // Employee 1 Leave Balance
-        LeaveBalance bal1 = new LeaveBalance();
-        bal1.setEmployee(employee1);
-        bal1.setLeaveType(annualLeaveType);
-        bal1.setYear(2026);
-        bal1.setTotal(30);
-        bal1.setUsed(0);
-        bal1.setAvailable(30);
-        leaveBalanceRepository.save(bal1);
+        // Employee 1 Leave Balances (current year and next year to prevent year rollover issues)
+        int currentYear = LocalDate.now().getYear();
+        for (int y = currentYear; y <= currentYear + 1; y++) {
+            LeaveBalance bal1 = new LeaveBalance();
+            bal1.setEmployee(employee1);
+            bal1.setLeaveType(annualLeaveType);
+            bal1.setYear(y);
+            bal1.setTotal(30);
+            bal1.setUsed(0);
+            bal1.setAvailable(30);
+            leaveBalanceRepository.save(bal1);
+        }
 
         // 4. Setup Employee 2
         User user2 = new User();
@@ -205,14 +211,16 @@ public class IdempotencyIntegrationTest {
         employee2 = employeeRepository.save(emp2);
         employee2Token = "Bearer " + jwtUtils.generateTokenFromUsername(user2.getEmail());
 
-        LeaveBalance bal2 = new LeaveBalance();
-        bal2.setEmployee(employee2);
-        bal2.setLeaveType(annualLeaveType);
-        bal2.setYear(2026);
-        bal2.setTotal(30);
-        bal2.setUsed(0);
-        bal2.setAvailable(30);
-        leaveBalanceRepository.save(bal2);
+        for (int y = currentYear; y <= currentYear + 1; y++) {
+            LeaveBalance bal2 = new LeaveBalance();
+            bal2.setEmployee(employee2);
+            bal2.setLeaveType(annualLeaveType);
+            bal2.setYear(y);
+            bal2.setTotal(30);
+            bal2.setUsed(0);
+            bal2.setAvailable(30);
+            leaveBalanceRepository.save(bal2);
+        }
 
         // 5. Setup Manager
         User mgrUser = new User();
@@ -714,7 +722,7 @@ public class IdempotencyIntegrationTest {
     @Test
     public void testGetRequests_BypassIdempotencyEvenWithHeader() throws Exception {
         mockMvc.perform(get("/api/leave-requests")
-                        .header("Authorization", employee1Token)
+                        .header("Authorization", managerToken)
                         .header(IdempotencyFilter.IDEMPOTENCY_KEY_HEADER, "key-get-" + UUID.randomUUID()))
                 .andExpect(status().isOk());
 

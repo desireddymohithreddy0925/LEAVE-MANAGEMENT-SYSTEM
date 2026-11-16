@@ -120,6 +120,9 @@ public class DatabaseConstraintsIndexesAndRelationshipsAuditIntegrationTest {
     @Autowired
     private JwtUtils jwtUtils;
 
+    @Autowired(required = false)
+    private com.leave_management_system.leave_management_system.security.RolePermissionIsolationTestHelper permissionHelper;
+
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     private String runId;
@@ -150,6 +153,7 @@ public class DatabaseConstraintsIndexesAndRelationshipsAuditIntegrationTest {
         Permission permLeaveTypeManage = permissionRepository.findByName("LEAVE_TYPE_MANAGE")
                 .orElseGet(() -> permissionRepository.save(new Permission("LEAVE_TYPE_MANAGE", "Manage leave types")));
 
+        adminRole.getPermissions().clear();
         adminRole.getPermissions().addAll(Set.of(permDeptManage, permDeptView, permEmpCreate, permLeaveTypeManage));
         roleRepository.save(adminRole);
 
@@ -254,6 +258,10 @@ public class DatabaseConstraintsIndexesAndRelationshipsAuditIntegrationTest {
             departmentRepository.deleteAll();
             employeeRepository.deleteAll();
             userRepository.deleteAll();
+
+            if (permissionHelper != null) {
+                permissionHelper.resetToCanonicalPermissions();
+            }
         } catch (Exception ignored) {
         }
     }

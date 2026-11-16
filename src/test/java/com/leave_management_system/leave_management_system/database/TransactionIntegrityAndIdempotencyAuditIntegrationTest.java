@@ -134,6 +134,9 @@ public class TransactionIntegrityAndIdempotencyAuditIntegrationTest {
     @Autowired
     private TransactionAndIdempotencyAuditService auditReportService;
 
+    @Autowired(required = false)
+    private com.leave_management_system.leave_management_system.security.RolePermissionIsolationTestHelper permissionHelper;
+
     @Autowired
     private IdempotencyService idempotencyService;
 
@@ -193,15 +196,19 @@ public class TransactionIntegrityAndIdempotencyAuditIntegrationTest {
         Permission permLeaveView = permissionRepository.findByName("LEAVE_VIEW")
                 .orElseGet(() -> permissionRepository.save(new Permission("LEAVE_VIEW", "View leaves")));
 
+        adminRole.getPermissions().clear();
         adminRole.getPermissions().addAll(Set.of(permAdminView, permSystemAudit, permDeptManage, permDeptView, permLeaveApprove, permLeaveCreate, permLeaveApply, permLeaveView));
         roleRepository.save(adminRole);
 
+        managerRole.getPermissions().clear();
         managerRole.getPermissions().addAll(Set.of(permLeaveApprove, permLeaveView, permDeptView));
         roleRepository.save(managerRole);
 
+        hrRole.getPermissions().clear();
         hrRole.getPermissions().addAll(Set.of(permLeaveApprove, permLeaveView, permDeptView));
         roleRepository.save(hrRole);
 
+        employeeRole.getPermissions().clear();
         employeeRole.getPermissions().addAll(Set.of(permLeaveCreate, permLeaveApply, permLeaveView));
         roleRepository.save(employeeRole);
 
@@ -390,6 +397,10 @@ public class TransactionIntegrityAndIdempotencyAuditIntegrationTest {
             departmentRepository.deleteAll();
             employeeRepository.deleteAll();
             userRepository.deleteAll();
+
+            if (permissionHelper != null) {
+                permissionHelper.resetToCanonicalPermissions();
+            }
         } catch (Exception ignored) {
         }
     }
