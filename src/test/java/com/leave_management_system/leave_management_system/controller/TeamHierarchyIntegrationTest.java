@@ -12,6 +12,7 @@ import com.leave_management_system.leave_management_system.repository.Department
 import com.leave_management_system.leave_management_system.repository.EmployeeRepository;
 import com.leave_management_system.leave_management_system.repository.RoleRepository;
 import com.leave_management_system.leave_management_system.repository.UserRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
+import com.leave_management_system.leave_management_system.security.RolePermissionIsolationTestHelper;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
@@ -53,6 +55,9 @@ public class TeamHierarchyIntegrationTest {
     @Autowired
     private com.leave_management_system.leave_management_system.service.EmployeeService employeeService;
 
+    @Autowired(required = false)
+    private RolePermissionIsolationTestHelper permissionHelper;
+
     private MockMvc mockMvc;
     private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
@@ -70,6 +75,10 @@ public class TeamHierarchyIntegrationTest {
 
     @BeforeEach
     public void setup() throws Exception {
+        if (permissionHelper != null) {
+            permissionHelper.resetToCanonicalPermissions();
+        }
+
         this.mockMvc = MockMvcBuilders.webAppContextSetup(context)
                 .apply(springSecurity())
                 .build();
@@ -372,5 +381,12 @@ public class TeamHierarchyIntegrationTest {
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].id", hasItem(leadEmpId.intValue())));
+    }
+
+    @AfterEach
+    public void tearDown() {
+        if (permissionHelper != null) {
+            permissionHelper.resetToCanonicalPermissions();
+        }
     }
 }

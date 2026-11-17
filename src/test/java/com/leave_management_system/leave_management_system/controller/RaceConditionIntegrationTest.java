@@ -6,6 +6,7 @@ import com.leave_management_system.leave_management_system.dto.LeaveRequestDTO;
 import com.leave_management_system.leave_management_system.entity.*;
 import com.leave_management_system.leave_management_system.repository.*;
 import com.leave_management_system.leave_management_system.security.JwtUtils;
+import com.leave_management_system.leave_management_system.security.RolePermissionIsolationTestHelper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -70,6 +71,7 @@ public class RaceConditionIntegrationTest {
     @Autowired private IdempotencyKeyRepository idempotencyKeyRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtUtils jwtUtils;
+    @Autowired(required = false) private RolePermissionIsolationTestHelper permissionHelper;
 
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
@@ -95,6 +97,9 @@ public class RaceConditionIntegrationTest {
                 .apply(springSecurity())
                 .build();
         cleanup();
+        if (permissionHelper != null) {
+            permissionHelper.resetToCanonicalPermissions();
+        }
 
         Role adminRole = roleRepository.findByName("ADMIN")
                 .orElseGet(() -> roleRepository.save(new Role("ADMIN")));
@@ -239,6 +244,9 @@ public class RaceConditionIntegrationTest {
         departmentRepository.deleteAll();
         leaveTypeRepository.deleteAll();
         userRepository.deleteAll();
+        if (permissionHelper != null) {
+            permissionHelper.resetToCanonicalPermissions();
+        }
     }
 
     // ──────────────────────────── Helpers ────────────────────────────────────

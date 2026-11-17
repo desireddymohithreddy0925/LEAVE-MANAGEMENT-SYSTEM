@@ -9,6 +9,7 @@ import com.leave_management_system.leave_management_system.dto.LeaveTypeRequestD
 import com.leave_management_system.leave_management_system.entity.*;
 import com.leave_management_system.leave_management_system.repository.*;
 import com.leave_management_system.leave_management_system.security.JwtUtils;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +22,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
+import com.leave_management_system.leave_management_system.security.RolePermissionIsolationTestHelper;
 
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
@@ -70,6 +72,9 @@ public class ManagerControllerIntegrationTest {
     @Autowired
     private JwtUtils jwtUtils;
 
+    @Autowired(required = false)
+    private RolePermissionIsolationTestHelper permissionHelper;
+
     private MockMvc mockMvc;
     private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
@@ -89,6 +94,10 @@ public class ManagerControllerIntegrationTest {
 
     @BeforeEach
     public void setup() throws Exception {
+        if (permissionHelper != null) {
+            permissionHelper.resetToCanonicalPermissions();
+        }
+
         this.mockMvc = MockMvcBuilders.webAppContextSetup(context)
                 .apply(springSecurity())
                 .build();
@@ -350,5 +359,12 @@ public class ManagerControllerIntegrationTest {
         mockMvc.perform(get("/api/managers/me/leave-requests")
                 .header("Authorization", "Bearer " + regularEmpToken))
                 .andExpect(status().isForbidden());
+    }
+
+    @AfterEach
+    public void tearDown() {
+        if (permissionHelper != null) {
+            permissionHelper.resetToCanonicalPermissions();
+        }
     }
 }

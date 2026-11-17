@@ -7,6 +7,7 @@ import com.leave_management_system.leave_management_system.dto.LeaveRequestDTO;
 import com.leave_management_system.leave_management_system.entity.*;
 import com.leave_management_system.leave_management_system.repository.*;
 import com.leave_management_system.leave_management_system.security.JwtUtils;
+import com.leave_management_system.leave_management_system.security.RolePermissionIsolationTestHelper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -91,6 +92,9 @@ public class DualConcurrentApprovalIntegrationTest {
     @Autowired
     private JwtUtils jwtUtils;
 
+    @Autowired(required = false)
+    private RolePermissionIsolationTestHelper permissionHelper;
+
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     private User adminUser;
@@ -117,6 +121,9 @@ public class DualConcurrentApprovalIntegrationTest {
                 .build();
 
         cleanup();
+        if (permissionHelper != null) {
+            permissionHelper.resetToCanonicalPermissions();
+        }
 
         // 1. Permissions setup
         List<String> approvalPerms = List.of(
@@ -256,6 +263,9 @@ public class DualConcurrentApprovalIntegrationTest {
         departmentRepository.deleteAll();
         leaveTypeRepository.deleteAll();
         userRepository.deleteAll();
+        if (permissionHelper != null) {
+            permissionHelper.resetToCanonicalPermissions();
+        }
     }
 
     private LeaveRequest createDualApprovalPendingRequest(LocalDate start, LocalDate end) {

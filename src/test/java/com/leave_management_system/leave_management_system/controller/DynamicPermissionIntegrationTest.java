@@ -8,6 +8,7 @@ import com.leave_management_system.leave_management_system.entity.Permission;
 import com.leave_management_system.leave_management_system.entity.Role;
 import com.leave_management_system.leave_management_system.repository.PermissionRepository;
 import com.leave_management_system.leave_management_system.repository.RoleRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
+import com.leave_management_system.leave_management_system.security.RolePermissionIsolationTestHelper;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -42,11 +44,17 @@ public class DynamicPermissionIntegrationTest {
         @Autowired
         private PermissionRepository permissionRepository;
 
+        @Autowired(required = false)
+        private RolePermissionIsolationTestHelper permissionHelper;
+
         private MockMvc mockMvc;
         private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
         @BeforeEach
         public void setup() {
+                if (permissionHelper != null) {
+                        permissionHelper.resetToCanonicalPermissions();
+                }
                 this.mockMvc = MockMvcBuilders.webAppContextSetup(context)
                                 .apply(springSecurity())
                                 .build();
@@ -335,5 +343,12 @@ public class DynamicPermissionIntegrationTest {
                 mockMvc.perform(post("/api/roles/" + managerRole.getId() + "/permissions/" + rejectPermission.getId())
                                 .header("Authorization", "Bearer " + adminToken))
                                 .andExpect(status().isOk());
+        }
+
+        @AfterEach
+        public void tearDown() {
+                if (permissionHelper != null) {
+                        permissionHelper.resetToCanonicalPermissions();
+                }
         }
 }

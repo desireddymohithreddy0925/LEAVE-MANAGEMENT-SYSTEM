@@ -11,6 +11,7 @@ import com.leave_management_system.leave_management_system.repository.Permission
 import com.leave_management_system.leave_management_system.repository.RoleRepository;
 import com.leave_management_system.leave_management_system.repository.UserRepository;
 import com.leave_management_system.leave_management_system.security.JwtUtils;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +27,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
+import com.leave_management_system.leave_management_system.security.RolePermissionIsolationTestHelper;
 
 import java.util.Collections;
 import java.util.List;
@@ -57,6 +59,9 @@ public class RolePermissionControllerIntegrationTest {
     @Autowired
     private JwtUtils jwtUtils;
 
+    @Autowired(required = false)
+    private RolePermissionIsolationTestHelper permissionHelper;
+
     private ObjectMapper objectMapper = new ObjectMapper();
 
     private String adminToken;
@@ -68,6 +73,10 @@ public class RolePermissionControllerIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        if (permissionHelper != null) {
+            permissionHelper.resetToCanonicalPermissions();
+        }
+
         mockMvc = MockMvcBuilders.webAppContextSetup(context)
                 .apply(springSecurity())
                 .build();
@@ -229,5 +238,12 @@ public class RolePermissionControllerIntegrationTest {
                 .collect(Collectors.toList());
 
         assertThat(permNamesAfter).containsExactlyInAnyOrderElementsOf(originalPermNames);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (permissionHelper != null) {
+            permissionHelper.resetToCanonicalPermissions();
+        }
     }
 }

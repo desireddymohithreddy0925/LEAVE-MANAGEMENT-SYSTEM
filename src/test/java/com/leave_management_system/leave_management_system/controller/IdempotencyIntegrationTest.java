@@ -30,6 +30,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.springframework.test.annotation.DirtiesContext;
+import com.leave_management_system.leave_management_system.security.RolePermissionIsolationTestHelper;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -50,6 +51,9 @@ public class IdempotencyIntegrationTest {
 
     @Autowired
     private RoleRepository roleRepository;
+
+    @Autowired(required = false)
+    private RolePermissionIsolationTestHelper permissionHelper;
 
     @Autowired
     private PermissionRepository permissionRepository;
@@ -140,12 +144,10 @@ public class IdempotencyIntegrationTest {
                 .orElseGet(() -> permissionRepository.save(new Permission("LEAVE_VIEW_ALL", "View all leave requests")));
 
         Role empRole = roleRepository.findByName("EMPLOYEE").orElseGet(() -> roleRepository.save(new Role("EMPLOYEE")));
-        empRole.getPermissions().clear();
         empRole.getPermissions().addAll(Set.of(pCreate, pCancel));
         roleRepository.save(empRole);
 
         Role mgrRole = roleRepository.findByName("MANAGER").orElseGet(() -> roleRepository.save(new Role("MANAGER")));
-        mgrRole.getPermissions().clear();
         mgrRole.getPermissions().addAll(Set.of(pCreate, pCancel, pApprove, pViewAll));
         roleRepository.save(mgrRole);
 
@@ -300,6 +302,9 @@ public class IdempotencyIntegrationTest {
         transactionReviewRepository.deleteAll();
         userRepository.deleteAll();
         idempotencyFilter.setMaxBodySizeBytes(1048576L);
+        if (permissionHelper != null) {
+            permissionHelper.resetToCanonicalPermissions();
+        }
     }
 
     private LocalDate getNextWeekday(int weeksAhead) {

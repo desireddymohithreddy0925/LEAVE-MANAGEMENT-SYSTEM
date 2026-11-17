@@ -42,8 +42,7 @@ public class RolePermissionIsolationTestHelper {
             "LEAVE_VIEW_OWN",
             "LEAVE_CREATE",
             "LEAVE_CANCEL",
-            "LEAVE_BALANCE_VIEW",
-            "DEPARTMENT_VIEW"
+            "LEAVE_BALANCE_VIEW"
     );
 
     public static final Set<String> CANONICAL_MANAGER_PERMISSIONS = Set.of(
