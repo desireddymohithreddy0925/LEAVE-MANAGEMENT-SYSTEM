@@ -126,6 +126,8 @@ public class PostgresRollbackRecoveryValidationIntegrationTest {
         // PHASE 1: Seed Pre-Deployment Baseline Dataset in Active Database
         // -----------------------------------------------------------------------------------------
         log.info("[PHASE 1] Seeding pre-deployment baseline in active database [{}] (Suffix: {})", ACTIVE_SOURCE_DB, runSuffix);
+        String psqlPath = resolveBinary("psql");
+        executePsqlCommand(psqlPath, ACTIVE_SOURCE_DB, "DROP TABLE IF EXISTS deployment_failure_marker;");
 
         Department engDept = new Department();
         engDept.setName("Mission Critical Eng " + runSuffix);
@@ -222,10 +224,10 @@ public class PostgresRollbackRecoveryValidationIntegrationTest {
         // PHASE 2: Simulate Deployment Failure / Schema Corruption on Active DB
         // -----------------------------------------------------------------------------------------
         log.info("[PHASE 2] Simulating deployment failure & corruption on active database [{}]", ACTIVE_SOURCE_DB);
-        String psqlPath = resolveBinary("psql");
 
         // Simulate a broken deployment by introducing a schema alteration that breaks domain constraints
         executePsqlCommand(psqlPath, ACTIVE_SOURCE_DB,
+                "DROP TABLE IF EXISTS deployment_failure_marker; " +
                 "CREATE TABLE deployment_failure_marker (id serial primary key, failure_reason text, failed_at timestamp); " +
                 "INSERT INTO deployment_failure_marker (failure_reason, failed_at) VALUES ('SIMULATED_MIGRATION_CRASH_AT_STEP_18', NOW());");
 
@@ -346,6 +348,10 @@ public class PostgresRollbackRecoveryValidationIntegrationTest {
             assertEquals(2L, postCutoverRequests, "Employee must now have 2 leave requests in restored database (1 baseline + 1 post-cutover)");
 
             log.info("[PHASE 6 SUCCESS] Application successfully switched to [{}] and served live write transactions.", STAGING_ROLLBACK_DB);
+        } finally {
+            try {
+                executePsqlCommand(psqlPath, ACTIVE_SOURCE_DB, "DROP TABLE IF EXISTS deployment_failure_marker;");
+            } catch (Exception ignored) {}
         }
 
         log.info("================================================================================");
