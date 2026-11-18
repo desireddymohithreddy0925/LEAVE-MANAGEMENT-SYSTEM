@@ -40,8 +40,12 @@ import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
+import java.time.Clock;
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.concurrent.*;
@@ -309,6 +313,9 @@ public class DateAndConcurrencyRegressionIntegrationTest {
 
         if (permissionHelper != null) {
             permissionHelper.resetToCanonicalPermissions();
+        }
+        if (leaveRequestService != null) {
+            leaveRequestService.setClock(Clock.systemDefaultZone());
         }
         SecurityContextHolder.clearContext();
     }
@@ -854,6 +861,287 @@ public class DateAndConcurrencyRegressionIntegrationTest {
         LeaveBalance balPendingCancel = leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, 2026).orElseThrow();
         assertEquals(20, balPendingCancel.getAvailable(), "Available must remain 20 (no spurious refund for unapproved request)");
         assertEquals(0, balPendingCancel.getUsed(), "Used must remain 0");
+    }
+
+    @Test
+    @DisplayName("Controlled Clock: Deterministic weekend, month-end, and year-end boundary validation with time travel")
+    public void testControlledClock_DeterministicDateBoundariesAndTimeTravel() {
+        // 1. Deterministic weekend crossing using fixed Clock at Friday Oct 16, 2026, 14:00 UTC
+        Instant fridayInstant = Instant.parse("2026-10-16T14:00:00Z");
+        Clock fixedFridayClock = Clock.fixed(fridayInstant, ZoneOffset.UTC);
+        leaveRequestService.setClock(fixedFridayClock);
+
+        LocalDate startDateFriday = LocalDate.now(fixedFridayClock);
+        assertEquals(DayOfWeek.FRIDAY, startDateFriday.getDayOfWeek());
+        LocalDate endDateMonday = startDateFriday.plusDays(3); // Mon Oct 19, 2026
+        assertEquals(DayOfWeek.MONDAY, endDateMonday.getDayOfWeek());
+
+        setSecurityAuthentication(employeeUser, "EMPLOYEE", "LEAVE_CREATE", "LEAVE_VIEW_OWN");
+        LeaveRequestDTO weekendCrossingDTO = new LeaveRequestDTO();
+        weekendCrossingDTO.setEmployeeId(employee.getId());
+        weekendCrossingDTO.setLeaveTypeId(annualLeaveType.getId());
+        weekendCrossingDTO.setStartDate(startDateFriday);
+        weekendCrossingDTO.setEndDate(endDateMonday);
+        weekendCrossingDTO.setRequiresDualApproval(true);
+        weekendCrossingDTO.setReason("Controlled clock weekend boundary");
+
+        LeaveResponseDTO weekendRes = leaveRequestService.createLeaveRequest(weekendCrossingDTO);
+        assertNotNull(weekendRes);
+
+        // Approve as manager and verify managerApprovedAt matches controlled Clock instant
+        setSecurityAuthentication(managerUser, "MANAGER", "LEAVE_APPROVE", "LEAVE_VIEW_TEAM");
+        LeaveResponseDTO approvedWeekend = leaveRequestService.approveLeaveRequest(weekendRes.getId());
+        assertNotNull(approvedWeekend);
+
+        LeaveRequest savedReq = leaveRequestRepository.findById(weekendRes.getId()).orElseThrow();
+        assertEquals(LocalDateTime.ofInstant(fridayInstant, ZoneOffset.UTC), savedReq.getManagerApprovedAt(),
+                "Approval timestamp must deterministically match controlled Clock");
+
+        // Approve as HR to finalize full approval and deduct 2 days
+        setSecurityAuthentication(adminUser, "ADMIN", "LEAVE_APPROVE", "LEAVE_VIEW_ALL");
+        leaveRequestService.approveLeaveRequest(weekendRes.getId());
+
+        // 2. Deterministic month-end boundary crossing using fixed Clock at Oct 30, 2026 (Friday)
+        Instant monthEndInstant = Instant.parse("2026-10-30T10:00:00Z");
+        Clock fixedMonthEndClock = Clock.fixed(monthEndInstant, ZoneOffset.UTC);
+        leaveRequestService.setClock(fixedMonthEndClock);
+
+        LocalDate monthEndFriday = LocalDate.now(fixedMonthEndClock); // Oct 30, 2026
+        LocalDate nextMonthTuesday = monthEndFriday.plusDays(4); // Nov 3, 2026 (Tue)
+        // Days: Oct 30 (Fri=1), Oct 31 (Sat=0), Nov 1 (Sun=0), Nov 2 (Mon=1), Nov 3 (Tue=1) -> Total 3 days
+
+        setSecurityAuthentication(employeeUser, "EMPLOYEE", "LEAVE_CREATE", "LEAVE_VIEW_OWN");
+        LeaveRequestDTO monthEndDTO = new LeaveRequestDTO();
+        monthEndDTO.setEmployeeId(employee.getId());
+        monthEndDTO.setLeaveTypeId(annualLeaveType.getId());
+        monthEndDTO.setStartDate(monthEndFriday);
+        monthEndDTO.setEndDate(nextMonthTuesday);
+        monthEndDTO.setReason("Controlled clock month end boundary");
+
+        LeaveResponseDTO monthEndRes = leaveRequestService.createLeaveRequest(monthEndDTO);
+        assertNotNull(monthEndRes);
+
+        setSecurityAuthentication(managerUser, "MANAGER", "LEAVE_APPROVE", "LEAVE_VIEW_TEAM");
+        leaveRequestService.approveLeaveRequest(monthEndRes.getId());
+
+        // Balance check: initial 20 - 2 (weekend) - 3 (monthEnd) = 15 available, 5 used
+        LeaveBalance balAfterMonthEnd = leaveBalanceRepository
+                .findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, 2026).orElseThrow();
+        assertEquals(15, balAfterMonthEnd.getAvailable(), "Available balance must accurately reflect deterministic working days");
+        assertEquals(5, balAfterMonthEnd.getUsed(), "Used days must accurately aggregate to 5");
+
+        // 3. Deterministic year-end boundary crossing using fixed Clock at Dec 31, 2026
+        Instant yearEndInstant = Instant.parse("2026-12-31T23:59:00Z");
+        Clock fixedYearEndClock = Clock.fixed(yearEndInstant, ZoneOffset.UTC);
+        leaveRequestService.setClock(fixedYearEndClock);
+
+        setSecurityAuthentication(employeeUser, "EMPLOYEE", "LEAVE_CREATE", "LEAVE_VIEW_OWN");
+        LeaveRequestDTO crossYearDTO = new LeaveRequestDTO();
+        crossYearDTO.setEmployeeId(employee.getId());
+        crossYearDTO.setLeaveTypeId(annualLeaveType.getId());
+        crossYearDTO.setStartDate(LocalDate.of(2026, 12, 31));
+        crossYearDTO.setEndDate(LocalDate.of(2027, 1, 4));
+        crossYearDTO.setReason("Cross-year boundary attempt");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
+            leaveRequestService.createLeaveRequest(crossYearDTO);
+        });
+        assertTrue(ex.getMessage().contains("multiple calendar years"));
+
+        // Single-day year-end boundary within 2026 succeeds
+        LeaveRequestDTO validYearEndDTO = new LeaveRequestDTO();
+        validYearEndDTO.setEmployeeId(employee.getId());
+        validYearEndDTO.setLeaveTypeId(annualLeaveType.getId());
+        validYearEndDTO.setStartDate(LocalDate.of(2026, 12, 31));
+        validYearEndDTO.setEndDate(LocalDate.of(2026, 12, 31));
+        validYearEndDTO.setReason("New Year Eve single day");
+
+        LeaveResponseDTO validYearEnd = leaveRequestService.createLeaveRequest(validYearEndDTO);
+        assertNotNull(validYearEnd);
+
+        // Reset Clock to system default
+        leaveRequestService.setClock(Clock.systemDefaultZone());
+    }
+
+    @Test
+    @DisplayName("Concurrent Approval and Cancellation: Synchronizes under row lock, strictly preserving balance invariants")
+    public void testConcurrentApprovalAndCancellation_PreservesInvariantsAndPreventsInconsistentState() throws Exception {
+        setSecurityAuthentication(employeeUser, "EMPLOYEE", "LEAVE_CREATE", "LEAVE_VIEW_OWN", "LEAVE_CANCEL");
+
+        LocalDate start = LocalDate.now().plusWeeks(3).with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+        LocalDate end = start.plusDays(3); // Mon, Tue, Wed, Thu = 4 working days
+
+        LeaveRequestDTO dto = new LeaveRequestDTO();
+        dto.setEmployeeId(employee.getId());
+        dto.setLeaveTypeId(annualLeaveType.getId());
+        dto.setStartDate(start);
+        dto.setEndDate(end);
+        dto.setReason("Concurrent approval vs cancellation test");
+
+        LeaveResponseDTO pending = leaveRequestService.createLeaveRequest(dto);
+        final Long reqId = pending.getId();
+
+        // Initial balance before concurrent action
+        LeaveBalance initialBal = leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, 2026).orElseThrow();
+        int initialAvailable = initialBal.getAvailable();
+        int initialUsed = initialBal.getUsed();
+        int initialTotal = initialBal.getTotal();
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(2);
+
+        AtomicInteger approveSuccess = new AtomicInteger(0);
+        AtomicInteger cancelSuccess = new AtomicInteger(0);
+        AtomicInteger approveErrors = new AtomicInteger(0);
+        AtomicInteger cancelErrors = new AtomicInteger(0);
+
+        // Thread 1: Manager approves
+        executor.submit(() -> {
+            try {
+                startLatch.await();
+                setSecurityAuthentication(managerUser, "MANAGER", "LEAVE_APPROVE", "LEAVE_VIEW_TEAM");
+                leaveRequestService.approveLeaveRequest(reqId);
+                approveSuccess.incrementAndGet();
+            } catch (Exception e) {
+                approveErrors.incrementAndGet();
+            } finally {
+                doneLatch.countDown();
+            }
+        });
+
+        // Thread 2: Employee cancels
+        executor.submit(() -> {
+            try {
+                startLatch.await();
+                setSecurityAuthentication(employeeUser, "EMPLOYEE", "LEAVE_CREATE", "LEAVE_VIEW_OWN", "LEAVE_CANCEL");
+                leaveRequestService.cancelLeaveRequest(reqId);
+                cancelSuccess.incrementAndGet();
+            } catch (Exception e) {
+                cancelErrors.incrementAndGet();
+            } finally {
+                doneLatch.countDown();
+            }
+        });
+
+        startLatch.countDown();
+        assertTrue(doneLatch.await(15, TimeUnit.SECONDS));
+        executor.shutdown();
+
+        // Refresh leave request and balance from DB
+        LeaveRequest finalReq = leaveRequestRepository.findById(reqId).orElseThrow();
+        LeaveBalance finalBal = leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, 2026).orElseThrow();
+
+        // Verify balance invariant: total == used + available
+        assertEquals(initialTotal, finalBal.getTotal(), "Total balance must remain invariant");
+        assertEquals(finalBal.getTotal(), finalBal.getUsed() + finalBal.getAvailable(),
+                "CRITICAL INVARIANT VIOLATION: total != used + available");
+
+        // Verify status is terminal: either CANCELLED or APPROVED
+        assertTrue(finalReq.getStatus() == LeaveStatus.CANCELLED || finalReq.getStatus() == LeaveStatus.APPROVED,
+                "Status must be either CANCELLED or APPROVED, got: " + finalReq.getStatus());
+
+        if (finalReq.getStatus() == LeaveStatus.CANCELLED) {
+            assertEquals(initialAvailable, finalBal.getAvailable(), "Cancelled request must refund/preserve initial available balance");
+            assertEquals(initialUsed, finalBal.getUsed(), "Used balance must match initial used balance");
+        } else {
+            assertEquals(initialAvailable - 4, finalBal.getAvailable());
+            assertEquals(initialUsed + 4, finalBal.getUsed());
+        }
+    }
+
+    @Test
+    @DisplayName("Simultaneous Balance Updates: Multiple threads compete to update balance, preventing lost updates and negative balance")
+    public void testSimultaneousBalanceUpdates_SerializesCorrectlyWithoutLostUpdates() throws Exception {
+        int numThreads = 7;
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(numThreads);
+
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger insufficientCount = new AtomicInteger(0);
+        List<Throwable> unexpectedErrors = Collections.synchronizedList(new ArrayList<>());
+
+        LocalDate baseMonday = LocalDate.of(2026, 8, 3); // Monday
+
+        for (int i = 0; i < numThreads; i++) {
+            final int index = i;
+            executor.submit(() -> {
+                try {
+                    startLatch.await();
+                    // Each thread has a distinct non-overlapping week
+                    LocalDate start = baseMonday.plusWeeks(index * 2);
+                    LocalDate end = start.plusDays(2); // 3 working days: Mon, Tue, Wed
+
+                    setSecurityAuthentication(employeeUser, "EMPLOYEE", "LEAVE_CREATE", "LEAVE_VIEW_OWN");
+                    LeaveRequestDTO dto = new LeaveRequestDTO();
+                    dto.setEmployeeId(employee.getId());
+                    dto.setLeaveTypeId(annualLeaveType.getId());
+                    dto.setStartDate(start);
+                    dto.setEndDate(end);
+                    dto.setReason("Simultaneous balance deduction #" + index);
+
+                    LeaveResponseDTO created = leaveRequestService.createLeaveRequest(dto);
+
+                    // Manager immediately approves under concurrent load
+                    setSecurityAuthentication(managerUser, "MANAGER", "LEAVE_APPROVE", "LEAVE_VIEW_TEAM");
+                    leaveRequestService.approveLeaveRequest(created.getId());
+                    successCount.incrementAndGet();
+                } catch (InsufficientLeaveException ile) {
+                    insufficientCount.incrementAndGet();
+                } catch (Throwable t) {
+                    unexpectedErrors.add(t);
+                } finally {
+                    doneLatch.countDown();
+                }
+            });
+        }
+
+        startLatch.countDown();
+        assertTrue(doneLatch.await(20, TimeUnit.SECONDS));
+        executor.shutdown();
+
+        assertTrue(unexpectedErrors.isEmpty(), "No unexpected concurrency exceptions allowed: " + unexpectedErrors);
+        assertEquals(6, successCount.get(), "Exactly 6 requests (18 days) must succeed against 20-day balance");
+        assertEquals(1, insufficientCount.get(), "The 7th request (needing 3 days when only 2 remain) must throw InsufficientLeaveException");
+
+        LeaveBalance finalBal = leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, 2026).orElseThrow();
+        assertEquals(2, finalBal.getAvailable(), "Available balance must accurately be 20 - 18 = 2");
+        assertEquals(18, finalBal.getUsed(), "Used days must accurately be 18");
+        assertEquals(20, finalBal.getTotal(), "Total balance invariant must strictly hold: 20 == 18 + 2");
+        assertTrue(finalBal.getAvailable() >= 0, "Balance must never drop below 0");
+    }
+
+    @Test
+    @DisplayName("Execution Mode Verification Evidence: Confirms active database engine, JDBC URL, and Hibernate dialect without silent fallbacks")
+    public void testDatabaseExecutionMode_VerificationEvidence() throws Exception {
+        try (Connection conn = dataSource.getConnection()) {
+            DatabaseMetaData meta = conn.getMetaData();
+            String url = meta.getURL();
+            String productName = meta.getDatabaseProductName();
+            String driverName = meta.getDriverName();
+            int databaseMajorVersion = meta.getDatabaseMajorVersion();
+
+            String[] activeProfiles = context.getEnvironment().getActiveProfiles();
+            List<String> profilesList = Arrays.asList(activeProfiles);
+
+            System.out.println("================================================================================");
+            System.out.println("EXECUTION MODE DIAGNOSTIC EVIDENCE:");
+            System.out.println("Active Spring Profiles: " + profilesList);
+            System.out.println("Connected JDBC URL:     " + url);
+            System.out.println("Database Product Name:  " + productName);
+            System.out.println("Database Major Version: " + databaseMajorVersion);
+            System.out.println("Driver Name:            " + driverName);
+            System.out.println("================================================================================");
+
+            if (profilesList.contains("pgtest")) {
+                assertTrue(url.contains("jdbc:postgresql:"), "Must connect to PostgreSQL JDBC URL in pgtest profile: " + url);
+                assertEquals("PostgreSQL", productName, "Database product must strictly be PostgreSQL in pgtest profile");
+            } else {
+                assertTrue(url.contains("jdbc:h2:"), "Must connect to H2 JDBC URL in test profile: " + url);
+                assertEquals("H2", productName, "Database product must strictly be H2 in test profile");
+            }
+        }
     }
 
     // =========================================================================

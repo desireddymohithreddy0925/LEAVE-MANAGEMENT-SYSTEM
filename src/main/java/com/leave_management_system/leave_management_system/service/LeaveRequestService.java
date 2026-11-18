@@ -49,6 +49,19 @@ public class LeaveRequestService {
     private final UserRepository userRepository;
     private final LeaveRequestSignoffRepository leaveRequestSignoffRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private java.time.Clock clock = java.time.Clock.systemDefaultZone();
+
+    @PreAuthorize("permitAll()")
+    public java.time.Clock getClock() {
+        return clock != null ? clock : java.time.Clock.systemDefaultZone();
+    }
+
+    @PreAuthorize("permitAll()")
+    public void setClock(java.time.Clock clock) {
+        this.clock = (clock != null) ? clock : java.time.Clock.systemDefaultZone();
+    }
+
     public LeaveRequestService(LeaveRequestRepository leaveRequestRepository,
             LeaveBalanceRepository leaveBalanceRepository,
             EmployeeRepository employeeRepository,
@@ -387,7 +400,7 @@ public class LeaveRequestService {
             }
             leaveRequest.setManagerApprovalStatus("APPROVED");
             leaveRequest.setManagerApprovedBy(actor);
-            leaveRequest.setManagerApprovedAt(LocalDateTime.now());
+            leaveRequest.setManagerApprovedAt(LocalDateTime.now(getClock()));
             recordSignoff(leaveRequest, "MANAGER", actor, "APPROVED", "Approved by Manager");
         } else if ("HR".equals(signoffRole)) {
             if ("APPROVED".equals(leaveRequest.getHrApprovalStatus())) {
@@ -395,7 +408,7 @@ public class LeaveRequestService {
             }
             leaveRequest.setHrApprovalStatus("APPROVED");
             leaveRequest.setHrApprovedBy(actor);
-            leaveRequest.setHrApprovedAt(LocalDateTime.now());
+            leaveRequest.setHrApprovedAt(LocalDateTime.now(getClock()));
             recordSignoff(leaveRequest, "HR", actor, "APPROVED", "Approved by HR");
         }
 
@@ -460,12 +473,12 @@ public class LeaveRequestService {
             if (!"APPROVED".equals(leaveRequest.getManagerApprovalStatus())) {
                 leaveRequest.setManagerApprovalStatus("APPROVED");
                 leaveRequest.setManagerApprovedBy(actor);
-                leaveRequest.setManagerApprovedAt(LocalDateTime.now());
+                leaveRequest.setManagerApprovedAt(LocalDateTime.now(getClock()));
             }
             if (!"APPROVED".equals(leaveRequest.getHrApprovalStatus())) {
                 leaveRequest.setHrApprovalStatus("APPROVED");
                 leaveRequest.setHrApprovedBy(actor);
-                leaveRequest.setHrApprovedAt(LocalDateTime.now());
+                leaveRequest.setHrApprovedAt(LocalDateTime.now(getClock()));
             }
             recordSignoff(leaveRequest, "ADMIN", actor, "APPROVED", "Approved by Admin override");
         }

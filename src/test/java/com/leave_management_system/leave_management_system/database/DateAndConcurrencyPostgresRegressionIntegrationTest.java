@@ -20,6 +20,18 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest
 @ActiveProfiles(profiles = "pgtest", inheritProfiles = false)
 @Tag("postgres")
-@DisplayName("Priority 3 — PostgreSQL Date, Concurrency & Database Integrity Regression Suite")
+@DisplayName("Priority 4 — PostgreSQL Date, Concurrency & Database Integrity Regression Suite")
 public class DateAndConcurrencyPostgresRegressionIntegrationTest extends DateAndConcurrencyRegressionIntegrationTest {
+
+    @org.junit.jupiter.api.Test
+    @DisplayName("PostgreSQL: Repeated Concurrency Execution (5 Iterations) - Verifies Zero Deadlocks and Invariant Preservation")
+    public void testPostgres_RepeatedConcurrencyExecution_NoDeadlocksAndInvariantsStrictlyPreserved() throws Exception {
+        for (int iteration = 1; iteration <= 5; iteration++) {
+            setUp();
+            testConcurrentApplications_SameEmployee_OverlappingDates_PreventsRaceCondition();
+            testConcurrentApprovalAndCancellation_PreservesInvariantsAndPreventsInconsistentState();
+            testSimultaneousBalanceUpdates_SerializesCorrectlyWithoutLostUpdates();
+            cleanup();
+        }
+    }
 }
