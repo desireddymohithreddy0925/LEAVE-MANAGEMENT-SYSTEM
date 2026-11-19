@@ -133,9 +133,9 @@ public class DockerDeploymentHttpLoadStressTest {
         log.info("  Documented SLA Target  : p95 <= 150 ms");
         log.info("================================================================================");
 
-        // Warm-up phase: Execute 25 warmup requests across target endpoints to prime JVM JIT, TCP connection pool, and JPA caches
-        log.info("Executing 25 pre-benchmark warmup requests to prime JVM JIT and TCP connection pool...");
-        for (int w = 0; w < 25; w++) {
+        // Warm-up phase: Execute 40 warmup requests across target endpoints to prime JVM JIT, TCP connection pool, and JPA caches
+        log.info("Executing 40 pre-benchmark warmup requests to prime JVM JIT and TCP connection pool...");
+        for (int w = 0; w < 40; w++) {
             try {
                 HttpRequest warmReq = HttpRequest.newBuilder()
                         .uri(URI.create(baseUrl + testEndpoints[w % testEndpoints.length]))
