@@ -66,10 +66,13 @@ This release checklist establishes the formal quality, security, and operational
 | [x] | **Controller Unit Tests** | 150 | 100% (0 Failures) | 3.8 s | QA Lead |
 | [x] | **Security, Validation & Exceptions** | 243 | 100% (0 Failures) | 66 s | QA Lead |
 | [x] | **Database Audit & Schema Invariants** | 247 | 100% (0 Failures) | 93 s | QA Lead |
-| [x] | **Concurrency & Race Condition Defenses** | 35 | 100% (0 Failures) | 35 s | QA Lead |
-| [x] | **Performance & SLA Load Testing** | 22 | 100% (0 Failures) | 18 s | QA Lead |
+| [x] | **Concurrency & Race Condition Defenses** | 41 | 100% (0 Failures) | 35 s | QA Lead |
+| [x] | **Controlled Clock & Date-Boundary Tests**| 25 | 100% (0 Failures) | 12 s | QA Lead |
+| [x] | **Performance & SLA Load Testing** | 23 | 100% (0 Failures) | 18 s | QA Lead |
 | [x] | **Domain & Workflow Integration Tests** | 246 | 100% (0 Failures) | 57 s | QA Lead |
-| **TOTAL** | **Full Automated Regression Suite** | **1,199** | **100% PASS** | **< 5 min** | **Release Manager** |
+| [x] | **Zero-Trust Secrets & Proxy Security Tests**| 9 | 100% (0 Failures) | 14 s | Security Lead |
+| [x] | **Full Automated Regression Suite (Runs 1-3)**| **1,240** | **100% PASS** | **~5.8 min** | **Release Manager** |
+| [x] | **Separate PostgreSQL Engine Integration Suite** | **57** | **100% PASS** | **1.15 min** | **DBA Lead** |
 
 ---
 

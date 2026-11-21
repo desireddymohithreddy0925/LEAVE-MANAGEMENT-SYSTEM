@@ -873,3 +873,19 @@ spring:
    ```
 3. **Database Consistency Verification**:
    - Liquibase checksum consistency checks and schema migrations ensure all staging and production environments strictly match the canonical schema changelog.
+
+---
+
+# 13. Phase 11 Disaster Recovery & 5-Pillar Rollback Architecture
+
+### 1. Zero-In-Place Recovery Principle
+Live production databases must never be directly overwritten during an active incident. Restorations are performed into an isolated staging schema (`leave_management_rollback_staging_db` or `leave_management_recovery_validation_db`).
+
+### 2. 5-Pillar Pre-Switch Safety Gate
+Before any datasource cutover, the recovered database must pass all 5 verification pillars:
+1. **Schema Completeness**: All 20 canonical base tables present.
+2. **Liquibase Migration Parity**: All 29 changesets tracked in `DATABASECHANGELOG`; `DATABASECHANGELOGLOCK` released (`locked = false`).
+3. **Foreign Key Integrity**: All 25 active relational foreign keys verified valid.
+4. **AEAD Ciphertext Decryptability**: AES-256-GCM encrypted records validated for decryptability and tamper-rejection.
+5. **Relational Smoke Query Fidelity**: Core business entities traversed with zero SQL errors.
+

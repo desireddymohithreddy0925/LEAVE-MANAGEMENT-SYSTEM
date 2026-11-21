@@ -2130,3 +2130,26 @@ The Leave Management System enforces strict production latency targets validated
   "timestamp": "2026-11-11T08:26:40.123"
 }
 ```
+
+---
+
+## 15. Phase 11: Production Release & Operational Security Certification
+
+### 15.1 Container & Network Hardening Architecture
+- **Multi-Stage Base Image**: Minimal JRE (`eclipse-temurin:21-jre-jammy`) runner with package cache invalidation (`rm -rf /var/lib/apt/lists/*`).
+- **Non-Root Runtime Enforcement**: Dedicated `appuser:appgroup` running under explicit UID `10001:10001` with restricted `/sbin/nologin` shell.
+- **Docker Network Segmentation**: Dual-homed internal bridge (`lms-internal-net`, `internal: true`) guaranteeing zero external public gateway routing to PostgreSQL 15.
+- **Loopback Database Port Binding**: Host port binding strictly pinned to `127.0.0.1:${DB_PORT:-5432}:5432`.
+
+### 15.2 Zero-Trust Secrets Validation
+- `ProductionSecurityValidator`: Rejects blank passwords, insecure defaults, and weak keys; enforces $\ge 256$ bits of entropy for `JWT_SECRET` and `ENCRYPTION_KEY`.
+
+### 15.3 Ingress Anti-Spoofing & Trusted Proxy Architecture
+- `ClientIpResolver`: Implements right-to-left header parsing against configured trusted CIDR blocks (`SECURITY_TRUSTED_PROXIES`), preventing IP spoofing and rate-limiting bypass.
+
+### 15.4 Cryptographic AEAD Backward Compatibility & Key Rotation
+- `CryptoService`: AES-256-GCM authenticated encryption with multi-version payload support, fallback key rings (`previous-keys`), and in-place `rotateCiphertext` re-encryption.
+
+### 15.5 5-Pillar Rollback Safety Gate
+- Staging validation prior to production cutover across Schema Completeness (20 tables), Liquibase Tracking (29 changesets), Foreign Key Constraints (25 FKs), AEAD Decryptability, and Relational Integrity.
+

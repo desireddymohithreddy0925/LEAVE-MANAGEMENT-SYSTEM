@@ -160,9 +160,13 @@ If you prefer running locally, start a local PostgreSQL container on port `5432`
 Configure your environment variables (`DB_USERNAME`, `DB_PASSWORD`) or edit `src/main/resources/application-dev.yml`.
 
 ### 3. Build & Test
-Run the complete automated test suite (271 tests covering all business logic, security reviews, hierarchy cycle protection, leave types, balance consistency, annual balance isolation, cross-year boundary validation, leave request application, approval & rejection lifecycle, validation architecture, leave overlap detection & pre-flight API, and RBAC) from the root directory:
+Run the complete automated test suite (1,240 automated unit, security, controller, domain, and real HTTP E2E tests, plus 57 separate PostgreSQL integration and concurrency regression tests):
 ```bash
+# Execute standard full regression test suite (1,240 tests)
 ./mvnw clean test
+
+# Execute separate PostgreSQL live engine & disaster recovery integration tests (57 tests)
+./mvnw test -DexcludedGroups= -Dtest="DateAndConcurrencyPostgresRegressionIntegrationTest,PostgresBackupRestoreIntegrationTest,PostgresRollbackRecoveryValidationIntegrationTest,IdempotencyPostgresIntegrationTest,RaceConditionPostgresIntegrationTest"
 ```
 
 ### 4. Run Application
@@ -225,6 +229,10 @@ A user is only granted access if they possess the required **Permission** AND sa
 - **Self-Service Profile Security:** Dedicated `/api/employees/me` endpoints allow authenticated employees to view and update only allowed profile fields (`firstName`, `lastName`, `phone`). Administrative attributes (`role`, `salary`, `status`, `department`, `manager`) require `EMPLOYEE_UPDATE` permission and reject employee self-modification attempts with `403 Forbidden`.
 - **Identity & Scope Enforcement:** Dynamic security service enforces data-level scoping (managers can only access their direct and indirect reporting tree). Cross-manager and cross-employee tampering attempts return `403 Forbidden`.
 - **Security Audit Logging:** Comprehensive tracking of security events (`LOGIN_SUCCESS`, `LOGIN_FAILED`, `LOGOUT`, `PASSWORD_CHANGED`, `INACTIVE_USER_TOKEN`, `EXPIRED_TOKEN`, `INVALID_TOKEN`) and entity auditing (`audit_logs`) via Spring Application Events.
+- **Cryptographic PII Protection & Transparent Key Rotation:** Sensitive fields (tax IDs, employee PII, medical justification) are encrypted using AES-256-GCM authenticated encryption (AEAD). The decryption engine provides multi-version backward compatibility, transparent fallback key ring (`app.security.encryption.previous-keys`), and zero-downtime ciphertext re-encryption migration (`CryptoService.rotateCiphertext`).
+- **Idempotency Protection & Distributed Conflict Resolution:** Distributed `IdempotencyService` enforces unique HTTP `Idempotency-Key` headers on mutating requests (`POST`, `PUT`, `DELETE`), serializing concurrent replays with short-circuit cached responses and returning `409 Conflict` during in-flight operations.
+- **Trusted Proxy CIDR Resolution & Anti-Spoofing:** `ClientIpResolver` inspects proxy chains right-to-left against configurable CIDR subnets (`SECURITY_TRUSTED_PROXIES`), discarding spoofed headers from direct untrusted clients and hardening rate-limiting / brute-force lockout mechanisms.
+- **5-Pillar Rollback Safety Gate & Disaster Recovery:** Pre-switch staging database validation guarantees schema completeness, Liquibase migration parity, foreign key relational integrity, AEAD ciphertext decryptability, and zero-loss cutover.
 
 ## Features Implemented
 - **Organization & Team Hierarchy:** Multi-level team tree traversal (`GET /api/managers/{id}/team-hierarchy`, `GET /api/employees/{id}/hierarchy`) with cycle protection during subordinate counting and hierarchy construction.
