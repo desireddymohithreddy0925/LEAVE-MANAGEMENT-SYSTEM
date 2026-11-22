@@ -1,0 +1,194 @@
+import React from 'react';
+import {
+  Drawer,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Toolbar,
+  Box,
+  Typography,
+  Divider,
+} from '@mui/material';
+import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
+import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
+import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
+import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
+import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+
+export const SIDEBAR_WIDTH = 250;
+
+interface SidebarProps {
+  mobileOpen: boolean;
+  onClose: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const navItems = [
+    { text: 'Overview', path: '/dashboard', icon: <DashboardOutlinedIcon /> },
+    { text: 'Apply for Leave', path: '/apply-leave', icon: <EventAvailableOutlinedIcon /> },
+    { text: 'My Leave History', path: '/my-leaves', icon: <HistoryOutlinedIcon /> },
+    { text: 'My Profile', path: '/profile', icon: <PersonOutlineOutlinedIcon /> },
+  ];
+
+  const handleNavigation = (path: string) => {
+    navigate(path);
+    onClose();
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+    onClose();
+  };
+
+  const drawerContent = (
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        backgroundColor: '#FAF9F6', // Porcelain alabaster
+        borderRight: '1px solid #EAE6DF',
+      }}
+    >
+      {/* Brand Header */}
+      <Toolbar sx={{ px: 3, minHeight: '64px !important' }}>
+        <Typography
+          variant="subtitle2"
+          sx={{
+            fontWeight: 700,
+            color: '#B8976C',
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            fontSize: '0.725rem',
+          }}
+        >
+          Navigation Menu
+        </Typography>
+      </Toolbar>
+
+      <Divider sx={{ borderColor: '#EAE6DF' }} />
+
+      {/* Main Navigation List */}
+      <List sx={{ px: 1.5, py: 2.5, flexGrow: 1 }}>
+        {navItems.map((item) => {
+          const isSelected = location.pathname === item.path;
+          return (
+            <ListItemButton
+              key={item.text}
+              onClick={() => handleNavigation(item.path)}
+              sx={{
+                mb: 0.75,
+                borderRadius: '6px',
+                position: 'relative',
+                backgroundColor: isSelected ? 'rgba(184, 151, 108, 0.12)' : 'transparent',
+                color: isSelected ? '#16181B' : '#4B5563',
+                fontWeight: isSelected ? 600 : 400,
+                borderLeft: isSelected ? '3px solid #B8976C' : '3px solid transparent',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  backgroundColor: isSelected
+                    ? 'rgba(184, 151, 108, 0.16)'
+                    : 'rgba(17, 19, 21, 0.04)',
+                  color: '#16181B',
+                },
+              }}
+            >
+              <ListItemIcon
+                sx={{
+                  color: isSelected ? '#B8976C' : '#6B7280',
+                  minWidth: 40,
+                }}
+              >
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText
+                primary={item.text}
+                primaryTypographyProps={{
+                  fontSize: '0.885rem',
+                  fontWeight: isSelected ? 600 : 500,
+                }}
+              />
+            </ListItemButton>
+          );
+        })}
+      </List>
+
+      <Divider sx={{ borderColor: '#EAE6DF' }} />
+
+      {/* Bottom Sign Out */}
+      <Box sx={{ p: 1.5 }}>
+        <ListItemButton
+          onClick={handleLogout}
+          sx={{
+            borderRadius: '6px',
+            color: '#8C2D2D',
+            '&:hover': {
+              backgroundColor: '#FAF0F0',
+            },
+          }}
+        >
+          <ListItemIcon sx={{ color: '#8C2D2D', minWidth: 40 }}>
+            <LogoutOutlinedIcon />
+          </ListItemIcon>
+          <ListItemText
+            primary="Sign Out"
+            primaryTypographyProps={{
+              fontSize: '0.885rem',
+              fontWeight: 500,
+            }}
+          />
+        </ListItemButton>
+      </Box>
+    </Box>
+  );
+
+  return (
+    <Box
+      component="nav"
+      sx={{ width: { md: SIDEBAR_WIDTH }, flexShrink: { md: 0 } }}
+      aria-label="mailbox folders"
+    >
+      {/* Mobile Drawer */}
+      <Drawer
+        variant="temporary"
+        open={mobileOpen}
+        onClose={onClose}
+        ModalProps={{ keepMounted: true }}
+        sx={{
+          display: { xs: 'block', md: 'none' },
+          '& .MuiDrawer-paper': {
+            boxSizing: 'border-box',
+            width: SIDEBAR_WIDTH,
+          },
+        }}
+      >
+        {drawerContent}
+      </Drawer>
+
+      {/* Desktop Persistent Drawer */}
+      <Drawer
+        variant="permanent"
+        sx={{
+          display: { xs: 'none', md: 'block' },
+          '& .MuiDrawer-paper': {
+            boxSizing: 'border-box',
+            width: SIDEBAR_WIDTH,
+          },
+        }}
+        open
+      >
+        {drawerContent}
+      </Drawer>
+    </Box>
+  );
+};
+
+export default Sidebar;
