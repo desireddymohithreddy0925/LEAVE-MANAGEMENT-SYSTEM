@@ -885,6 +885,20 @@ public class DataAccessSecurityAuditIntegrationTest {
         LocalDate start = LocalDate.now().with(TemporalAdjusters.next(DayOfWeek.MONDAY)).plusDays(35);
         LocalDate end = start.plusDays(3);
 
+        // Ensure manager1 has an active leave balance for the target year
+        int targetYear = start.getYear();
+        leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(manager1Employee, annualLeaveType, targetYear)
+                .orElseGet(() -> {
+                    LeaveBalance b = new LeaveBalance();
+                    b.setEmployee(manager1Employee);
+                    b.setLeaveType(annualLeaveType);
+                    b.setYear(targetYear);
+                    b.setTotal(30);
+                    b.setUsed(0);
+                    b.setAvailable(30);
+                    return leaveBalanceRepository.save(b);
+                });
+
         // A. Manager 1 applies for personal leave
         LeaveRequestDTO managerLeave = new LeaveRequestDTO();
         managerLeave.setLeaveTypeId(annualLeaveType.getId());

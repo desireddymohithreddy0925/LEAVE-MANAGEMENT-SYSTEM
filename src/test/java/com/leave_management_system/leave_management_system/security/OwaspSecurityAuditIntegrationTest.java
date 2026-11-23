@@ -581,10 +581,26 @@ public class OwaspSecurityAuditIntegrationTest {
         @Test
         @DisplayName("A04.2 - Balance Protection: Requesting days exceeding available quota is rejected with HTTP 400")
         void testBusinessLogic_overdraftLeaveBalanceRejected() throws Exception {
+            // Pick a fixed future month in the upcoming year to guarantee dates are strictly in the same calendar year
+            int targetYear = LocalDate.now().getYear() + 1;
+            LeaveBalance bal = leaveBalanceRepository
+                    .findByEmployeeAndLeaveTypeAndYear(emp1Employee, leaveType, targetYear)
+                    .orElseGet(() -> {
+                        LeaveBalance b = new LeaveBalance();
+                        b.setEmployee(emp1Employee);
+                        b.setLeaveType(leaveType);
+                        b.setYear(targetYear);
+                        b.setTotal(20);
+                        b.setUsed(0);
+                        return b;
+                    });
+            bal.setAvailable(5); // 5 days available
+            leaveBalanceRepository.save(bal);
+
             LeaveRequestDTO overdraftDto = new LeaveRequestDTO();
             overdraftDto.setLeaveTypeId(leaveType.getId());
-            overdraftDto.setStartDate(LocalDate.now().plusDays(10));
-            overdraftDto.setEndDate(LocalDate.now().plusDays(40)); // 31 days requested, only 20 available
+            overdraftDto.setStartDate(LocalDate.of(targetYear, 6, 1));
+            overdraftDto.setEndDate(LocalDate.of(targetYear, 6, 20)); // ~14 working days requested, only 5 available
             overdraftDto.setReason("Excessive duration request");
 
             mockMvc.perform(post("/api/leave-requests")

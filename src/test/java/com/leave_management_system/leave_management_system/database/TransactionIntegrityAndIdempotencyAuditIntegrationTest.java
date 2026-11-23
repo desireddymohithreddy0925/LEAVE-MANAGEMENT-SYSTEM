@@ -415,15 +415,29 @@ public class TransactionIntegrityAndIdempotencyAuditIntegrationTest {
         @Test
         @DisplayName("Leave application rolls back completely when requested days exceed available balance")
         void leaveApplication_RollsBack_WhenInsufficientBalance() throws Exception {
-            // Available balance is 20 days. Attempting to apply for 25 working days.
-            LocalDate mondayStart = getNextMonday();
-            LocalDate fridayEnd = mondayStart.plusWeeks(5); // 25+ working days
+            // Pick a fixed future month in next year to guarantee dates are strictly in the same calendar year
+            int targetYear = LocalDate.now().getYear() + 1;
+            LeaveBalance targetBal = leaveBalanceRepository
+                    .findByEmployeeAndLeaveTypeAndYear(regularEmployee, annualLeave, targetYear)
+                    .orElseGet(() -> {
+                        LeaveBalance b = new LeaveBalance();
+                        b.setEmployee(regularEmployee);
+                        b.setLeaveType(annualLeave);
+                        b.setYear(targetYear);
+                        b.setTotal(20);
+                        b.setUsed(0);
+                        b.setAvailable(20);
+                        return leaveBalanceRepository.saveAndFlush(b);
+                    });
+
+            LocalDate startDate = LocalDate.of(targetYear, 6, 1);
+            LocalDate endDate = LocalDate.of(targetYear, 6, 30); // 22 working days, exceeding 20 available
 
             LeaveRequestDTO dto = new LeaveRequestDTO();
             dto.setEmployeeId(regularEmployee.getId());
             dto.setLeaveTypeId(annualLeave.getId());
-            dto.setStartDate(mondayStart);
-            dto.setEndDate(fridayEnd);
+            dto.setStartDate(startDate);
+            dto.setEndDate(endDate);
             dto.setReason("Excessive leave overdraft request");
 
             mockMvc.perform(post("/api/leave-requests")
@@ -438,7 +452,7 @@ public class TransactionIntegrityAndIdempotencyAuditIntegrationTest {
             assertTrue(requests.isEmpty(), "LeaveRequest must not exist after transaction rollback");
 
             // Invariant verification: LeaveBalance remains intact (20 total = 0 used + 20 available)
-            LeaveBalance currentBalance = leaveBalanceRepository.findById(employeeBalance.getId()).orElseThrow();
+            LeaveBalance currentBalance = leaveBalanceRepository.findById(targetBal.getId()).orElseThrow();
             assertEquals(20, currentBalance.getTotal());
             assertEquals(0, currentBalance.getUsed());
             assertEquals(20, currentBalance.getAvailable());
