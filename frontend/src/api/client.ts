@@ -1,4 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { AuthResponse } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
@@ -10,62 +11,150 @@ export const apiClient = axios.create({
   timeout: 15000,
 });
 
-// Request Interceptor: Attach JWT Access Token from localStorage
+// Storage keys
+export const ACCESS_TOKEN_KEY = 'access_token';
+export const REFRESH_TOKEN_KEY = 'refresh_token';
+export const USER_DATA_KEY = 'user_data';
+
+// Helper storage utilities
+export const getStoredAccessToken = (): string | null => localStorage.getItem(ACCESS_TOKEN_KEY);
+export const getStoredRefreshToken = (): string | null => localStorage.getItem(REFRESH_TOKEN_KEY);
+
+export const setAuthSession = (accessToken: string, refreshToken?: string, userData?: unknown): void => {
+  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+  if (refreshToken) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  }
+  if (userData) {
+    localStorage.setItem(USER_DATA_KEY, typeof userData === 'string' ? userData : JSON.stringify(userData));
+  }
+};
+
+export const clearAuthSession = (): void => {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(USER_DATA_KEY);
+};
+
+// Request Interceptor: Attach JWT Access Token
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('access_token');
+    const token = getStoredAccessToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error: AxiosError) => {
-    return Promise.reject(error);
-  }
+  (error: AxiosError) => Promise.reject(error)
 );
 
-// Response Interceptor: Handle 401 unauthorized & automatic token refresh or logout
+// Concurrency handling for token refresh
+interface PendingRequest {
+  resolve: (value?: unknown) => void;
+  reject: (reason?: unknown) => void;
+}
+
+let isRefreshing = false;
+let failedQueue: PendingRequest[] = [];
+
+const processQueue = (error: unknown, token: string | null = null): void => {
+  failedQueue.forEach((promise) => {
+    if (error) {
+      promise.reject(error);
+    } else {
+      promise.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+// Response Interceptor: Handle 401 unauthorized & automatic token refresh queue
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const status = error.response?.status;
+    const requestUrl = originalRequest?.url || '';
 
-    // If 401 Unauthorized and not already retrying, try refresh token
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
-      originalRequest._retry = true;
-      const refreshToken = localStorage.getItem('refresh_token');
+    // Ignore public auth routes to prevent refresh loops & display proper validation/login errors
+    const isAuthRoute =
+      requestUrl.includes('/api/auth/login') ||
+      requestUrl.includes('/api/auth/register') ||
+      requestUrl.includes('/api/auth/refresh');
 
-      if (refreshToken) {
-        try {
-          const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, null, {
-            params: { refreshToken },
-          });
+    if (status === 401 && !isAuthRoute && originalRequest) {
+      if (originalRequest._retry) {
+        // If this retry already failed, purge credentials and redirect to login
+        clearAuthSession();
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login?expired=true';
+        }
+        return Promise.reject(error);
+      }
 
-          const newAccessToken = response.data?.accessToken;
-          if (newAccessToken) {
-            localStorage.setItem('access_token', newAccessToken);
-            if (response.data.refreshToken) {
-              localStorage.setItem('refresh_token', response.data.refreshToken);
-            }
-            if (originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+      const refreshToken = getStoredRefreshToken();
+
+      if (!refreshToken) {
+        clearAuthSession();
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login?expired=true';
+        }
+        return Promise.reject(error);
+      }
+
+      if (isRefreshing) {
+        // Queue this request while token refresh is in flight
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            if (originalRequest.headers && token) {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
             }
             return apiClient(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        // Spring Boot backend expects JSON body: { refreshToken: string }
+        const response = await axios.post<AuthResponse>(
+          `${API_BASE_URL}/api/auth/refresh`,
+          { refreshToken },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
           }
-        } catch (refreshErr) {
-          // Token refresh failed - clean up and redirect to login
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('user_data');
-          window.location.href = '/login';
-          return Promise.reject(refreshErr);
+        );
+
+        const newAccessToken = response.data?.accessToken;
+        const newRefreshToken = response.data?.refreshToken;
+
+        if (newAccessToken) {
+          setAuthSession(newAccessToken, newRefreshToken, response.data?.user);
+
+          if (originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          }
+
+          processQueue(null, newAccessToken);
+          return apiClient(originalRequest);
+        } else {
+          throw new Error('Refresh response did not contain an access token');
         }
-      } else {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('user_data');
+      } catch (refreshErr) {
+        processQueue(refreshErr, null);
+        clearAuthSession();
         if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
+          window.location.href = '/login?expired=true';
         }
+        return Promise.reject(refreshErr);
+      } finally {
+        isRefreshing = false;
       }
     }
 

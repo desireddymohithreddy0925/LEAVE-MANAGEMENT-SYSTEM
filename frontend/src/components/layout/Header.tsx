@@ -24,7 +24,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
-  const { user, employee, logout } = useAuth();
+  const { user, employee, roles, logout } = useAuth();
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
@@ -41,9 +41,9 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
     navigate('/profile');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     handleCloseMenu();
-    logout();
+    await logout();
     navigate('/login');
   };
 
@@ -52,7 +52,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
     ? `${employee.firstName} ${employee.lastName}`
     : user?.email?.split('@')[0] || 'User';
 
-  const primaryRole = user?.roles?.[0]?.name?.replace('ROLE_', '') || 'EMPLOYEE';
+  const primaryRole = roles[0] || user?.roles?.[0]?.name?.replace('ROLE_', '') || 'EMPLOYEE';
 
   return (
     <AppBar

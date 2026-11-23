@@ -9,12 +9,14 @@ import {
   Box,
   Typography,
   Divider,
+  Chip,
 } from '@mui/material';
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
+import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -28,7 +30,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { user, roles, logout } = useAuth();
 
   const navItems = [
     { text: 'Overview', path: '/dashboard', icon: <DashboardOutlinedIcon /> },
@@ -42,11 +44,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
     onClose();
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
     onClose();
   };
+
+  const primaryRole = roles[0] || 'EMPLOYEE';
 
   const drawerContent = (
     <Box
@@ -123,8 +127,58 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
 
       <Divider sx={{ borderColor: '#EAE6DF' }} />
 
-      {/* Bottom Sign Out */}
-      <Box sx={{ p: 1.5 }}>
+      {/* Bottom Session Info & Sign Out */}
+      <Box sx={{ p: 2 }}>
+        <Box
+          sx={{
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #EAE6DF',
+            borderRadius: 1.5,
+            p: 1.5,
+            mb: 1.5,
+          }}
+        >
+          <Typography
+            variant="caption"
+            sx={{
+              color: '#6B7280',
+              fontWeight: 600,
+              fontSize: '0.675rem',
+              letterSpacing: '0.08em',
+              display: 'block',
+              mb: 0.5,
+            }}
+          >
+            ACTIVE ACCOUNT ROLE
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Chip
+              icon={<AdminPanelSettingsOutlinedIcon style={{ fontSize: 14 }} />}
+              label={primaryRole}
+              size="small"
+              sx={{
+                backgroundColor: '#111315',
+                color: '#FAF9F6',
+                fontWeight: 600,
+                fontSize: '0.7rem',
+                height: 22,
+              }}
+            />
+          </Box>
+          <Typography
+            variant="caption"
+            noWrap
+            sx={{
+              color: '#4B5563',
+              display: 'block',
+              mt: 0.75,
+              fontSize: '0.725rem',
+            }}
+          >
+            {user?.email || 'Authenticated User'}
+          </Typography>
+        </Box>
+
         <ListItemButton
           onClick={handleLogout}
           sx={{
@@ -135,8 +189,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
             },
           }}
         >
-          <ListItemIcon sx={{ color: '#8C2D2D', minWidth: 40 }}>
-            <LogoutOutlinedIcon />
+          <ListItemIcon sx={{ color: '#8C2D2D', minWidth: 36 }}>
+            <LogoutOutlinedIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText
             primary="Sign Out"

@@ -7,15 +7,19 @@ import Dashboard from '../pages/Dashboard';
 import ApplyLeave from '../pages/ApplyLeave';
 import MyLeaves from '../pages/MyLeaves';
 import Profile from '../pages/Profile';
+import Unauthorized from '../pages/Unauthorized';
 import NotFound from '../pages/NotFound';
 
 export const AppRoutes: React.FC = () => {
   return (
     <Routes>
-      {/* Public route */}
+      {/* Public Authentication Route */}
       <Route path="/login" element={<Login />} />
 
-      {/* Protected routes wrapped in MainLayout */}
+      {/* Standalone Unauthorized Error Route */}
+      <Route path="/unauthorized" element={<Unauthorized />} />
+
+      {/* Protected Routes wrapped in MainLayout */}
       <Route
         path="/"
         element={
@@ -25,10 +29,36 @@ export const AppRoutes: React.FC = () => {
         }
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
+        
+        {/* Core Employee & Organization Routes */}
         <Route path="dashboard" element={<Dashboard />} />
-        <Route path="apply-leave" element={<ApplyLeave />} />
-        <Route path="my-leaves" element={<MyLeaves />} />
-        <Route path="profile" element={<Profile />} />
+        
+        <Route
+          path="apply-leave"
+          element={
+            <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'HR', 'ADMIN']}>
+              <ApplyLeave />
+            </ProtectedRoute>
+          }
+        />
+        
+        <Route
+          path="my-leaves"
+          element={
+            <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'HR', 'ADMIN']}>
+              <MyLeaves />
+            </ProtectedRoute>
+          }
+        />
+        
+        <Route
+          path="profile"
+          element={
+            <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'HR', 'ADMIN']}>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
       </Route>
 
       {/* 404 Fallback */}
