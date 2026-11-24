@@ -242,7 +242,7 @@ export const MyLeaves: React.FC = () => {
                     </TableCell>
                     <TableCell sx={{ color: '#4B5563' }}>{req.startDate}</TableCell>
                     <TableCell sx={{ color: '#4B5563' }}>{req.endDate}</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>{req.days}</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>{req.requestedDays ?? req.days ?? 1}</TableCell>
                     <TableCell sx={{ color: '#6B7280', maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {req.reason || '-'}
                     </TableCell>

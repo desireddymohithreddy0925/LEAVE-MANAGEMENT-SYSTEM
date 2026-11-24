@@ -76,9 +76,12 @@ export interface LeaveBalance {
   id: number;
   leaveType: LeaveType;
   year: number;
-  totalDays: number;
-  usedDays: number;
-  availableDays: number;
+  total?: number;
+  used?: number;
+  available?: number;
+  totalDays?: number;
+  usedDays?: number;
+  availableDays?: number;
 }
 
 export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
@@ -89,12 +92,30 @@ export interface LeaveRequest {
   leaveType: LeaveType;
   startDate: string;
   endDate: string;
-  days: number;
+  days?: number;
+  requestedDays?: number;
   reason: string;
   status: LeaveStatus;
   rejectionReason?: string;
-  createdAt: string;
+  appliedAt?: string;
+  createdAt?: string;
   updatedAt?: string;
+  requiresDualApproval?: boolean;
+  managerApprovalStatus?: string;
+  managerApprovedByEmail?: string;
+  managerApprovedAt?: string;
+  hrApprovalStatus?: string;
+  hrApprovedByEmail?: string;
+  hrApprovedAt?: string;
+}
+
+export interface Holiday {
+  id: string | number;
+  name: string;
+  date: string;
+  dayOfWeek: string;
+  type: 'STATUTORY' | 'OPTIONAL' | 'COMPANY';
+  description?: string;
 }
 
 export interface CreateLeaveRequestDTO {
