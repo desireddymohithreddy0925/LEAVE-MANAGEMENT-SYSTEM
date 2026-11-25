@@ -157,24 +157,26 @@ public class ConcurrentLeaveApplicationIntegrationTest {
         emp1.setUser(user1);
         employee1 = employeeRepository.save(emp1);
 
-        int currentYear = LocalDate.now().getYear();
-        LeaveBalance bal1Annual = new LeaveBalance();
-        bal1Annual.setEmployee(employee1);
-        bal1Annual.setLeaveType(annualLeaveType);
-        bal1Annual.setYear(currentYear);
-        bal1Annual.setTotal(20);
-        bal1Annual.setUsed(0);
-        bal1Annual.setAvailable(20);
-        leaveBalanceRepository.save(bal1Annual);
+        int targetYear = LocalDate.now().getYear() + 1;
+        for (int year : new int[]{LocalDate.now().getYear(), targetYear}) {
+            LeaveBalance bal1Annual = new LeaveBalance();
+            bal1Annual.setEmployee(employee1);
+            bal1Annual.setLeaveType(annualLeaveType);
+            bal1Annual.setYear(year);
+            bal1Annual.setTotal(20);
+            bal1Annual.setUsed(0);
+            bal1Annual.setAvailable(20);
+            leaveBalanceRepository.save(bal1Annual);
 
-        LeaveBalance bal1Sick = new LeaveBalance();
-        bal1Sick.setEmployee(employee1);
-        bal1Sick.setLeaveType(sickLeaveType);
-        bal1Sick.setYear(currentYear);
-        bal1Sick.setTotal(10);
-        bal1Sick.setUsed(0);
-        bal1Sick.setAvailable(10);
-        leaveBalanceRepository.save(bal1Sick);
+            LeaveBalance bal1Sick = new LeaveBalance();
+            bal1Sick.setEmployee(employee1);
+            bal1Sick.setLeaveType(sickLeaveType);
+            bal1Sick.setYear(year);
+            bal1Sick.setTotal(10);
+            bal1Sick.setUsed(0);
+            bal1Sick.setAvailable(10);
+            leaveBalanceRepository.save(bal1Sick);
+        }
 
         // 4. Setup Employee 2
         User user2 = new User();
@@ -196,14 +198,16 @@ public class ConcurrentLeaveApplicationIntegrationTest {
         emp2.setUser(user2);
         employee2 = employeeRepository.save(emp2);
 
-        LeaveBalance bal2Annual = new LeaveBalance();
-        bal2Annual.setEmployee(employee2);
-        bal2Annual.setLeaveType(annualLeaveType);
-        bal2Annual.setYear(currentYear);
-        bal2Annual.setTotal(20);
-        bal2Annual.setUsed(0);
-        bal2Annual.setAvailable(20);
-        leaveBalanceRepository.save(bal2Annual);
+        for (int year : new int[]{LocalDate.now().getYear(), targetYear}) {
+            LeaveBalance bal2Annual = new LeaveBalance();
+            bal2Annual.setEmployee(employee2);
+            bal2Annual.setLeaveType(annualLeaveType);
+            bal2Annual.setYear(year);
+            bal2Annual.setTotal(20);
+            bal2Annual.setUsed(0);
+            bal2Annual.setAvailable(20);
+            leaveBalanceRepository.save(bal2Annual);
+        }
     }
 
     @AfterEach
@@ -238,9 +242,16 @@ public class ConcurrentLeaveApplicationIntegrationTest {
         userRepository.deleteAll();
     }
 
+    private LocalDate safeFutureMonday(int plusWeeks) {
+        int targetYear = LocalDate.now().getYear() + 1;
+        return LocalDate.of(targetYear, 6, 1)
+                .with(java.time.temporal.TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY))
+                .plusWeeks(plusWeeks);
+    }
+
     @Test
     public void concurrentSimultaneousApplications_sameEmployee_identicalDates_exactlyOneSucceeds_otherFailsWithOverlap() throws Exception {
-        LocalDate start = LocalDate.now().plusDays(7);
+        LocalDate start = safeFutureMonday(0);
         LocalDate end = start.plusDays(2);
 
         int threads = 2;
@@ -316,7 +327,7 @@ public class ConcurrentLeaveApplicationIntegrationTest {
                 LeaveRequestDTO dto = new LeaveRequestDTO();
                 dto.setEmployeeId(employee1.getId());
                 dto.setLeaveTypeId(annualLeaveType.getId());
-                LocalDate thread1Start = LocalDate.now().plusDays(14);
+                LocalDate thread1Start = safeFutureMonday(0);
                 dto.setStartDate(thread1Start);
                 dto.setEndDate(thread1Start.plusDays(2));
                 dto.setReason("Annual leave concurrent test");
@@ -348,7 +359,7 @@ public class ConcurrentLeaveApplicationIntegrationTest {
                 LeaveRequestDTO dto = new LeaveRequestDTO();
                 dto.setEmployeeId(employee1.getId());
                 dto.setLeaveTypeId(sickLeaveType.getId());
-                LocalDate thread2Start = LocalDate.now().plusDays(15);
+                LocalDate thread2Start = safeFutureMonday(0).plusDays(1);
                 dto.setStartDate(thread2Start);
                 dto.setEndDate(thread2Start.plusDays(2));
                 dto.setReason("Sick leave concurrent overlapping test");
@@ -402,7 +413,7 @@ public class ConcurrentLeaveApplicationIntegrationTest {
                 LeaveRequestDTO dto = new LeaveRequestDTO();
                 dto.setEmployeeId(employee1.getId());
                 dto.setLeaveTypeId(annualLeaveType.getId());
-                LocalDate period1Start = LocalDate.now().plusDays(7);
+                LocalDate period1Start = safeFutureMonday(0);
                 dto.setStartDate(period1Start);
                 dto.setEndDate(period1Start.plusDays(2));
                 dto.setReason("Non-overlapping period 1");
@@ -430,7 +441,7 @@ public class ConcurrentLeaveApplicationIntegrationTest {
                 LeaveRequestDTO dto = new LeaveRequestDTO();
                 dto.setEmployeeId(employee1.getId());
                 dto.setLeaveTypeId(annualLeaveType.getId());
-                LocalDate period2Start = LocalDate.now().plusDays(21);
+                LocalDate period2Start = safeFutureMonday(2);
                 dto.setStartDate(period2Start);
                 dto.setEndDate(period2Start.plusDays(2));
                 dto.setReason("Non-overlapping period 2");
@@ -464,7 +475,7 @@ public class ConcurrentLeaveApplicationIntegrationTest {
 
     @Test
     public void concurrentSimultaneousApplications_differentEmployees_sameDates_bothSucceedInParallel() throws Exception {
-        LocalDate start = LocalDate.now().plusDays(35);
+        LocalDate start = safeFutureMonday(0);
         LocalDate end = start.plusDays(2);
 
         int threads = 2;
@@ -542,11 +553,7 @@ public class ConcurrentLeaveApplicationIntegrationTest {
 
     @Test
     public void concurrentSimultaneousApplications_fiveThreads_sameDates_exactlyOneSucceeds() throws Exception {
-        LocalDate computedStart = LocalDate.now().plusDays(10);
-        while (computedStart.getDayOfWeek() == DayOfWeek.SATURDAY || computedStart.getDayOfWeek() == DayOfWeek.SUNDAY || computedStart.getDayOfWeek() == DayOfWeek.FRIDAY) {
-            computedStart = computedStart.plusDays(1);
-        }
-        final LocalDate start = computedStart;
+        final LocalDate start = safeFutureMonday(0);
         final LocalDate end = start.plusDays(1);
 
         int threads = 5;

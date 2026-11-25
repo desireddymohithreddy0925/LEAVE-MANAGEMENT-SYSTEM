@@ -259,7 +259,7 @@ public class ConcurrentLeaveApplicationAndApprovalStressTest {
         employeeBalance = new LeaveBalance();
         employeeBalance.setEmployee(regularEmployee);
         employeeBalance.setLeaveType(annualLeaveType);
-        employeeBalance.setYear(LocalDate.now().getYear());
+        employeeBalance.setYear(LocalDate.now().getYear() + 1);
         employeeBalance.setTotal(25);
         employeeBalance.setUsed(0);
         employeeBalance.setAvailable(25);
@@ -304,7 +304,9 @@ public class ConcurrentLeaveApplicationAndApprovalStressTest {
     @Test
     @DisplayName("Concurrent Overlapping Applications: 8 competing threads submit identical dates, exactly 1 succeeds")
     void testConcurrentOverlappingApplications_ExactlyOneSucceeds() throws Exception {
-        LocalDate start = LocalDate.now().plusDays(14);
+        int targetYear = LocalDate.now().getYear() + 1;
+        LocalDate start = LocalDate.of(targetYear, 6, 1)
+                .with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.MONDAY));
         LocalDate end = start.plusDays(3);
 
         int threads = 8;
@@ -385,7 +387,9 @@ public class ConcurrentLeaveApplicationAndApprovalStressTest {
     @DisplayName("Dual Concurrent Approval: Simultaneous manager and HR approvals deduct leave balance exactly once")
     void testConcurrentDualApproval_DeductsBalanceOnce() throws Exception {
         // Create an initial leave request of 4 days
-        LocalDate start = LocalDate.now().plusDays(30);
+        int targetYear = LocalDate.now().getYear() + 1;
+        LocalDate start = LocalDate.of(targetYear, 6, 1)
+                .with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.MONDAY));
         LocalDate end = start.plusDays(3); // 4 days inclusive
 
         LeaveRequest request = new LeaveRequest();
@@ -499,7 +503,7 @@ public class ConcurrentLeaveApplicationAndApprovalStressTest {
             LeaveBalance b = new LeaveBalance();
             b.setEmployee(e);
             b.setLeaveType(annualLeaveType);
-            b.setYear(LocalDate.now().getYear());
+            b.setYear(LocalDate.now().getYear() + 1);
             b.setTotal(20);
             b.setUsed(0);
             b.setAvailable(20);
@@ -525,8 +529,12 @@ public class ConcurrentLeaveApplicationAndApprovalStressTest {
                     LeaveRequestDTO dto = new LeaveRequestDTO();
                     dto.setEmployeeId(employees.get(index).getId());
                     dto.setLeaveTypeId(annualLeaveType.getId());
-                    dto.setStartDate(LocalDate.now().plusDays(10 + index * 5));
-                    dto.setEndDate(LocalDate.now().plusDays(12 + index * 5));
+                    int targetYear = LocalDate.now().getYear() + 1;
+                    LocalDate monday = LocalDate.of(targetYear, 6, 1)
+                            .with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.MONDAY))
+                            .plusWeeks(index);
+                    dto.setStartDate(monday);
+                    dto.setEndDate(monday.plusDays(2));
                     dto.setReason("Independent non-conflicting multi-employee application");
 
                     MvcResult result = mockMvc.perform(post("/api/leave-requests")
