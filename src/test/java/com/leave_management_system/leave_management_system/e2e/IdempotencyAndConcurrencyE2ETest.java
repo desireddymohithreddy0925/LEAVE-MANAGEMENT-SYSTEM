@@ -215,9 +215,10 @@ public class IdempotencyAndConcurrencyE2ETest extends BaseE2ETest {
     void testConcurrentLeaveApprovalsOverHttp_BalanceProtection() throws Exception {
         setupBaseData();
 
-        LocalDate monday1 = getNextMonday(LocalDate.now().plusWeeks(3));
-        LocalDate monday2 = getNextMonday(LocalDate.now().plusWeeks(5));
-        int leaveYear = monday1.getYear();
+        int targetYear = LocalDate.now().getYear() + 1;
+        LocalDate monday1 = getNextMonday(LocalDate.of(targetYear, 6, 1));
+        LocalDate monday2 = monday1.plusWeeks(2);
+        int leaveYear = targetYear;
 
         // Allocate ONLY 5 days balance
         LeaveBalanceRequestDTO balDto = new LeaveBalanceRequestDTO();

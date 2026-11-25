@@ -133,8 +133,9 @@ public class LeaveLifecycleE2ETest extends BaseE2ETest {
         assertEquals(200, assignEmpMgrResp.statusCode());
 
         // 6. Admin allocates 20 days Leave Balance for Employee over HTTP
-        LocalDate monday = getNextMonday(LocalDate.now().plusWeeks(2));
-        int leaveYear = monday.getYear();
+        int targetYear = LocalDate.now().getYear() + 1;
+        LocalDate monday = getNextMonday(LocalDate.of(targetYear, 6, 1));
+        int leaveYear = targetYear;
 
         LeaveBalanceRequestDTO balDto = new LeaveBalanceRequestDTO();
         balDto.setEmployeeId(employeeEmpId);

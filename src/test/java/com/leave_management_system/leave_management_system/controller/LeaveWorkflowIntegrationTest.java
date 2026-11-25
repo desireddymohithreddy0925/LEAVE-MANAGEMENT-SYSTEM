@@ -233,8 +233,9 @@ public class LeaveWorkflowIntegrationTest {
         int currentYear = LocalDate.now().getYear();
 
         // 1. Admin allocates Leave Balance of 20 days for Employee
-        LocalDate monday = getNextMonday(LocalDate.now().plusWeeks(2));
-        int leaveYear = monday.getYear();
+        int targetYear = LocalDate.now().getYear() + 1;
+        LocalDate monday = getNextMonday(LocalDate.of(targetYear, 6, 1));
+        int leaveYear = targetYear;
 
         LeaveBalanceRequestDTO balDto = new LeaveBalanceRequestDTO();
         balDto.setEmployeeId(employeeEmp.getId());
