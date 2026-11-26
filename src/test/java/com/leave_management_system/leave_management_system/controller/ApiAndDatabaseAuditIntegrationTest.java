@@ -806,14 +806,25 @@ public class ApiAndDatabaseAuditIntegrationTest {
         @Test
         @DisplayName("Audit Insufficient Leave Balance: Requesting more days than available returns 400")
         void testInsufficientBalanceRejection() throws Exception {
-            LeaveBalance balance = leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(standardEmployee, annualLeave, LocalDate.now().getYear()).orElseThrow();
+            int targetYear = LocalDate.now().getYear() + 1;
+            LeaveBalance balance = leaveBalanceRepository
+                    .findByEmployeeAndLeaveTypeAndYear(standardEmployee, annualLeave, targetYear)
+                    .orElseGet(() -> {
+                        LeaveBalance b = new LeaveBalance();
+                        b.setEmployee(standardEmployee);
+                        b.setLeaveType(annualLeave);
+                        b.setYear(targetYear);
+                        b.setTotal(25);
+                        b.setUsed(0);
+                        return b;
+                    });
             balance.setAvailable(2);
             leaveBalanceRepository.saveAndFlush(balance);
 
             LeaveRequestDTO dto = new LeaveRequestDTO();
             dto.setLeaveTypeId(annualLeave.getId());
-            dto.setStartDate(LocalDate.now().plusDays(30));
-            dto.setEndDate(LocalDate.now().plusDays(36)); // 5 working days > 2 available
+            dto.setStartDate(LocalDate.of(targetYear, 6, 1));
+            dto.setEndDate(LocalDate.of(targetYear, 6, 10)); // 7+ working days > 2 available
             dto.setReason("Long sabbatical attempt exceeding quota");
 
             mockMvc.perform(post("/api/leave-requests")
