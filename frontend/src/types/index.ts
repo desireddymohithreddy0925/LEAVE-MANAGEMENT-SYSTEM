@@ -84,7 +84,7 @@ export interface LeaveBalance {
   availableDays?: number;
 }
 
-export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+export type LeaveStatus = 'PENDING' | 'PARTIALLY_APPROVED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 
 export interface LeaveRequest {
   id: number;
@@ -134,6 +134,16 @@ export interface EmployeeHierarchy {
   employee: Employee;
   reportingChain: Employee[];
   directReports: Employee[];
+}
+
+export interface TeamHierarchy {
+  managerId: number;
+  managerName: string;
+  managerEmail?: string;
+  departmentName?: string;
+  directReports: Employee[];
+  subordinateTeams: TeamHierarchy[];
+  totalTeamSize: number;
 }
 
 export interface Page<T> {

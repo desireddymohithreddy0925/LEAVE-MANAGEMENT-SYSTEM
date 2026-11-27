@@ -17,6 +17,7 @@ import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
+import SupervisorAccountOutlinedIcon from '@mui/icons-material/SupervisorAccountOutlined';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -30,7 +31,9 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, roles, logout } = useAuth();
+  const { user, roles, hasAnyRole, logout } = useAuth();
+
+  const canAccessManager = hasAnyRole(['MANAGER', 'ADMIN']);
 
   const navItems = [
     { text: 'Overview', path: '/dashboard', icon: <DashboardOutlinedIcon /> },
@@ -38,6 +41,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
     { text: 'My Leave History', path: '/my-leaves', icon: <HistoryOutlinedIcon /> },
     { text: 'My Profile', path: '/profile', icon: <PersonOutlineOutlinedIcon /> },
   ];
+
+  const managementItems = canAccessManager
+    ? [{ text: 'Manager Dashboard', path: '/manager', icon: <SupervisorAccountOutlinedIcon /> }]
+    : [];
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -48,6 +55,46 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
     await logout();
     navigate('/login');
     onClose();
+  };
+
+  const renderNavItem = (item: { text: string; path: string; icon: React.ReactNode }) => {
+    const isSelected = location.pathname === item.path;
+    return (
+      <ListItemButton
+        key={item.text}
+        onClick={() => handleNavigation(item.path)}
+        sx={{
+          mb: 0.75,
+          borderRadius: '6px',
+          position: 'relative',
+          backgroundColor: isSelected ? 'rgba(184, 151, 108, 0.12)' : 'transparent',
+          color: isSelected ? '#16181B' : '#4B5563',
+          fontWeight: isSelected ? 600 : 400,
+          borderLeft: isSelected ? '3px solid #B8976C' : '3px solid transparent',
+          transition: 'all 0.2s ease',
+          '&:hover': {
+            backgroundColor: isSelected ? 'rgba(184, 151, 108, 0.16)' : 'rgba(17, 19, 21, 0.04)',
+            color: '#16181B',
+          },
+        }}
+      >
+        <ListItemIcon
+          sx={{
+            color: isSelected ? '#B8976C' : '#6B7280',
+            minWidth: 40,
+          }}
+        >
+          {item.icon}
+        </ListItemIcon>
+        <ListItemText
+          primary={item.text}
+          primaryTypographyProps={{
+            fontSize: '0.885rem',
+            fontWeight: isSelected ? 600 : 500,
+          }}
+        />
+      </ListItemButton>
+    );
   };
 
   const primaryRole = roles[0] || 'EMPLOYEE';
@@ -82,47 +129,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose }) => {
 
       {/* Main Navigation List */}
       <List sx={{ px: 1.5, py: 2.5, flexGrow: 1 }}>
-        {navItems.map((item) => {
-          const isSelected = location.pathname === item.path;
-          return (
-            <ListItemButton
-              key={item.text}
-              onClick={() => handleNavigation(item.path)}
+        {navItems.map(renderNavItem)}
+
+        {managementItems.length > 0 && (
+          <>
+            <Divider sx={{ my: 1.5, borderColor: '#EAE6DF' }} />
+            <Typography
+              variant="caption"
               sx={{
-                mb: 0.75,
-                borderRadius: '6px',
-                position: 'relative',
-                backgroundColor: isSelected ? 'rgba(184, 151, 108, 0.12)' : 'transparent',
-                color: isSelected ? '#16181B' : '#4B5563',
-                fontWeight: isSelected ? 600 : 400,
-                borderLeft: isSelected ? '3px solid #B8976C' : '3px solid transparent',
-                transition: 'all 0.2s ease',
-                '&:hover': {
-                  backgroundColor: isSelected
-                    ? 'rgba(184, 151, 108, 0.16)'
-                    : 'rgba(17, 19, 21, 0.04)',
-                  color: '#16181B',
-                },
+                px: 1.5,
+                pb: 0.75,
+                display: 'block',
+                color: '#B8976C',
+                fontWeight: 700,
+                fontSize: '0.675rem',
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
               }}
             >
-              <ListItemIcon
-                sx={{
-                  color: isSelected ? '#B8976C' : '#6B7280',
-                  minWidth: 40,
-                }}
-              >
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText
-                primary={item.text}
-                primaryTypographyProps={{
-                  fontSize: '0.885rem',
-                  fontWeight: isSelected ? 600 : 500,
-                }}
-              />
-            </ListItemButton>
-          );
-        })}
+              Management
+            </Typography>
+            {managementItems.map(renderNavItem)}
+          </>
+        )}
       </List>
 
       <Divider sx={{ borderColor: '#EAE6DF' }} />

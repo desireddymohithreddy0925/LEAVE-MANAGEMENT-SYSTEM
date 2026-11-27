@@ -7,6 +7,7 @@ import Dashboard from '../pages/Dashboard';
 import ApplyLeave from '../pages/ApplyLeave';
 import MyLeaves from '../pages/MyLeaves';
 import Profile from '../pages/Profile';
+import ManagerDashboard from '../pages/ManagerDashboard';
 import Unauthorized from '../pages/Unauthorized';
 import NotFound from '../pages/NotFound';
 
@@ -56,6 +57,16 @@ export const AppRoutes: React.FC = () => {
           element={
             <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'HR', 'ADMIN']}>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Manager Routes */}
+        <Route
+          path="manager"
+          element={
+            <ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']}>
+              <ManagerDashboard />
             </ProtectedRoute>
           }
         />
