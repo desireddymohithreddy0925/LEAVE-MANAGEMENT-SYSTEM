@@ -233,7 +233,7 @@ public class TransactionReviewIntegrationTest {
         leaveBalance = new LeaveBalance();
         leaveBalance.setEmployee(regularEmployee);
         leaveBalance.setLeaveType(leaveType);
-        leaveBalance.setYear(LocalDate.now().plusDays(20).getYear());
+        leaveBalance.setYear(LocalDate.now().getYear() + 1);
         leaveBalance.setTotal(25);
         leaveBalance.setAvailable(25);
         leaveBalance.setUsed(0);
@@ -275,7 +275,7 @@ public class TransactionReviewIntegrationTest {
 
     @Test
     public void testRoutineLeaveRequestGeneratesLowRiskReviewedTransactionReview() throws Exception {
-        LocalDate startDate = getSafeWeekday(LocalDate.now().plusDays(20));
+        LocalDate startDate = getSafeWeekday(LocalDate.of(LocalDate.now().getYear() + 1, 6, 1));
         LocalDate endDate = startDate.plusDays(1); // 2 days
 
         LeaveRequestDTO requestDTO = new LeaveRequestDTO();
@@ -310,8 +310,8 @@ public class TransactionReviewIntegrationTest {
 
     @Test
     public void testExtendedLeaveRequestGeneratesHighRiskFlaggedTransactionReview() throws Exception {
-        LocalDate startDate = getSafeWeekday(LocalDate.now().plusDays(20));
-        LocalDate endDate = startDate.plusDays(15); // > 10 days
+        LocalDate startDate = getSafeWeekday(LocalDate.of(LocalDate.now().getYear() + 1, 6, 1));
+        LocalDate endDate = startDate.plusDays(15); // > 10 days, strictly same calendar year
 
         LeaveRequestDTO requestDTO = new LeaveRequestDTO();
         requestDTO.setEmployeeId(regularEmployee.getId());
@@ -360,7 +360,7 @@ public class TransactionReviewIntegrationTest {
 
     @Test
     public void testLeaveApprovalAndCancellationRecordsTransactionReviews() throws Exception {
-        LocalDate startDate = getSafeWeekday(LocalDate.now().plusDays(20));
+        LocalDate startDate = getSafeWeekday(LocalDate.of(LocalDate.now().getYear() + 1, 6, 1));
         LocalDate endDate = startDate.plusDays(2);
 
         LeaveRequest request = new LeaveRequest();

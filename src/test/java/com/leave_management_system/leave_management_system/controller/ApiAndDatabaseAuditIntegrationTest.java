@@ -998,11 +998,26 @@ public class ApiAndDatabaseAuditIntegrationTest {
         @Test
         @DisplayName("Data Ownership: Leave application ignores spoofed employeeId in payload and enforces caller identity")
         void testLeaveCreationEnforcesCallerOwnership_IgnoresPayloadSpoofing() throws Exception {
+            int targetYear = LocalDate.now().getYear() + 1;
+            leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(standardEmployee, annualLeave, targetYear)
+                    .orElseGet(() -> {
+                        LeaveBalance b = new LeaveBalance();
+                        b.setEmployee(standardEmployee);
+                        b.setLeaveType(annualLeave);
+                        b.setYear(targetYear);
+                        b.setTotal(25);
+                        b.setUsed(0);
+                        b.setAvailable(25);
+                        return leaveBalanceRepository.saveAndFlush(b);
+                    });
+            LocalDate start = LocalDate.of(targetYear, 6, 1)
+                    .with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.MONDAY));
+
             LeaveRequestDTO spoofDto = new LeaveRequestDTO();
             spoofDto.setEmployeeId(peerEmployee.getId()); // Attacker supplies peer ID
             spoofDto.setLeaveTypeId(annualLeave.getId());
-            spoofDto.setStartDate(LocalDate.now().plusDays(30));
-            spoofDto.setEndDate(LocalDate.now().plusDays(32));
+            spoofDto.setStartDate(start);
+            spoofDto.setEndDate(start.plusDays(2));
             spoofDto.setReason("Legitimate applicant request");
 
             mockMvc.perform(post("/api/leave-requests")

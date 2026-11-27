@@ -445,18 +445,40 @@ public class DateAndConcurrencyRegressionIntegrationTest {
     @Test
     @DisplayName("Leave request across month-end boundary in same year accurately aggregates working days")
     public void testLeaveRequest_MonthEndBoundary_CalculatesWorkingDaysAndDeductsAccurately() throws Exception {
-        // Thursday, Nov 26, 2026 to Tuesday, Dec 1, 2026 (6 calendar days: Thu, Fri, Sat, Sun, Mon, Tue)
-        // Working days: Thu(26), Fri(27), Mon(30), Tue(1) = exactly 4 working days
-        LocalDate nov26 = LocalDate.of(2026, 11, 26);
-        LocalDate dec1 = LocalDate.of(2026, 12, 1);
-        assertEquals(DayOfWeek.THURSDAY, nov26.getDayOfWeek());
-        assertEquals(DayOfWeek.TUESDAY, dec1.getDayOfWeek());
+        int targetYear = LocalDate.now().getYear() + 1;
+        LeaveBalance targetBalance = leaveBalanceRepository
+                .findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, targetYear)
+                .orElseGet(() -> {
+                    LeaveBalance b = new LeaveBalance();
+                    b.setEmployee(employee);
+                    b.setLeaveType(annualLeaveType);
+                    b.setYear(targetYear);
+                    b.setTotal(25);
+                    b.setUsed(0);
+                    b.setAvailable(25);
+                    return leaveBalanceRepository.saveAndFlush(b);
+                });
+
+        // Dynamically select a Thursday at month-end in targetYear so [Thu..Tue] spans month boundary = 4 working days
+        LocalDate monthEndThursday = null;
+        for (int month = 2; month <= 11; month++) {
+            LocalDate lastDay = LocalDate.of(targetYear, month, 1).with(TemporalAdjusters.lastDayOfMonth());
+            LocalDate candidateThu = lastDay.with(TemporalAdjusters.previousOrSame(DayOfWeek.THURSDAY));
+            if (candidateThu.plusDays(5).getMonthValue() != candidateThu.getMonthValue()) {
+                monthEndThursday = candidateThu;
+                break;
+            }
+        }
+        assertNotNull(monthEndThursday, "A future month-end Thursday spanning month boundary must exist");
+        LocalDate nextMonthTuesday = monthEndThursday.plusDays(5);
+        assertEquals(DayOfWeek.THURSDAY, monthEndThursday.getDayOfWeek());
+        assertEquals(DayOfWeek.TUESDAY, nextMonthTuesday.getDayOfWeek());
 
         LeaveRequestDTO dto = new LeaveRequestDTO();
         dto.setEmployeeId(employee.getId());
         dto.setLeaveTypeId(annualLeaveType.getId());
-        dto.setStartDate(nov26);
-        dto.setEndDate(dec1);
+        dto.setStartDate(monthEndThursday);
+        dto.setEndDate(nextMonthTuesday);
         dto.setReason("Month-end transition project handover leave");
 
         mockMvc.perform(post("/api/leave-requests")
@@ -471,17 +493,48 @@ public class DateAndConcurrencyRegressionIntegrationTest {
         leaveRequestService.approveLeaveRequest(created.getId());
 
         LeaveBalance updatedBalance = leaveBalanceRepository
-                .findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, 2026).orElseThrow();
-        assertEquals(4, updatedBalance.getUsed(), "Used days must be exactly 4 across Nov-Dec boundary");
-        assertEquals(16, updatedBalance.getAvailable(), "Available days must be 20 - 4 = 16");
+                .findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, targetYear).orElseThrow();
+        assertEquals(4, updatedBalance.getUsed(), "Used days must be exactly 4 across month-end boundary");
+        assertEquals(targetBalance.getTotal() - 4, updatedBalance.getAvailable(), "Available days must reflect 4-day deduction");
     }
 
     @Test
     @DisplayName("Leave request crossing calendar year boundary is strictly rejected; single-year boundary succeeds")
     public void testLeaveRequest_YearEndBoundary_CrossYearRejected_SingleYearSucceeds() throws Exception {
-        // 1. Cross-year attempt: Dec 30, 2026 to Jan 4, 2027 must be REJECTED (HTTP 400)
-        LocalDate dec30 = LocalDate.of(2026, 12, 30);
-        LocalDate jan4 = LocalDate.of(2027, 1, 4);
+        int year1 = LocalDate.now().getYear() + 1;
+        int year2 = year1 + 1;
+
+        LeaveBalance balY1 = leaveBalanceRepository
+                .findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, year1)
+                .orElseGet(() -> {
+                    LeaveBalance b = new LeaveBalance();
+                    b.setEmployee(employee);
+                    b.setLeaveType(annualLeaveType);
+                    b.setYear(year1);
+                    b.setTotal(20);
+                    b.setUsed(0);
+                    b.setAvailable(20);
+                    return leaveBalanceRepository.saveAndFlush(b);
+                });
+        int y1InitialAvailable = balY1.getAvailable();
+
+        LeaveBalance balY2 = leaveBalanceRepository
+                .findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, year2)
+                .orElseGet(() -> {
+                    LeaveBalance b = new LeaveBalance();
+                    b.setEmployee(employee);
+                    b.setLeaveType(annualLeaveType);
+                    b.setYear(year2);
+                    b.setTotal(25);
+                    b.setUsed(0);
+                    b.setAvailable(25);
+                    return leaveBalanceRepository.saveAndFlush(b);
+                });
+        int y2InitialAvailable = balY2.getAvailable();
+
+        // 1. Cross-year attempt: Dec 30 year1 to Jan 4 year2 must be REJECTED (HTTP 400)
+        LocalDate dec30 = LocalDate.of(year1, 12, 30);
+        LocalDate jan4 = LocalDate.of(year2, 1, 4);
 
         LeaveRequestDTO crossYearDto = new LeaveRequestDTO();
         crossYearDto.setEmployeeId(employee.getId());
@@ -496,16 +549,16 @@ public class DateAndConcurrencyRegressionIntegrationTest {
                         .content(objectMapper.writeValueAsString(crossYearDto)))
                 .andExpect(status().isBadRequest());
 
-        // 2. Single-year boundary attempt (Dec 28, 2026 to Dec 31, 2026: Mon, Tue, Wed, Thu = 4 working days)
-        LocalDate dec28 = LocalDate.of(2026, 12, 28);
-        LocalDate dec31 = LocalDate.of(2026, 12, 31);
+        // 2. Single-year year-end attempt in Dec of year1 (Mon..Thu = 4 working days)
+        LocalDate y1EndMon = LocalDate.of(year1, 12, 28).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate y1EndThu = y1EndMon.plusDays(3);
 
         LeaveRequestDTO yearEndDto = new LeaveRequestDTO();
         yearEndDto.setEmployeeId(employee.getId());
         yearEndDto.setLeaveTypeId(annualLeaveType.getId());
-        yearEndDto.setStartDate(dec28);
-        yearEndDto.setEndDate(dec31);
-        yearEndDto.setReason("Year-end holiday strictly in 2026");
+        yearEndDto.setStartDate(y1EndMon);
+        yearEndDto.setEndDate(y1EndThu);
+        yearEndDto.setReason("Year-end holiday strictly in " + year1);
 
         mockMvc.perform(post("/api/leave-requests")
                         .header("Authorization", "Bearer " + employeeToken)
@@ -513,24 +566,24 @@ public class DateAndConcurrencyRegressionIntegrationTest {
                         .content(objectMapper.writeValueAsString(yearEndDto)))
                 .andExpect(status().isCreated());
 
-        LeaveRequest created2026 = leaveRequestRepository.findByEmployee(employee).getFirst();
+        LeaveRequest createdY1 = leaveRequestRepository.findByEmployee(employee).getFirst();
         setSecurityAuthentication(managerUser, "MANAGER", "LEAVE_APPROVE", "LEAVE_VIEW_TEAM");
-        leaveRequestService.approveLeaveRequest(created2026.getId());
+        leaveRequestService.approveLeaveRequest(createdY1.getId());
 
-        LeaveBalance bal2026 = leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, 2026).orElseThrow();
-        assertEquals(4, bal2026.getUsed());
-        assertEquals(16, bal2026.getAvailable());
+        LeaveBalance updatedBalY1 = leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, year1).orElseThrow();
+        assertEquals(4, updatedBalY1.getUsed());
+        assertEquals(y1InitialAvailable - 4, updatedBalY1.getAvailable());
 
-        // 3. New-year single-year attempt (Jan 4, 2027 to Jan 8, 2027: Mon to Fri = 5 working days)
-        LocalDate jan4_27 = LocalDate.of(2027, 1, 4);
-        LocalDate jan8_27 = LocalDate.of(2027, 1, 8);
+        // 3. New-year single-year attempt in Jan of year2 (Mon..Fri = 5 working days)
+        LocalDate y2StartMon = LocalDate.of(year2, 1, 4).with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY));
+        LocalDate y2StartFri = y2StartMon.plusDays(4);
 
         LeaveRequestDTO newYearDto = new LeaveRequestDTO();
         newYearDto.setEmployeeId(employee.getId());
         newYearDto.setLeaveTypeId(annualLeaveType.getId());
-        newYearDto.setStartDate(jan4_27);
-        newYearDto.setEndDate(jan8_27);
-        newYearDto.setReason("New year startup strictly in 2027");
+        newYearDto.setStartDate(y2StartMon);
+        newYearDto.setEndDate(y2StartFri);
+        newYearDto.setReason("New year startup strictly in " + year2);
 
         mockMvc.perform(post("/api/leave-requests")
                         .header("Authorization", "Bearer " + employeeToken)
@@ -538,14 +591,14 @@ public class DateAndConcurrencyRegressionIntegrationTest {
                         .content(objectMapper.writeValueAsString(newYearDto)))
                 .andExpect(status().isCreated());
 
-        LeaveRequest created2027 = leaveRequestRepository.findByEmployee(employee).stream()
-                .filter(r -> r.getStartDate().getYear() == 2027).findFirst().orElseThrow();
+        LeaveRequest createdY2 = leaveRequestRepository.findByEmployee(employee).stream()
+                .filter(r -> r.getStartDate().getYear() == year2).findFirst().orElseThrow();
         setSecurityAuthentication(managerUser, "MANAGER", "LEAVE_APPROVE", "LEAVE_VIEW_TEAM");
-        leaveRequestService.approveLeaveRequest(created2027.getId());
+        leaveRequestService.approveLeaveRequest(createdY2.getId());
 
-        LeaveBalance bal2027 = leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, 2027).orElseThrow();
-        assertEquals(5, bal2027.getUsed());
-        assertEquals(20, bal2027.getAvailable());
+        LeaveBalance updatedBalY2 = leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, year2).orElseThrow();
+        assertEquals(5, updatedBalY2.getUsed());
+        assertEquals(y2InitialAvailable - 5, updatedBalY2.getAvailable());
     }
 
     // =========================================================================
@@ -815,8 +868,14 @@ public class DateAndConcurrencyRegressionIntegrationTest {
     public void testBalanceConsistency_OnCancellation() {
         setSecurityAuthentication(employeeUser, "EMPLOYEE", "LEAVE_CREATE", "LEAVE_VIEW_OWN", "LEAVE_CANCEL");
 
+        int targetYear = LocalDate.now().getYear() + 1;
+        LeaveBalance baseBal = leaveBalanceRepository
+                .findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, targetYear)
+                .orElseThrow();
+        int initialAvailable = baseBal.getAvailable();
+
         // 1. Approved request refund test
-        LocalDate start = LocalDate.now().plusWeeks(1).with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+        LocalDate start = LocalDate.of(targetYear, 6, 1).with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY));
         LocalDate end = start.plusDays(4); // 5 working days
 
         LeaveRequestDTO dto1 = new LeaveRequestDTO();
@@ -831,20 +890,20 @@ public class DateAndConcurrencyRegressionIntegrationTest {
         setSecurityAuthentication(managerUser, "MANAGER", "LEAVE_APPROVE", "LEAVE_VIEW_TEAM");
         leaveRequestService.approveLeaveRequest(res1.getId());
 
-        LeaveBalance balApproved = leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, 2026).orElseThrow();
-        assertEquals(15, balApproved.getAvailable());
+        LeaveBalance balApproved = leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, targetYear).orElseThrow();
+        assertEquals(initialAvailable - 5, balApproved.getAvailable());
         assertEquals(5, balApproved.getUsed());
 
         // Cancel approved request
         setSecurityAuthentication(employeeUser, "EMPLOYEE", "LEAVE_CREATE", "LEAVE_VIEW_OWN", "LEAVE_CANCEL");
         leaveRequestService.cancelLeaveRequest(res1.getId());
 
-        LeaveBalance balAfterCancel = leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, 2026).orElseThrow();
-        assertEquals(20, balAfterCancel.getAvailable(), "Available must be fully refunded to 20");
+        LeaveBalance balAfterCancel = leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, targetYear).orElseThrow();
+        assertEquals(initialAvailable, balAfterCancel.getAvailable(), "Available must be fully refunded");
         assertEquals(0, balAfterCancel.getUsed(), "Used must be restored to 0");
 
         // 2. Pending request cancellation (must not add balance)
-        LocalDate start2 = LocalDate.now().plusWeeks(2).with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+        LocalDate start2 = start.plusWeeks(1);
         LocalDate end2 = start2.plusDays(2); // 3 working days
 
         LeaveRequestDTO dto2 = new LeaveRequestDTO();
@@ -858,8 +917,8 @@ public class DateAndConcurrencyRegressionIntegrationTest {
         LeaveResponseDTO res2 = leaveRequestService.createLeaveRequest(dto2);
         leaveRequestService.cancelLeaveRequest(res2.getId());
 
-        LeaveBalance balPendingCancel = leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, 2026).orElseThrow();
-        assertEquals(20, balPendingCancel.getAvailable(), "Available must remain 20 (no spurious refund for unapproved request)");
+        LeaveBalance balPendingCancel = leaveBalanceRepository.findByEmployeeAndLeaveTypeAndYear(employee, annualLeaveType, targetYear).orElseThrow();
+        assertEquals(initialAvailable, balPendingCancel.getAvailable(), "Available must remain unchanged (no spurious refund for unapproved request)");
         assertEquals(0, balPendingCancel.getUsed(), "Used must remain 0");
     }
 
